@@ -1,0 +1,45 @@
+# Node & Dependencies
+node_modules/
+package-lock.json
+
+# Ambiente e Segredos (NUNCA commitar no git)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Bancos de Dados Locais
+*.db
+*.db-journal
+backend/dev.db*
+
+# Vercel & Cache
+.vercel/
+.vercelignore
+
+# Binários nativos e arquivos compilados locais (gerados pelo build)
+*.exe
+*.dll
+*.so
+PapoCall.exe
+PapoCall-Setup.exe
+public/downloads/
+data/
+backend/dist/
+
+# Flutter / Dart Build Artifacts
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.pub/
+flutter_app/.pub-cache/
+
+# Logs e arquivos temporários
+*.log
+desktop/package_temp/
+test_junc
+.DS_Store
+Thumbs.db

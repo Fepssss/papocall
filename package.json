@@ -1,0 +1,26 @@
+{
+  "name": "papocall",
+  "version": "2.0.0",
+  "description": "PapoCall - Aplicativo nativo de voz e chat com tema HUD sóbrio",
+  "main": "server.js",
+  "scripts": {
+    "start": "start PapoCall.exe",
+    "app": "start PapoCall.exe",
+    "build:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build_installer.ps1",
+    "server": "node server.js"
+  },
+  "keywords": [
+    "papocall",
+    "voice",
+    "chat",
+    "desktop",
+    "flutter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "livekit-server-sdk": "^2.19.0",
+    "mqtt": "^5.15.2",
+    "ws": "^8.21.3"
+  }
+}

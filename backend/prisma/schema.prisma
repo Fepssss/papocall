@@ -1,0 +1,95 @@
+// Prisma Schema para PapoCall Auth Service
+// Suporta SQLite (desenvolvimento local/testes) e PostgreSQL (produção)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// Tabela de Usuários
+// ---------------------------------------------------------
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  // Username sempre armazenado em minúsculas (lowercase) e sem prefixo '@'
+  username              String    @unique
+  display_name          String
+  password_hash         String
+  email_verified        Boolean   @default(false)
+  // Controle para limitar alterações frequentes de username (ex: 1 vez a cada 30 dias)
+  last_username_change_at DateTime?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  refresh_tokens           RefreshToken[]
+  email_verification_tokens EmailVerificationToken[]
+  password_reset_tokens    PasswordResetToken[]
+
+  @@index([email])
+  @@index([username])
+  @@map("users")
+}
+
+// ---------------------------------------------------------
+// Tabela de Refresh Tokens com Rotação e Detecção de Reuso
+// ---------------------------------------------------------
+model RefreshToken {
+  id         String    @id @default(uuid())
+  user_id    String
+  // Armazena estritamente o HASH SHA-256 do token (nunca o token em texto puro)
+  token_hash String    @unique
+  // family_id agrupa tokens de uma mesma sessão para revogação em cascata se houver reuso
+  family_id  String
+  expires_at DateTime
+  revoked    Boolean   @default(false)
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@index([family_id])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------
+// Tabela de Tokens de Verificação de E-mail
+// ---------------------------------------------------------
+model EmailVerificationToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  token_hash String   @unique
+  expires_at DateTime
+  used       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------
+// Tabela de Tokens de Recuperação de Senha
+// ---------------------------------------------------------
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  token_hash String   @unique
+  expires_at DateTime
+  used       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@map("password_reset_tokens")
+}
