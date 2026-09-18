@@ -171,11 +171,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<ChatMessage> get activeMessages => _messages[activeChannelId] ?? [];
   List<UserModel> get onlineMembers => _onlineUsers.values.toList();
 
-  void _initDefaultData() {
-    final defaultServer = Server(
+  Server _buildDefaultServer() {
+    return Server(
       id: 'server-default',
       name: 'PapoCall',
+      description: 'Servidor oficial de comunicação tática e voz.',
       inviteCode: 'papocall-oficial',
+      colorHex: '22C55E',
+      isCustom: false,
       channels: [
         Channel(id: 'c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto principal'),
         Channel(id: 'c-avisos', name: 'avisos', type: ChannelType.text, topic: 'Comunicados e novidades'),
@@ -185,7 +188,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         Channel(id: 'v-batepapo', name: 'Bate-Papo Livre', type: ChannelType.voice, userLimit: 10),
       ],
     );
-    servers = [defaultServer];
+  }
+
+  void _initDefaultData() {
+    servers = [_buildDefaultServer()];
 
     _messages['c-geral'] = [
       ChatMessage(
@@ -209,8 +215,41 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   File _getSettingsFile() => _getAppFile('settings.json');
+  File _getServersFile() => _getAppFile('servers.json');
   File _getChatHistoryFile() => _getAppFile('chat_history.json');
   File _getDraftsFile() => _getAppFile('drafts.json');
+
+  Future<void> _saveServers() async {
+    try {
+      final file = _getServersFile();
+      final list = servers.map((s) => s.toJson()).toList();
+      await file.writeAsString(jsonEncode(list));
+    } catch (e) {
+      debugPrint('Erro ao salvar servidores: $e');
+    }
+  }
+
+  Future<void> _loadServers() async {
+    try {
+      final file = _getServersFile();
+      if (file.existsSync()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final List<dynamic> raw = jsonDecode(content);
+          final loaded = raw.map((s) => Server.fromJson(s as Map<String, dynamic>)).toList();
+          if (loaded.isNotEmpty) {
+            final hasDefault = loaded.any((s) => s.id == 'server-default');
+            if (!hasDefault) {
+              loaded.insert(0, _buildDefaultServer());
+            }
+            servers = loaded;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar servidores: $e');
+    }
+  }
 
   Future<void> _saveSettings() async {
     try {
@@ -327,6 +366,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('Erro ao carregar configurações: $e');
     }
 
+    await _loadServers();
     await _loadChatHistory();
     await _loadDrafts();
 
@@ -474,6 +514,146 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       activeChannelId = srv.channels.first.id;
     }
     notifyListeners();
+  }
+
+  Future<Server> createServer({
+    required String name,
+    String description = '',
+    String template = 'gaming',
+    String colorHex = '22C55E',
+  }) async {
+    final serverId = 'srv-${DateTime.now().millisecondsSinceEpoch}';
+    final randomCode = _uuid.v4().substring(0, 8);
+    final inviteCode = 'papo-$randomCode';
+
+    List<Channel> channels = [];
+    switch (template) {
+      case 'gaming':
+        channels = [
+          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Bate-papo geral do squad'),
+          Channel(id: '$serverId-c-estrategia', name: 'estratégia', type: ChannelType.text, topic: 'Táticas, calls e jogadas'),
+          Channel(id: '$serverId-c-clipes', name: 'clipes-e-midia', type: ChannelType.text, topic: 'Vídeos e melhores momentos'),
+          Channel(id: '$serverId-v-squad1', name: '🎮 Squad Alfa', type: ChannelType.voice, userLimit: 5),
+          Channel(id: '$serverId-v-squad2', name: '🎮 Squad Bravo', type: ChannelType.voice, userLimit: 5),
+          Channel(id: '$serverId-v-lounge', name: '🔊 Sala de Espera', type: ChannelType.voice, userLimit: 15),
+        ];
+        break;
+      case 'community':
+        channels = [
+          Channel(id: '$serverId-c-boas-vindas', name: 'boas-vindas', type: ChannelType.text, topic: 'Regras e apresentações'),
+          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Conversa livre'),
+          Channel(id: '$serverId-c-anuncios', name: 'anúncios', type: ChannelType.text, topic: 'Comunicados importantes'),
+          Channel(id: '$serverId-v-lounge', name: '🔊 Lounge Principal', type: ChannelType.voice, userLimit: 25),
+          Channel(id: '$serverId-v-batepapo', name: '🔊 Bate-Papo Descontraído', type: ChannelType.voice, userLimit: 12),
+        ];
+        break;
+      case 'study':
+        channels = [
+          Channel(id: '$serverId-c-projetos', name: 'projetos', type: ChannelType.text, topic: 'Anotações e tarefas'),
+          Channel(id: '$serverId-c-recursos', name: 'links-e-recursos', type: ChannelType.text, topic: 'Materiais de apoio'),
+          Channel(id: '$serverId-c-duvidas', name: 'dúvidas', type: ChannelType.text, topic: 'Discussões técnicas'),
+          Channel(id: '$serverId-v-foco', name: '🎧 Sala de Foco (Mudo)', type: ChannelType.voice, userLimit: 20),
+          Channel(id: '$serverId-v-reuniao', name: '📊 Reunião / Alinhamento', type: ChannelType.voice, userLimit: 10),
+        ];
+        break;
+      default:
+        channels = [
+          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal principal'),
+          Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
+        ];
+    }
+
+    final newServer = Server(
+      id: serverId,
+      name: name.trim(),
+      description: description.trim(),
+      inviteCode: inviteCode,
+      ownerId: currentUser.id,
+      colorHex: colorHex,
+      isCustom: true,
+      channels: channels,
+    );
+
+    servers.add(newServer);
+    await _saveServers();
+
+    final firstText = channels.firstWhere(
+      (c) => c.type == ChannelType.text,
+      orElse: () => channels.first,
+    );
+    _messages[firstText.id] = [
+      ChatMessage(
+        id: 'msg-init-$serverId',
+        authorId: 'sys',
+        author: 'Sistema PapoCall',
+        text: 'Servidor "${newServer.name}" criado com sucesso! Convide seu squad com o código: $inviteCode',
+        timestamp: 'Agora',
+        isSystem: true,
+      ),
+    ];
+    await _saveChatHistory();
+
+    selectServer(newServer.id);
+    _sendPresence();
+    SoundService.playJoinCall();
+    notifyListeners();
+
+    return newServer;
+  }
+
+  Future<bool> deleteServer(String serverId) async {
+    if (serverId == 'server-default') {
+      return false;
+    }
+    final index = servers.indexWhere((s) => s.id == serverId);
+    if (index == -1) return false;
+
+    servers.removeAt(index);
+    await _saveServers();
+
+    if (activeServerId == serverId) {
+      selectServer('server-default');
+    }
+    _sendPresence();
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> joinServerByInvite(String inviteCode) async {
+    final cleanCode = inviteCode.trim();
+    if (cleanCode.isEmpty) return false;
+
+    final existing = servers.firstWhere(
+      (s) => s.inviteCode.toLowerCase() == cleanCode.toLowerCase(),
+      orElse: () => Server(id: '', name: '', inviteCode: '', channels: []),
+    );
+    if (existing.id.isNotEmpty) {
+      selectServer(existing.id);
+      return true;
+    }
+
+    final safeSuffix = cleanCode.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    final serverId = 'srv-$safeSuffix';
+    final joinedServer = Server(
+      id: serverId,
+      name: 'Servidor ($cleanCode)',
+      description: 'Servidor acessado via convite $cleanCode',
+      inviteCode: cleanCode,
+      isCustom: true,
+      colorHex: '38BDF8',
+      channels: [
+        Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto'),
+        Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
+      ],
+    );
+
+    servers.add(joinedServer);
+    await _saveServers();
+    selectServer(joinedServer.id);
+    _sendPresence();
+    SoundService.playJoinCall();
+    notifyListeners();
+    return true;
   }
 
   void selectChannel(String channelId) {

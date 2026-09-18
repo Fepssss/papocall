@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import 'modals/create_server_dialog.dart';
 
 class ServerRail extends StatelessWidget {
   const ServerRail({super.key});
@@ -36,13 +37,20 @@ class ServerRail extends StatelessWidget {
               itemBuilder: (context, index) {
                 final srv = state.servers[index];
                 final isActive = !state.isHomePageActive && srv.id == state.activeServerId;
+                Color? srvColor;
+                if (srv.colorHex.isNotEmpty) {
+                  try {
+                    srvColor = Color(int.parse('0xFF${srv.colorHex}'));
+                  } catch (_) {}
+                }
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _buildServerIcon(
                     isActive: isActive,
                     title: srv.name,
                     initials: srv.name.length >= 2 ? srv.name.substring(0, 2).toUpperCase() : srv.name.toUpperCase(),
-                    assetLogo: index == 0 ? 'assets/logo.png' : null,
+                    assetLogo: (index == 0 && !srv.isCustom) ? 'assets/logo.png' : null,
+                    customColor: srvColor,
                     onTap: () => state.selectServer(srv.id),
                   ),
                 );
@@ -52,21 +60,20 @@ class ServerRail extends StatelessWidget {
           // Add Server Button
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: HudTheme.bgSidebar,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.add, color: HudTheme.green),
-                tooltip: 'Adicionar um Servidor',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Criar Servidor em breve!')),
-                  );
-                },
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: HudTheme.bgSidebar,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.add, color: HudTheme.green),
+                  tooltip: 'Criar Novo Servidor',
+                  onPressed: () => CreateServerDialog.show(context),
+                ),
               ),
             ),
           ),
@@ -82,6 +89,7 @@ class ServerRail extends StatelessWidget {
     required VoidCallback onTap,
     String? assetLogo,
     IconData? iconData,
+    Color? customColor,
   }) {
     return _ServerRailItem(
       isActive: isActive,
@@ -90,6 +98,7 @@ class ServerRail extends StatelessWidget {
       onTap: onTap,
       assetLogo: assetLogo,
       iconData: iconData,
+      customColor: customColor,
     );
   }
 }
@@ -101,6 +110,7 @@ class _ServerRailItem extends StatefulWidget {
   final VoidCallback onTap;
   final String? assetLogo;
   final IconData? iconData;
+  final Color? customColor;
 
   const _ServerRailItem({
     required this.isActive,
@@ -109,6 +119,7 @@ class _ServerRailItem extends StatefulWidget {
     required this.onTap,
     this.assetLogo,
     this.iconData,
+    this.customColor,
   });
 
   @override
@@ -123,8 +134,9 @@ class _ServerRailItemState extends State<_ServerRailItem> {
     final showPill = widget.isActive || _isHovered;
     final pillHeight = widget.isActive ? 40.0 : (_isHovered ? 20.0 : 0.0);
     final borderRadius = (widget.isActive || _isHovered) ? 16.0 : 24.0;
+    final accent = widget.customColor ?? HudTheme.green;
     final bgColor = widget.isActive
-        ? const Color(0xFF1E7E48)
+        ? accent.withValues(alpha: 0.85)
         : (_isHovered ? HudTheme.bgActive : HudTheme.bgSidebar);
 
     return MouseRegion(
