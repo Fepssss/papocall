@@ -95,7 +95,7 @@ class _SettingsModalState extends State<SettingsModal> {
                         Text(
                           state.currentSession != null
                               ? '${state.currentSession!.user.username}  •  ${state.currentSession!.user.email}'
-                              : 'ID: PapoCall Native v2.0.0',
+                              : 'PapoCall Native v${HudTheme.appVersion}',
                           style: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
                         ),
                       ],
