@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'models/channel.dart';
 import 'providers/app_state.dart';
 import 'theme/hud_theme.dart';
+import 'screens/auth_screen.dart';
 import 'services/sound_service.dart';
 import 'widgets/app_left_panel.dart';
 import 'widgets/chat_view.dart';
@@ -36,7 +37,19 @@ class PapoCallApp extends StatelessWidget {
         fontFamily: 'Segoe UI',
         useMaterial3: true,
       ),
-      home: const MainScreen(),
+      home: Consumer<AppState>(
+        builder: (context, state, _) {
+          if (state.isCheckingAuth) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF0B0E14),
+              body: Center(
+                child: CircularProgressIndicator(color: HudTheme.green),
+              ),
+            );
+          }
+          return state.isAuthenticated ? const MainScreen() : const AuthScreen();
+        },
+      ),
     );
   }
 }

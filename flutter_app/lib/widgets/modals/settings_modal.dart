@@ -84,17 +84,19 @@ class _SettingsModalState extends State<SettingsModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user.username,
+                          state.currentSession?.user.displayName ?? user.username,
                           style: const TextStyle(
                             color: HudTheme.textHeader,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'ID: PapoCall Native v2.0.0',
-                          style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
+                        const SizedBox(height: 3),
+                        Text(
+                          state.currentSession != null
+                              ? '${state.currentSession!.user.username}  •  ${state.currentSession!.user.email}'
+                              : 'ID: PapoCall Native v2.0.0',
+                          style: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
                         ),
                       ],
                     ),
@@ -154,27 +156,42 @@ class _SettingsModalState extends State<SettingsModal> {
 
             // Action Buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: HudTheme.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
                   ),
-                  onPressed: () {
-                    state.setUsername(_nameController.text);
+                  icon: const Icon(Icons.logout, size: 16),
+                  label: const Text('Sair da Conta'),
+                  onPressed: () async {
                     Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Configurações salvas com sucesso!')),
-                    );
+                    await state.logout();
                   },
-                  child: const Text('Salvar Alterações'),
+                ),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: HudTheme.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      ),
+                      onPressed: () {
+                        state.setUsername(_nameController.text);
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Configurações salvas com sucesso!')),
+                        );
+                      },
+                      child: const Text('Salvar Alterações'),
+                    ),
+                  ],
                 ),
               ],
             ),

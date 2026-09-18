@@ -42,6 +42,8 @@ dependencies:
   dart_jsonwebtoken: ^3.4.1
   ffi: ^2.2.0
   flutter_webrtc: ^1.6.2+hotfix.3
+  http: ^1.6.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

@@ -11,6 +11,7 @@ import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
 import '../services/voice_service.dart';
 import '../services/sound_service.dart';
+import '../services/auth_service.dart';
 
 class AppState extends ChangeNotifier {
   final MqttService _mqtt = MqttService();
@@ -20,6 +21,10 @@ class AppState extends ChangeNotifier {
   VoiceService get voiceService => _voiceService;
 
   late UserModel currentUser;
+  bool isAuthenticated = false;
+  bool isCheckingAuth = true;
+  AuthSession? currentSession;
+
   List<Server> servers = [];
   String activeServerId = 'server-default';
   String activeChannelId = 'c-geral';
@@ -223,21 +228,28 @@ class AppState extends ChangeNotifier {
 
   Future<void> _initStorageAndNetwork() async {
     try {
+      final savedSession = await AuthService.loadSession();
+      if (savedSession != null) {
+        currentSession = savedSession;
+        currentUser = savedSession.user.toUserModel();
+        isAuthenticated = true;
+      } else {
+        isAuthenticated = false;
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar sessão: $e');
+      isAuthenticated = false;
+    }
+
+    try {
       final file = _getSettingsFile();
       if (file.existsSync()) {
         final content = await file.readAsString();
         final data = jsonDecode(content) as Map<String, dynamic>;
-        final savedId = data['user_id'] as String?;
         final savedUsername = data['username'] as String?;
-        if (savedId != null && savedId.isNotEmpty) {
-          currentUser = UserModel(
-            id: savedId,
-            username: savedUsername ?? 'Usuário',
-            status: UserStatus.online,
-          );
+        if (savedUsername != null && savedUsername.isNotEmpty && !isAuthenticated) {
+          currentUser.username = savedUsername;
         }
-      } else {
-        await _saveSettings();
       }
     } catch (e) {
       debugPrint('Erro ao carregar configurações: $e');
@@ -246,18 +258,82 @@ class AppState extends ChangeNotifier {
     await _loadChatHistory();
     await _loadDrafts();
 
+    isCheckingAuth = false;
     notifyListeners();
 
-    // Conectar ao Broker MQTT
-    await _mqtt.connect('papocall_${currentUser.id}');
-    _mqtt.subscribe('papocall/v1/srv/+/chat');
-    _mqtt.subscribe('papocall/v1/global/presence');
+    if (isAuthenticated) {
+      await _startNetwork();
+    }
+  }
 
-    _mqtt.messageStream.listen(_handleIncomingNetworkData);
+  Future<void> _startNetwork() async {
+    try {
+      _stopNetwork();
+      await _mqtt.connect('papocall_${currentUser.id}');
+      _mqtt.subscribe('papocall/v1/srv/+/chat');
+      _mqtt.subscribe('papocall/v1/global/presence');
 
-    // Iniciar presença
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) => _sendPresence());
-    _sendPresence();
+      _mqtt.messageStream.listen(_handleIncomingNetworkData);
+
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) => _sendPresence());
+      _sendPresence();
+    } catch (e) {
+      debugPrint('Erro ao inicializar rede: $e');
+    }
+  }
+
+  void _stopNetwork() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    try {
+      _mqtt.disconnect();
+    } catch (_) {}
+  }
+
+  Future<void> login({required String identifier, required String password}) async {
+    final session = await AuthService.login(identifier: identifier, password: password);
+    currentSession = session;
+    currentUser = session.user.toUserModel();
+    isAuthenticated = true;
+    await _saveSettings();
+    await _startNetwork();
+    notifyListeners();
+  }
+
+  Future<void> register({
+    required String displayName,
+    required String username,
+    required String email,
+    required String password,
+  }) async {
+    final session = await AuthService.register(
+      displayName: displayName,
+      username: username,
+      email: email,
+      password: password,
+    );
+    currentSession = session;
+    currentUser = session.user.toUserModel();
+    isAuthenticated = true;
+    await _saveSettings();
+    await _startNetwork();
+    notifyListeners();
+  }
+
+  Future<void> logout() async {
+    if (connectedVoiceChannelId != null) {
+      await disconnectVoice();
+    }
+    await AuthService.clearSession();
+    _stopNetwork();
+    currentSession = null;
+    currentUser = UserModel(
+      id: 'user-${DateTime.now().millisecondsSinceEpoch}',
+      username: 'Usuário',
+      status: UserStatus.offline,
+    );
+    isAuthenticated = false;
+    notifyListeners();
   }
 
   void _sendPresence() {
