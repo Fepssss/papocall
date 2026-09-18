@@ -39,6 +39,7 @@ flutter_app/.pub-cache/
 
 # Logs e arquivos temporários
 *.log
+gitleaks-report.json
 desktop/package_temp/
 test_junc
 .DS_Store
