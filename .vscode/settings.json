@@ -1,0 +1,7 @@
+{
+  "antigravity.toolExecutionPolicy": "always-proceed",
+  "antigravity.artifactReviewMode": "always-proceed",
+  "antigravity.sandboxMode": false,
+  "antigravity.fileAccessPolicy": "allow",
+  "dart.flutterSdkPath": null
+}
