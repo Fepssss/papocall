@@ -277,6 +277,43 @@ class VoiceLoungeView extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                if (state.isScreenSharing) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: state.isWindowFocused
+                          ? HudTheme.green.withValues(alpha: 0.15)
+                          : Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: state.isWindowFocused ? HudTheme.green : Colors.amber,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          state.isWindowFocused ? Icons.remove_red_eye : Icons.bolt,
+                          size: 13,
+                          color: state.isWindowFocused ? HudTheme.green : Colors.amber,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          state.isWindowFocused
+                              ? 'Prévia Ativa (Foco)'
+                              : 'Modo Eco (Sem Foco)',
+                          style: TextStyle(
+                            color: state.isWindowFocused ? HudTheme.green : Colors.amber,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 if (state.isScreenSharing)
                   TextButton.icon(
                     style: TextButton.styleFrom(
@@ -312,10 +349,12 @@ class VoiceLoungeView extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: VideoTrackRenderer(
-                  state.activeScreenShareTrack!,
-                  fit: VideoViewFit.contain,
-                ),
+                child: state.shouldRenderScreenShare
+                    ? VideoTrackRenderer(
+                        state.activeScreenShareTrack!,
+                        fit: VideoViewFit.contain,
+                      )
+                    : _buildStreamerEcoPlaceholder(context, state),
               ),
             ),
           ),
@@ -403,6 +442,111 @@ class VoiceLoungeView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStreamerEcoPlaceholder(BuildContext context, AppState state) {
+    return Container(
+      color: const Color(0xFF090C12),
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 520),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+          decoration: BoxDecoration(
+            color: HudTheme.bgSidebar,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: HudTheme.divider),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: HudTheme.green.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: HudTheme.green.withValues(alpha: 0.6), width: 2),
+                ),
+                child: const Icon(
+                  Icons.screen_share,
+                  color: HudTheme.green,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Transmissão Ao Vivo Ativa',
+                style: TextStyle(
+                  color: HudTheme.textHeader,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: HudTheme.green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.fiber_manual_record, color: HudTheme.green, size: 10),
+                    SizedBox(width: 6),
+                    Text(
+                      'Transmitindo normalmente para os amigos na sala',
+                      style: TextStyle(color: HudTheme.green, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'A prévia de vídeo local foi pausada automaticamente enquanto você usa outro programa para liberar 100% da GPU e CPU para seus jogos e aplicativos.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: HudTheme.textMuted,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Basta clicar de volta na janela do PapoCall para a prévia reaparecer instantaneamente.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: HudTheme.textNormal,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: HudTheme.accent,
+                  side: const BorderSide(color: HudTheme.accent),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.remove_red_eye_outlined, size: 16),
+                label: const Text('Forçar exibição da prévia agora'),
+                onPressed: state.toggleForceRenderOwnStream,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

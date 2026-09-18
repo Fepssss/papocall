@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// Design tático, limpo e dedicado, focado em alta legibilidade e ergonomia visual.
 class HudTheme {
   // Versão Oficial da Aplicação
-  static const String appVersion = '1.0.0a';
+  static const String appVersion = '1.0.0b';
 
   // Painéis e Superfícies
   static const Color bgServerRail = Color(0xFF0F1117);

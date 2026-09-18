@@ -9,7 +9,7 @@ Write-Host "          PAPOCALL - BUILD INSTALADOR             " -ForegroundColor
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # 1. Garantir que o binário nativo Flutter está compilado
-Write-Host "[1/3] Verificando binários nativos Flutter v1.0.0a..." -ForegroundColor Yellow
+Write-Host "[1/3] Verificando binários nativos Flutter v1.0.0b..." -ForegroundColor Yellow
 $flutterExe = "flutter_app\build\windows\x64\runner\Release\papocall.exe"
 if (!(Test-Path $flutterExe)) {
     $env:PATH = "E:\DevTools\git\cmd;E:\DevTools\flutter\bin;$env:PATH"

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import '../models/channel.dart';
@@ -13,7 +13,7 @@ import '../services/voice_service.dart';
 import '../services/sound_service.dart';
 import '../services/auth_service.dart';
 
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final MqttService _mqtt = MqttService();
   final VoiceService _voiceService = VoiceService();
   final Uuid _uuid = const Uuid();
@@ -35,6 +35,11 @@ class AppState extends ChangeNotifier {
   String? activeScreenSharePresenter;
   bool isWatchingScreenShare = true;
   bool get isScreenSharing => _voiceService.isScreenSharing;
+
+  // Gerenciamento de Foco e Otimização de Renderização de Live
+  bool isWindowFocused = true;
+  bool forceRenderOwnStream = false;
+
   final Map<String, List<ChatMessage>> _messages = {};
   final Map<String, UserModel> _onlineUsers = {};
   Timer? _heartbeatTimer;
@@ -45,9 +50,48 @@ class AppState extends ChangeNotifier {
       username: 'Usuário',
       status: UserStatus.online,
     );
+    WidgetsBinding.instance.addObserver(this);
     _initVoiceListeners();
     _initDefaultData();
     _initStorageAndNetwork();
+  }
+
+  void setWindowFocused(bool focused) {
+    if (isWindowFocused != focused) {
+      isWindowFocused = focused;
+      notifyListeners();
+    }
+  }
+
+  void toggleForceRenderOwnStream() {
+    forceRenderOwnStream = !forceRenderOwnStream;
+    notifyListeners();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // No Windows:
+    // resumed: Janela do PapoCall está ativa/em destaque (focada)
+    // inactive / hidden / paused: Usuário trocou de aplicativo ou minimizou
+    final focused = (state == AppLifecycleState.resumed);
+    if (isWindowFocused != focused) {
+      isWindowFocused = focused;
+      notifyListeners();
+    }
+  }
+
+  /// Regra de Otimização de Performance para Live:
+  /// - Lives de outras pessoas: SEMPRE renderizam.
+  /// - Live própria (streamer): só renderiza na UI se o app estiver em destaque
+  ///   (focado) ou se o usuário optar por forçar a prévia.
+  bool get shouldRenderScreenShare {
+    if (activeScreenShareTrack == null) return false;
+
+    // Transmissões de terceiros sempre são renderizadas
+    if (!isScreenSharing) return true;
+
+    // Transmissão própria: suspende a renderização quando o app não estiver em destaque
+    return isWindowFocused || forceRenderOwnStream;
   }
 
   void _initVoiceListeners() {
@@ -552,6 +596,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     _voiceService.dispose();
     _mqtt.disconnect();
