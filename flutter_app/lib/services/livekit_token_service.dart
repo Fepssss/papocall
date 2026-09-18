@@ -19,12 +19,49 @@ class LiveKitTokenService {
   static const String defaultApiKey = 'your_api_key_here';
   static const String defaultApiSecret = 'your_api_secret_here';
 
+  // Injetadas em tempo de build seguro via --dart-define (sem expor no repositório git)
+  static const String envLiveKitUrl = String.fromEnvironment('LIVEKIT_URL');
+  static const String envApiKey = String.fromEnvironment('LIVEKIT_API_KEY');
+  static const String envApiSecret = String.fromEnvironment('LIVEKIT_API_SECRET');
+
   static LiveKitConfig? _cachedConfig;
 
   static LiveKitConfig getConfig() {
     if (_cachedConfig != null) return _cachedConfig!;
 
-    // 1. Tentar ler do %APPDATA%/PapoCall/livekit.json
+    // 1. Variáveis de compilação (--dart-define)
+    if (envLiveKitUrl.isNotEmpty &&
+        envApiKey.isNotEmpty &&
+        envApiSecret.isNotEmpty &&
+        envApiKey != defaultApiKey) {
+      _cachedConfig = LiveKitConfig(
+        url: envLiveKitUrl,
+        apiKey: envApiKey,
+        apiSecret: envApiSecret,
+      );
+      return _cachedConfig!;
+    }
+
+    // 2. Arquivo de configuração embutido na pasta do executável ({app}\data\livekit.json)
+    try {
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final bundledFile = File('$exeDir\\data\\livekit.json');
+      if (bundledFile.existsSync()) {
+        final content = bundledFile.readAsStringSync();
+        if (content.isNotEmpty) {
+          final json = jsonDecode(content) as Map<String, dynamic>;
+          final url = json['url'] as String? ?? defaultLiveKitUrl;
+          final key = json['apiKey'] as String? ?? defaultApiKey;
+          final secret = json['apiSecret'] as String? ?? defaultApiSecret;
+          if (key != defaultApiKey && secret != defaultApiSecret) {
+            _cachedConfig = LiveKitConfig(url: url, apiKey: key, apiSecret: secret);
+            return _cachedConfig!;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. %APPDATA%/PapoCall/livekit.json
     try {
       final appData = Platform.environment['APPDATA'] ?? Platform.environment['USERPROFILE'] ?? '.';
       final configFile = File('$appData\\PapoCall\\livekit.json');
@@ -43,7 +80,7 @@ class LiveKitTokenService {
       }
     } catch (_) {}
 
-    // 2. Tentar ler do arquivo .env local
+    // 4. Arquivo .env local (em desenvolvimento)
     try {
       final envFile = File('.env');
       if (envFile.existsSync()) {

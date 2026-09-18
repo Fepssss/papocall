@@ -40,9 +40,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool isWindowFocused = true;
   bool forceRenderOwnStream = false;
 
+  // Navegação: Página Inicial do App (Tela Cheia)
+  bool isHomePageActive = false;
+
   final Map<String, List<ChatMessage>> _messages = {};
   final Map<String, UserModel> _onlineUsers = {};
   Timer? _heartbeatTimer;
+  StreamSubscription? _mqttSubscription;
 
   AppState() {
     currentUser = UserModel(
@@ -65,6 +69,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleForceRenderOwnStream() {
     forceRenderOwnStream = !forceRenderOwnStream;
+    notifyListeners();
+  }
+
+  void openHomePage() {
+    if (!isHomePageActive) {
+      isHomePageActive = true;
+      notifyListeners();
+    }
+  }
+
+  void closeHomePage() {
+    if (isHomePageActive) {
+      isHomePageActive = false;
+      notifyListeners();
+    }
+  }
+
+  void toggleHomePage() {
+    isHomePageActive = !isHomePageActive;
     notifyListeners();
   }
 
@@ -124,6 +147,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _sendPresence();
       notifyListeners();
     });
+
+    _voiceService.onDisconnected = () {
+      debugPrint('[AppState] LiveKit reportou desconexao da sala de voz.');
+      disconnectVoice();
+    };
   }
 
   Server? get activeServer => servers.firstWhere(
@@ -313,11 +341,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _startNetwork() async {
     try {
       _stopNetwork();
-      await _mqtt.connect('papocall_${currentUser.id}');
+      final clientId = 'papocall_${currentUser.id}_${DateTime.now().millisecondsSinceEpoch % 10000}';
+      debugPrint('[AppState] Conectando rede MQTT como $clientId...');
+      await _mqtt.connect(clientId);
       _mqtt.subscribe('papocall/v1/srv/+/chat');
       _mqtt.subscribe('papocall/v1/global/presence');
 
-      _mqtt.messageStream.listen(_handleIncomingNetworkData);
+      _mqttSubscription = _mqtt.messageStream.listen(_handleIncomingNetworkData);
 
       _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) => _sendPresence());
       _sendPresence();
@@ -329,6 +359,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void _stopNetwork() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+    _mqttSubscription?.cancel();
+    _mqttSubscription = null;
     try {
       _mqtt.disconnect();
     } catch (_) {}
@@ -435,6 +467,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void selectServer(String serverId) {
+    isHomePageActive = false;
     activeServerId = serverId;
     final srv = activeServer;
     if (srv != null && srv.channels.isNotEmpty) {
@@ -511,17 +544,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> connectVoice(String channelId) async {
-    if (isConnectingVoice && connectedVoiceChannelId == channelId) return;
+    if (isConnectingVoice) return;
+    if (connectedVoiceChannelId == channelId) return;
+
     isConnectingVoice = true;
-    connectedVoiceChannelId = channelId;
-    currentUser.currentVoiceChannelId = channelId;
-    _sendPresence();
     notifyListeners();
 
     try {
+      // Identidade única e determinística por sessão para evitar colisão DUPLICATE_IDENTITY no LiveKit
+      final randomSuffix = (DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0');
+      final uniqueIdentity = '${currentUser.username}_${currentUser.id}_$randomSuffix';
+
       final success = await _voiceService.joinVoice(
         roomName: channelId,
-        identity: currentUser.id,
+        identity: uniqueIdentity,
         name: currentUser.username,
       );
 

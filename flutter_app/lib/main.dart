@@ -7,7 +7,9 @@ import 'screens/auth_screen.dart';
 import 'services/sound_service.dart';
 import 'widgets/app_left_panel.dart';
 import 'widgets/chat_view.dart';
+import 'widgets/home_page_view.dart';
 import 'widgets/members_sidebar.dart';
+import 'widgets/server_rail.dart';
 import 'widgets/voice_lounge_view.dart';
 
 void main() {
@@ -60,6 +62,19 @@ class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+
+    // Se a Página Inicial do App estiver ativa, exibe em tela cheia ao lado do Server Rail
+    if (state.isHomePageActive) {
+      return const Scaffold(
+        body: Row(
+          children: [
+            ServerRail(),
+            Expanded(child: HomePageView()),
+          ],
+        ),
+      );
+    }
+
     final isVoiceActive = state.activeChannel?.type == ChannelType.voice;
 
     return Scaffold(

@@ -25,7 +25,7 @@ backend/dev.db*
 *.so
 PapoCall.exe
 PapoCall-Setup.exe
-public/downloads/
+!public/downloads/PapoCall-Setup.exe
 data/
 backend/dist/
 

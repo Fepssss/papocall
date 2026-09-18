@@ -39,6 +39,8 @@ class VoiceService {
       StreamController<List<Participant>>.broadcast();
   Stream<List<Participant>> get participantsStream => _participantsController.stream;
 
+  VoidCallback? onDisconnected;
+
   void _log(String message) {
     debugPrint('[VoiceService] $message');
     try {
@@ -238,6 +240,7 @@ class VoiceService {
     _listener?.on<RoomDisconnectedEvent>((event) {
       _log('Sala desconectada: ${event.reason}');
       _notifyParticipants();
+      onDisconnected?.call();
     });
   }
 

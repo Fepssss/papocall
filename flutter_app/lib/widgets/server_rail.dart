@@ -16,13 +16,13 @@ class ServerRail extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 12),
-          // Direct Home / PapoCall Logo
+          // Botão no topo esquerdo da aba de servidores: Página Inicial do App (em tela cheia)
           _buildServerIcon(
-            isActive: state.activeServerId == 'server-default',
-            title: 'PapoCall',
-            initials: 'PC',
-            assetLogo: 'assets/logo.png',
-            onTap: () => state.selectServer('server-default'),
+            isActive: state.isHomePageActive,
+            title: 'Página Inicial do App',
+            initials: 'H',
+            iconData: Icons.home_rounded,
+            onTap: state.toggleHomePage,
           ),
           const SizedBox(height: 8),
           const Padding(
@@ -32,16 +32,17 @@ class ServerRail extends StatelessWidget {
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
-              itemCount: state.servers.length - 1,
+              itemCount: state.servers.length,
               itemBuilder: (context, index) {
-                final srv = state.servers[index + 1];
-                final isActive = srv.id == state.activeServerId;
+                final srv = state.servers[index];
+                final isActive = !state.isHomePageActive && srv.id == state.activeServerId;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _buildServerIcon(
                     isActive: isActive,
                     title: srv.name,
-                    initials: srv.name.substring(0, 2).toUpperCase(),
+                    initials: srv.name.length >= 2 ? srv.name.substring(0, 2).toUpperCase() : srv.name.toUpperCase(),
+                    assetLogo: index == 0 ? 'assets/logo.png' : null,
                     onTap: () => state.selectServer(srv.id),
                   ),
                 );
@@ -80,6 +81,7 @@ class ServerRail extends StatelessWidget {
     required String initials,
     required VoidCallback onTap,
     String? assetLogo,
+    IconData? iconData,
   }) {
     return _ServerRailItem(
       isActive: isActive,
@@ -87,6 +89,7 @@ class ServerRail extends StatelessWidget {
       initials: initials,
       onTap: onTap,
       assetLogo: assetLogo,
+      iconData: iconData,
     );
   }
 }
@@ -97,6 +100,7 @@ class _ServerRailItem extends StatefulWidget {
   final String initials;
   final VoidCallback onTap;
   final String? assetLogo;
+  final IconData? iconData;
 
   const _ServerRailItem({
     required this.isActive,
@@ -104,6 +108,7 @@ class _ServerRailItem extends StatefulWidget {
     required this.initials,
     required this.onTap,
     this.assetLogo,
+    this.iconData,
   });
 
   @override
@@ -168,19 +173,21 @@ class _ServerRailItemState extends State<_ServerRailItem> {
                       : [],
                 ),
                 alignment: Alignment.center,
-                child: widget.assetLogo != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(borderRadius - 2),
-                        child: Image.asset(widget.assetLogo!, width: 34, height: 34, fit: BoxFit.contain),
-                      )
-                    : Text(
-                        widget.initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                child: widget.iconData != null
+                    ? Icon(widget.iconData, color: Colors.white, size: 24)
+                    : (widget.assetLogo != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(borderRadius - 2),
+                            child: Image.asset(widget.assetLogo!, width: 34, height: 34, fit: BoxFit.contain),
+                          )
+                        : Text(
+                            widget.initials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          )),
               ),
             ),
           ],
