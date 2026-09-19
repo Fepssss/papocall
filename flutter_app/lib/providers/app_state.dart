@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import '../models/channel.dart';
 import '../models/chat_message.dart';
+import '../models/friend_request.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
@@ -27,8 +28,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   AuthSession? currentSession;
 
   List<Server> servers = [];
-  String activeServerId = 'server-default';
-  String activeChannelId = 'c-geral';
+  String activeServerId = '';
+  String activeChannelId = '';
 
   String? connectedVoiceChannelId;
   bool isConnectingVoice = false;
@@ -41,13 +42,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool isWindowFocused = true;
   bool forceRenderOwnStream = false;
 
-  // Navegação: Página Inicial do App (Tela Cheia)
-  bool isHomePageActive = false;
+  // Navegação: Página Inicial do App (Tela Cheia) - por padrão ativa se não há servidores
+  bool isHomePageActive = true;
 
   final Map<String, List<ChatMessage>> _messages = {};
   final Map<String, UserModel> _onlineUsers = {};
   final Map<String, UserModel> _knownUsers = {};
+  final Map<String, int> _lastSeen = {};
   List<UserModel> friends = [];
+  List<FriendRequest> friendRequests = [];
   Timer? _heartbeatTimer;
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _pingSubscription;
@@ -92,6 +95,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void closeHomePage() {
+    if (servers.isEmpty) return;
     if (isHomePageActive) {
       isHomePageActive = false;
       notifyListeners();
@@ -99,6 +103,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void toggleHomePage() {
+    if (servers.isEmpty) {
+      isHomePageActive = true;
+      notifyListeners();
+      return;
+    }
     isHomePageActive = !isHomePageActive;
     notifyListeners();
   }
@@ -182,14 +191,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return 'Oscilando (> 120ms)';
   }
 
-  Server? get activeServer => servers.firstWhere(
-        (s) => s.id == activeServerId,
-        orElse: () => servers.first,
-      );
+  Server? get activeServer {
+    if (servers.isEmpty) return null;
+    return servers.firstWhere(
+      (s) => s.id == activeServerId,
+      orElse: () => servers.first,
+    );
+  }
 
   Channel? get activeChannel {
     final srv = activeServer;
-    if (srv == null) return null;
+    if (srv == null || srv.channels.isEmpty) return null;
     return srv.channels.firstWhere(
       (c) => c.id == activeChannelId,
       orElse: () => srv.channels.first,
@@ -199,38 +211,24 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<ChatMessage> get activeMessages => _messages[activeChannelId] ?? [];
   List<UserModel> get onlineMembers => _onlineUsers.values.toList();
 
-  Server _buildDefaultServer() {
-    return Server(
-      id: 'server-default',
-      name: 'PapoCall',
-      description: 'Servidor oficial de comunicação tática e voz.',
-      inviteCode: 'papocall-oficial',
-      colorHex: '22C55E',
-      isCustom: false,
-      channels: [
-        Channel(id: 'c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto principal'),
-        Channel(id: 'c-avisos', name: 'avisos', type: ChannelType.text, topic: 'Comunicados e novidades'),
-        Channel(id: 'c-memes', name: 'memes', type: ChannelType.text, topic: 'Memes e coisas divertidas'),
-        Channel(id: 'v-geral', name: 'Sala Geral', type: ChannelType.voice, userLimit: 15),
-        Channel(id: 'v-jogos', name: 'Sala de Jogos', type: ChannelType.voice, userLimit: 6),
-        Channel(id: 'v-batepapo', name: 'Bate-Papo Livre', type: ChannelType.voice, userLimit: 10),
-      ],
-    );
-  }
+  List<FriendRequest> get pendingReceivedRequests => friendRequests
+      .where((r) =>
+          r.status == FriendRequestStatus.pending &&
+          r.recipientUsername.toLowerCase() == currentUser.username.toLowerCase())
+      .toList();
+
+  List<FriendRequest> get pendingSentRequests => friendRequests
+      .where((r) =>
+          r.status == FriendRequestStatus.pending &&
+          r.senderUsername.toLowerCase() == currentUser.username.toLowerCase())
+      .toList();
+
+  int get pendingRequestsCount => pendingReceivedRequests.length;
 
   void _initDefaultData() {
-    servers = [_buildDefaultServer()];
-
-    _messages['c-geral'] = [
-      ChatMessage(
-        id: 'msg-welcome',
-        authorId: 'sys',
-        author: 'Sistema PapoCall',
-        text: 'Bem-vindo ao aplicativo nativo PapoCall! Comunicação rápida, estável e sóbria.',
-        timestamp: 'Hoje às 12:00',
-        isSystem: true,
-      ),
-    ];
+    // Contas novas iniciam sem nenhum servidor padrão por solicitação explícita de arquitetura
+    servers = [];
+    isHomePageActive = true;
   }
 
   File _getAppFile(String fileName) {
@@ -248,6 +246,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   File _getDraftsFile() => _getAppFile('drafts.json');
   File _getFriendsFile() => _getAppFile('friends.json');
   File _getKnownUsersFile() => _getAppFile('known_users.json');
+  File _getFriendRequestsFile() => _getAppFile('friend_requests.json');
 
   Future<void> _saveServers() async {
     try {
@@ -267,17 +266,53 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (content.isNotEmpty) {
           final List<dynamic> raw = jsonDecode(content);
           final loaded = raw.map((s) => Server.fromJson(s as Map<String, dynamic>)).toList();
-          if (loaded.isNotEmpty) {
-            final hasDefault = loaded.any((s) => s.id == 'server-default');
-            if (!hasDefault) {
-              loaded.insert(0, _buildDefaultServer());
+          servers = loaded;
+          if (servers.isNotEmpty) {
+            if (activeServerId.isEmpty || !servers.any((s) => s.id == activeServerId)) {
+              activeServerId = servers.first.id;
             }
-            servers = loaded;
+            if (activeServer?.channels.isNotEmpty ?? false) {
+              activeChannelId = activeServer!.channels.first.id;
+            }
+          } else {
+            activeServerId = '';
+            activeChannelId = '';
+            isHomePageActive = true;
           }
         }
+      } else {
+        servers = [];
+        activeServerId = '';
+        activeChannelId = '';
+        isHomePageActive = true;
       }
     } catch (e) {
       debugPrint('Erro ao carregar servidores: $e');
+    }
+  }
+
+  Future<void> _saveFriendRequests() async {
+    try {
+      final file = _getFriendRequestsFile();
+      final list = friendRequests.map((r) => r.toJson()).toList();
+      await file.writeAsString(jsonEncode(list));
+    } catch (e) {
+      debugPrint('Erro ao salvar solicitações de amizade: $e');
+    }
+  }
+
+  Future<void> _loadFriendRequests() async {
+    try {
+      final file = _getFriendRequestsFile();
+      if (file.existsSync()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final List<dynamic> raw = jsonDecode(content);
+          friendRequests = raw.map((r) => FriendRequest.fromJson(r as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar solicitações de amizade: $e');
     }
   }
 
@@ -466,6 +501,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _loadDrafts();
     await _loadFriends();
     await _loadKnownUsers();
+    await _loadFriendRequests();
 
     // Garante que currentUser faça parte dos servidores carregados
     for (final srv in servers) {
@@ -485,8 +521,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _startNetwork() async {
     try {
       _stopNetwork();
-      // clientId aleatório: não deriva mais do userId, que era publicado em
-      // claro no broker público e permitia rastrear um usuário entre sessões.
       final clientId = 'pc_${_uuid.v4().replaceAll('-', '').substring(0, 20)}';
       debugPrint('[AppState] Conectando rede MQTT...');
       await _mqtt.connect(clientId);
@@ -502,18 +536,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Assina somente os tópicos dos servidores que o usuário realmente integra.
-  ///
-  /// A versão anterior assinava 'papocall/v1/srv/+/chat' com curinga, o que
-  /// entregava a todo cliente o chat de TODOS os servidores, inclusive os que o
-  /// usuário nunca foi convidado. Os tópicos agora derivam de um hash do código
-  /// de convite, então nem o nome do tópico é adivinhável sem o convite.
+  /// Assina os tópicos dos servidores que o usuário integra, o inbox pessoal e a presença de amigos.
   void _subscribeToOwnServers() {
     _mqtt.unsubscribeAll();
+
+    // 1. Tópicos de servidores
     for (final srv in servers) {
       if (srv.inviteCode.trim().isEmpty) continue;
       _mqtt.subscribe(ServerCrypto.chatTopic(srv.inviteCode));
       _mqtt.subscribe(ServerCrypto.presenceTopic(srv.inviteCode));
+    }
+
+    // 2. Inbox pessoal para solicitações e notificações diretas
+    final myUser = currentUser.username.trim().toLowerCase();
+    if (myUser.isNotEmpty) {
+      _mqtt.subscribe(ServerCrypto.userInboxTopic(myUser));
+      _mqtt.subscribe(ServerCrypto.userPresenceTopic(myUser));
+    }
+
+    // 3. Presença em tempo real dos amigos
+    for (final f in friends) {
+      final fUser = f.username.trim().toLowerCase();
+      if (fUser.isNotEmpty) {
+        _mqtt.subscribe(ServerCrypto.userPresenceTopic(fUser));
+      }
     }
   }
 
@@ -552,6 +598,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     currentSession = session;
     currentUser = session.user.toUserModel();
     isAuthenticated = true;
+    // Novas contas iniciam com 0 servidores
+    servers = [];
+    await _saveServers();
     await _saveSettings();
     await _startNetwork();
     notifyListeners();
@@ -561,6 +610,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (connectedVoiceChannelId != null) {
       await disconnectVoice();
     }
+    // Anuncia status offline antes de desconectar
+    await _sendPresence(isOffline: true);
     await AuthService.clearSession();
     _stopNetwork();
     currentSession = null;
@@ -573,15 +624,34 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// Publica presença apenas nos servidores que o usuário integra, cifrada com
-  /// a chave de cada servidor.
-  ///
-  /// Antes isso ia para um tópico global único em texto puro, expondo perfil,
-  /// status e a lista completa de servidores de cada usuário para qualquer
-  /// pessoa conectada ao broker público, a cada 10 segundos.
-  Future<void> _sendPresence() async {
+  /// Verifica se algum usuário remoto não envia presença há mais de 30 segundos
+  void _checkPresenceTimeouts() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var changed = false;
+    for (final entry in _lastSeen.entries) {
+      final uid = entry.key;
+      final lastTime = entry.value;
+      if (uid != currentUser.id && (now - lastTime > 30000)) {
+        if (_onlineUsers.containsKey(uid) && _onlineUsers[uid]!.status != UserStatus.offline) {
+          _onlineUsers[uid]!.status = UserStatus.offline;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  /// Publica presença nos servidores e no canal pessoal para amigos.
+  Future<void> _sendPresence({bool isOffline = false}) async {
     if (!_mqtt.isConnected) return;
 
+    _checkPresenceTimeouts();
+
+    final myStatus = isOffline ? 'offline' : currentUser.status.name;
+
+    // 1. Presença por servidor
     for (final srv in servers) {
       if (srv.inviteCode.trim().isEmpty) continue;
 
@@ -591,11 +661,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'username': currentUser.username,
         'displayName': currentUser.displayName,
         'avatar': currentUser.avatar,
-        'status': currentUser.status.name,
+        'status': myStatus,
         'isMuted': currentUser.isMuted,
         'isDeafened': currentUser.isDeafened,
         'isScreenSharing': currentUser.isScreenSharing,
-        // Só revela o canal de voz se ele pertencer a este servidor.
         'voiceChannelId': activeServerId == srv.id ? connectedVoiceChannelId : null,
         'voiceServerId': activeServerId == srv.id ? activeServerId : null,
         'serverId': srv.id,
@@ -609,14 +678,60 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         debugPrint('Erro ao publicar presença em ${srv.id}: $e');
       }
     }
+
+    // 2. Presença no canal pessoal para amigos
+    final myUser = currentUser.username.trim().toLowerCase();
+    if (myUser.isNotEmpty) {
+      final personalPresence = {
+        'action': 'user_presence',
+        'userId': currentUser.id,
+        'username': currentUser.username,
+        'displayName': currentUser.displayName,
+        'avatar': currentUser.avatar,
+        'status': myStatus,
+        'isMuted': currentUser.isMuted,
+        'isDeafened': currentUser.isDeafened,
+        'isScreenSharing': currentUser.isScreenSharing,
+        'voiceChannelId': connectedVoiceChannelId,
+        'voiceServerId': activeServerId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      try {
+        final envelope = await ServerCrypto.encryptFriendPresencePayload(myUser, personalPresence);
+        _mqtt.publishEncrypted(ServerCrypto.userPresenceTopic(myUser), envelope);
+      } catch (e) {
+        debugPrint('Erro ao publicar presença pessoal: $e');
+      }
+    }
   }
 
-  /// Recebe o envelope cifrado, descobre a qual servidor ele pertence pelo
-  /// tópico, decifra e só então processa.
-  ///
-  /// Se o MAC não confere, a mensagem foi adulterada ou publicada por alguém
-  /// sem o código de convite: é descartada sem qualquer efeito.
+  /// Trata os envelopes MQTT recebidos da rede com validação e decifragem segura.
   Future<void> _handleIncomingNetworkData(MqttEnvelope envelope) async {
+    final myUser = currentUser.username.trim().toLowerCase();
+
+    // 1. Mensagem recebida no Inbox pessoal (solicitação de amizade, aceite, recusa)
+    if (myUser.isNotEmpty && envelope.topic == ServerCrypto.userInboxTopic(myUser)) {
+      final data = await ServerCrypto.decryptInboxPayload(myUser, envelope.payload);
+      if (data != null) {
+        _processInboxPayload(data);
+      }
+      return;
+    }
+
+    // 2. Presença de amigo recebida diretamente pelo canal pessoal do amigo
+    for (final f in friends) {
+      final fUser = f.username.trim().toLowerCase();
+      if (fUser.isNotEmpty && envelope.topic == ServerCrypto.userPresenceTopic(fUser)) {
+        final data = await ServerCrypto.decryptFriendPresencePayload(fUser, envelope.payload);
+        if (data != null) {
+          _processFriendPresencePayload(data);
+        }
+        return;
+      }
+    }
+
+    // 3. Tópico de servidor (chat ou presença)
     Server? origin;
     for (final srv in servers) {
       if (srv.inviteCode.trim().isEmpty) continue;
@@ -634,18 +749,131 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _processNetworkPayload(data, origin);
   }
 
+  /// Processa eventos do inbox pessoal (amizades em tempo real)
+  void _processInboxPayload(Map<String, dynamic> data) {
+    final action = data['action'] as String?;
+    if (action == 'friend_request') {
+      final reqMap = data['request'] as Map<String, dynamic>?;
+      if (reqMap != null) {
+        final req = FriendRequest.fromJson(reqMap);
+        if (req.recipientUsername.toLowerCase() == currentUser.username.toLowerCase()) {
+          friendRequests.removeWhere((r) =>
+              r.id == req.id ||
+              (r.senderUsername.toLowerCase() == req.senderUsername.toLowerCase() &&
+                  r.status == FriendRequestStatus.pending));
+          friendRequests.insert(0, req);
+          _saveFriendRequests();
+          SoundService.playJoinCall();
+          notifyListeners();
+        }
+      }
+    } else if (action == 'friend_accepted') {
+      final reqId = data['requestId'] as String?;
+      final acceptedBy = data['acceptedBy'] as Map<String, dynamic>?;
+      if (acceptedBy != null) {
+        final user = UserModel.fromJson(acceptedBy);
+        final cleanUsername = user.username.replaceFirst('@', '').trim();
+        if (!friends.any((f) => f.username.toLowerCase() == cleanUsername.toLowerCase())) {
+          friends.add(user);
+          _saveFriends();
+          _mqtt.subscribe(ServerCrypto.userPresenceTopic(cleanUsername));
+        }
+      }
+      if (reqId != null) {
+        for (final r in friendRequests) {
+          if (r.id == reqId) {
+            r.status = FriendRequestStatus.accepted;
+          }
+        }
+        _saveFriendRequests();
+      }
+      SoundService.playJoinCall();
+      notifyListeners();
+    } else if (action == 'friend_rejected') {
+      final reqId = data['requestId'] as String?;
+      if (reqId != null) {
+        friendRequests.removeWhere((r) => r.id == reqId);
+        _saveFriendRequests();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Processa atualização de presença vinda de um amigo
+  void _processFriendPresencePayload(Map<String, dynamic> data) {
+    final uid = data['userId'] as String?;
+    if (uid != null && uid != currentUser.id) {
+      final username = (data['username'] as String? ?? 'Amigo').replaceFirst('@', '').trim();
+      final displayName = data['displayName'] as String? ?? username;
+      final statusVal = UserStatus.values.firstWhere(
+        (s) => s.name == data['status'],
+        orElse: () => UserStatus.online,
+      );
+
+      final user = UserModel(
+        id: uid,
+        username: username,
+        displayName: displayName,
+        avatar: data['avatar'] as String? ?? '',
+        status: statusVal,
+        isMuted: data['isMuted'] as bool? ?? false,
+        isDeafened: data['isDeafened'] as bool? ?? false,
+        isScreenSharing: data['isScreenSharing'] as bool? ?? false,
+        currentVoiceChannelId: data['voiceChannelId'] as String?,
+        currentVoiceServerId: data['voiceServerId'] as String?,
+      );
+
+      _onlineUsers[uid] = user;
+      _knownUsers[uid] = user;
+      _lastSeen[uid] = DateTime.now().millisecondsSinceEpoch;
+      _saveKnownUsers();
+
+      // Atualiza também o amigo na lista local se encontrado
+      final friendIndex = friends.indexWhere((f) => f.username.toLowerCase() == username.toLowerCase());
+      if (friendIndex != -1) {
+        friends[friendIndex] = user;
+      }
+      notifyListeners();
+    }
+  }
+
   void _processNetworkPayload(Map<String, dynamic> data, Server origin) {
     final action = data['action'] as String?;
     if (action == 'chat_message') {
       final channelId = data['channelId'] as String?;
-      // O canal precisa pertencer ao servidor de onde a mensagem veio, senão um
-      // membro de um servidor conseguiria injetar mensagens no canal de outro.
-      final belongsToOrigin = origin.channels.any((c) => c.id == channelId);
-      if (channelId != null && belongsToOrigin) {
+      final channelName = data['channelName'] as String?;
+
+      // Busca o canal por ID ou por nome correspondente no servidor
+      Channel? targetChannel;
+      if (channelId != null) {
+        for (final c in origin.channels) {
+          if (c.id == channelId) {
+            targetChannel = c;
+            break;
+          }
+        }
+      }
+      if (targetChannel == null && channelName != null) {
+        for (final c in origin.channels) {
+          if (c.name.toLowerCase() == channelName.toLowerCase()) {
+            targetChannel = c;
+            break;
+          }
+        }
+      }
+      if (targetChannel == null && origin.channels.isNotEmpty) {
+        targetChannel = origin.channels.firstWhere(
+          (c) => c.type == ChannelType.text,
+          orElse: () => origin.channels.first,
+        );
+      }
+
+      if (targetChannel != null) {
+        final actualChannelId = targetChannel.id;
         final newMsg = ChatMessage.fromJson(data['message'] as Map<String, dynamic>);
-        _messages.putIfAbsent(channelId, () => []);
-        if (!_messages[channelId]!.any((m) => m.id == newMsg.id)) {
-          _messages[channelId]!.add(newMsg);
+        _messages.putIfAbsent(actualChannelId, () => []);
+        if (!_messages[actualChannelId]!.any((m) => m.id == newMsg.id)) {
+          _messages[actualChannelId]!.add(newMsg);
           _saveChatHistory();
 
           if (newMsg.authorId.isNotEmpty && newMsg.authorId != currentUser.id) {
@@ -658,8 +886,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
             );
             _saveKnownUsers();
 
-            // Registra o autor como membro do servidor de ORIGEM da mensagem,
-            // não do servidor que estiver aberto na tela no momento.
             if (!origin.memberIds.contains(newMsg.authorId)) {
               origin.memberIds.add(newMsg.authorId);
               _saveServers();
@@ -671,7 +897,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } else if (action == 'presence') {
       final uid = data['userId'] as String?;
       if (uid != null && uid != currentUser.id) {
-        final username = data['username'] as String? ?? 'Amigo';
+        final username = (data['username'] as String? ?? 'Amigo').replaceFirst('@', '').trim();
         final displayName = data['displayName'] as String? ?? username;
         final user = UserModel(
           id: uid,
@@ -690,11 +916,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         );
         _onlineUsers[uid] = user;
         _knownUsers[uid] = user;
+        _lastSeen[uid] = DateTime.now().millisecondsSinceEpoch;
         _saveKnownUsers();
 
-        // A presença agora é publicada por servidor e cifrada com a chave dele,
-        // então a associação vem do tópico de origem — o cliente não anuncia
-        // mais a lista completa dos seus servidores para a rede.
         if (!origin.memberIds.contains(uid)) {
           origin.memberIds.add(uid);
           _saveServers();
@@ -720,9 +944,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     String template = 'gaming',
     String colorHex = '22C55E',
   }) async {
-    final serverId = 'srv-${DateTime.now().millisecondsSinceEpoch}';
     final randomCode = _uuid.v4().substring(0, 8);
     final inviteCode = 'papo-$randomCode';
+    final topicHash = ServerCrypto.topicIdFor(inviteCode);
+    final serverId = 'srv-$topicHash';
 
     List<Channel> channels = [];
     switch (template) {
@@ -802,17 +1027,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<bool> deleteServer(String serverId) async {
-    if (serverId == 'server-default') {
-      return false;
-    }
     final index = servers.indexWhere((s) => s.id == serverId);
     if (index == -1) return false;
 
     servers.removeAt(index);
     await _saveServers();
 
-    if (activeServerId == serverId) {
-      selectServer('server-default');
+    if (servers.isEmpty) {
+      activeServerId = '';
+      activeChannelId = '';
+      isHomePageActive = true;
+    } else if (activeServerId == serverId) {
+      selectServer(servers.first.id);
     }
     _sendPresence();
     notifyListeners();
@@ -836,8 +1062,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     }
 
-    final safeSuffix = cleanCode.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-    final serverId = 'srv-$safeSuffix';
+    final topicHash = ServerCrypto.topicIdFor(cleanCode);
+    final serverId = 'srv-$topicHash';
     final joinedServer = Server(
       id: serverId,
       name: 'Servidor ($cleanCode)',
@@ -847,7 +1073,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       colorHex: '38BDF8',
       memberIds: [currentUser.id],
       channels: [
-        Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto'),
+        Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto principal'),
         Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
       ],
     );
@@ -897,9 +1123,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final srv = activeServer;
     if (srv == null || srv.inviteCode.trim().isEmpty) return;
 
+    final channel = activeChannel;
     final chatPayload = {
       'action': 'chat_message',
       'channelId': channelId,
+      'channelName': channel?.name ?? 'geral',
+      'channelType': channel?.type.name ?? 'text',
+      'serverId': srv.id,
       'message': message.toJson(),
     };
 
@@ -997,36 +1227,123 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }).toList();
   }
 
-  Future<String?> addFriendByHandle(String rawHandle) async {
+  Future<String?> sendFriendRequest(String rawHandle) async {
     final cleanHandle = rawHandle.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
     if (cleanHandle.isEmpty) {
       return 'Por favor, insira uma tag de usuário válida.';
     }
     if (cleanHandle == currentUser.username.toLowerCase()) {
-      return 'Você não pode adicionar a si mesmo como amigo.';
+      return 'Você não pode enviar solicitação para si mesmo.';
     }
     if (friends.any((f) => f.username.toLowerCase() == cleanHandle)) {
       return 'Este usuário já está na sua lista de amigos.';
     }
+    final alreadyPending = friendRequests.any((r) =>
+        r.status == FriendRequestStatus.pending &&
+        r.recipientUsername.toLowerCase() == cleanHandle &&
+        r.senderUsername.toLowerCase() == currentUser.username.toLowerCase());
+    if (alreadyPending) {
+      return 'Já existe uma solicitação pendente enviada para este usuário.';
+    }
 
-    // Procura primeiro entre os usuários online
-    final foundInOnline = _onlineUsers.values.firstWhere(
-      (u) => u.username.toLowerCase() == cleanHandle,
-      orElse: () => _knownUsers.values.firstWhere(
-        (u) => u.username.toLowerCase() == cleanHandle,
-        orElse: () => UserModel(
-          id: 'friend-$cleanHandle',
-          username: cleanHandle,
-          displayName: cleanHandle,
-          status: UserStatus.offline,
-        ),
-      ),
+    final req = FriendRequest(
+      id: 'req-${_uuid.v4().substring(0, 8)}',
+      senderId: currentUser.id,
+      senderUsername: currentUser.username,
+      senderDisplayName: currentUser.displayName,
+      senderAvatar: currentUser.avatar,
+      recipientUsername: cleanHandle,
+      status: FriendRequestStatus.pending,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
     );
 
-    friends.add(foundInOnline);
-    await _saveFriends();
+    friendRequests.removeWhere((r) =>
+        r.recipientUsername.toLowerCase() == cleanHandle &&
+        r.senderUsername.toLowerCase() == currentUser.username.toLowerCase());
+    friendRequests.insert(0, req);
+    await _saveFriendRequests();
     notifyListeners();
+
+    // Envia o envelope cifrado no inbox do destinatário
+    final payload = {
+      'action': 'friend_request',
+      'request': req.toJson(),
+    };
+    try {
+      final envelope = await ServerCrypto.encryptInboxPayload(cleanHandle, payload);
+      _mqtt.publishEncrypted(ServerCrypto.userInboxTopic(cleanHandle), envelope);
+    } catch (e) {
+      debugPrint('Erro ao publicar solicitação de amizade: $e');
+    }
+
     return null;
+  }
+
+  Future<String?> addFriendByHandle(String rawHandle) async {
+    return sendFriendRequest(rawHandle);
+  }
+
+  Future<void> acceptFriendRequest(FriendRequest req) async {
+    req.status = FriendRequestStatus.accepted;
+    await _saveFriendRequests();
+
+    final cleanSender = req.senderUsername.replaceFirst('@', '').trim();
+    final newFriend = UserModel(
+      id: req.senderId.isNotEmpty ? req.senderId : 'user-$cleanSender',
+      username: cleanSender,
+      displayName: req.senderDisplayName,
+      avatar: req.senderAvatar ?? '',
+      status: _onlineUsers[req.senderId]?.status ?? UserStatus.online,
+    );
+
+    if (!friends.any((f) => f.username.toLowerCase() == cleanSender.toLowerCase())) {
+      friends.add(newFriend);
+      await _saveFriends();
+      _mqtt.subscribe(ServerCrypto.userPresenceTopic(cleanSender));
+    }
+
+    // Notifica o remetente de volta que o pedido foi aceito
+    final responsePayload = {
+      'action': 'friend_accepted',
+      'requestId': req.id,
+      'acceptedBy': currentUser.toJson(),
+    };
+    try {
+      final envelope = await ServerCrypto.encryptInboxPayload(cleanSender, responsePayload);
+      _mqtt.publishEncrypted(ServerCrypto.userInboxTopic(cleanSender), envelope);
+    } catch (e) {
+      debugPrint('Erro ao publicar aceite de amizade: $e');
+    }
+
+    SoundService.playJoinCall();
+    notifyListeners();
+  }
+
+  Future<void> rejectFriendRequest(FriendRequest req) async {
+    req.status = FriendRequestStatus.rejected;
+    friendRequests.removeWhere((r) => r.id == req.id);
+    await _saveFriendRequests();
+
+    final cleanSender = req.senderUsername.replaceFirst('@', '').trim();
+    final rejectPayload = {
+      'action': 'friend_rejected',
+      'requestId': req.id,
+      'rejectedBy': currentUser.username,
+    };
+    try {
+      final envelope = await ServerCrypto.encryptInboxPayload(cleanSender, rejectPayload);
+      _mqtt.publishEncrypted(ServerCrypto.userInboxTopic(cleanSender), envelope);
+    } catch (e) {
+      debugPrint('Erro ao publicar rejeição de amizade: $e');
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> cancelFriendRequest(FriendRequest req) async {
+    friendRequests.removeWhere((r) => r.id == req.id);
+    await _saveFriendRequests();
+    notifyListeners();
   }
 
   Future<void> removeFriend(String friendId) async {
@@ -1036,6 +1353,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Map<String, List<UserModel>> getServerMembersGrouped(String serverId) {
+    if (servers.isEmpty) {
+      return {
+        'online': [],
+        'offline': [],
+      };
+    }
+
     final srv = servers.firstWhere(
       (s) => s.id == serverId,
       orElse: () => activeServer ?? servers.first,
@@ -1080,23 +1404,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    // Inclui amigos adicionados caso o servidor seja o padrão para dar vida à visualização
-    if (srv.id == 'server-default') {
-      for (final friend in friends) {
-        if (!srv.memberIds.contains(friend.id)) {
-          if (_onlineUsers.containsKey(friend.id)) {
-            if (!online.any((u) => u.id == friend.id)) {
-              online.add(_onlineUsers[friend.id]!);
-            }
-          } else {
-            if (!offline.any((u) => u.id == friend.id)) {
-              offline.add(friend);
-            }
-          }
-        }
-      }
-    }
-
     online.sort((a, b) {
       if (a.id == currentUser.id) return -1;
       if (b.id == currentUser.id) return 1;
@@ -1116,6 +1423,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<String> regenerateServerInvite(String serverId) async {
+    if (servers.isEmpty) return '';
     final srv = servers.firstWhere(
       (s) => s.id == serverId,
       orElse: () => activeServer ?? servers.first,

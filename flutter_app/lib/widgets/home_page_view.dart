@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/channel.dart';
+import '../models/friend_request.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
@@ -16,7 +17,7 @@ class HomePageView extends StatefulWidget {
   State<HomePageView> createState() => _HomePageViewState();
 }
 
-enum FriendViewTab { online, all, offline }
+enum FriendViewTab { online, all, pending, offline }
 
 class _HomePageViewState extends State<HomePageView> {
   FriendViewTab _selectedTab = FriendViewTab.online;
@@ -37,6 +38,8 @@ class _HomePageViewState extends State<HomePageView> {
     final allFriends = state.friendsWithLiveStatus;
     final onlineFriends = allFriends.where((f) => f.status != UserStatus.offline).toList();
     final offlineFriends = allFriends.where((f) => f.status == UserStatus.offline).toList();
+    final pendingReceived = state.pendingReceivedRequests;
+    final pendingSent = state.pendingSentRequests;
 
     List<UserModel> currentList;
     switch (_selectedTab) {
@@ -45,6 +48,9 @@ class _HomePageViewState extends State<HomePageView> {
         break;
       case FriendViewTab.all:
         currentList = allFriends;
+        break;
+      case FriendViewTab.pending:
+        currentList = [];
         break;
       case FriendViewTab.offline:
         currentList = offlineFriends;
@@ -71,6 +77,7 @@ class _HomePageViewState extends State<HomePageView> {
             state,
             onlineFriends.length,
             allFriends.length,
+            pendingReceived.length,
             offlineFriends.length,
           ),
 
@@ -91,17 +98,27 @@ class _HomePageViewState extends State<HomePageView> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Barra de Busca Rápida de Amigos
-                  _buildSearchBar(),
-                  const SizedBox(height: 18),
+                  // Barra de Busca Rápida de Amigos (apenas se não estiver na aba de solicitações)
+                  if (_selectedTab != FriendViewTab.pending) ...[
+                    _buildSearchBar(),
+                    const SizedBox(height: 18),
+                  ],
 
-                  // Seção Principal: Central de Amigos
-                  _buildFriendsListSection(
-                    context,
-                    state,
-                    currentList,
-                    allFriends.length,
-                  ),
+                  // Seção Principal: Central de Amigos ou Solicitações
+                  if (_selectedTab == FriendViewTab.pending)
+                    _buildPendingRequestsSection(
+                      context,
+                      state,
+                      pendingReceived,
+                      pendingSent,
+                    )
+                  else
+                    _buildFriendsListSection(
+                      context,
+                      state,
+                      currentList,
+                      allFriends.length,
+                    ),
                   const SizedBox(height: 32),
 
                   // Seção: Meus Servidores (Grid Tático)
@@ -129,6 +146,7 @@ class _HomePageViewState extends State<HomePageView> {
     AppState state,
     int onlineCount,
     int allCount,
+    int pendingCount,
     int offlineCount,
   ) {
     return Container(
@@ -167,6 +185,13 @@ class _HomePageViewState extends State<HomePageView> {
           _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
           const SizedBox(width: 6),
           _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
+          const SizedBox(width: 6),
+          _buildFilterTab(
+            FriendViewTab.pending,
+            'Solicitações',
+            pendingCount,
+            isAlert: pendingCount > 0,
+          ),
           const SizedBox(width: 6),
           _buildFilterTab(FriendViewTab.offline, 'Offline', offlineCount),
           const SizedBox(width: 12),
@@ -240,7 +265,7 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
-  Widget _buildFilterTab(FriendViewTab tab, String label, int count) {
+  Widget _buildFilterTab(FriendViewTab tab, String label, int count, {bool isAlert = false}) {
     final isSelected = _selectedTab == tab;
     return InkWell(
       onTap: () {
@@ -260,8 +285,8 @@ class _HomePageViewState extends State<HomePageView> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : HudTheme.textMuted,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : (isAlert ? HudTheme.green : HudTheme.textMuted),
+                fontWeight: isSelected || isAlert ? FontWeight.bold : FontWeight.w500,
                 fontSize: 13,
               ),
             ),
@@ -270,13 +295,13 @@ class _HomePageViewState extends State<HomePageView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isSelected ? HudTheme.green : HudTheme.bgCard,
+                  color: isAlert ? HudTheme.green : (isSelected ? HudTheme.green : HudTheme.bgCard),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    color: isSelected ? Colors.black : HudTheme.textMuted,
+                    color: (isAlert || isSelected) ? Colors.black : HudTheme.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -331,6 +356,268 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
+  // --- SEÇÃO DE SOLICITAÇÕES DE AMIZADE ---
+  Widget _buildPendingRequestsSection(
+    BuildContext context,
+    AppState state,
+    List<FriendRequest> received,
+    List<FriendRequest> sent,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: HudTheme.bgSidebar,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: HudTheme.green.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.mail_rounded, color: HudTheme.green, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'SOLICITAÇÕES DE AMIZADE (${received.length})',
+                    style: const TextStyle(
+                      color: HudTheme.textHeader,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: HudTheme.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+                label: const Text('Nova Solicitação', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                onPressed: () => AddFriendDialog.show(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Seção 1: Solicitações Recebidas
+          const Text(
+            'SOLICITAÇÕES RECEBIDAS',
+            style: TextStyle(
+              color: HudTheme.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (received.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              decoration: BoxDecoration(
+                color: HudTheme.bgCard,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: HudTheme.divider),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.inbox_rounded, color: HudTheme.textMuted, size: 20),
+                  SizedBox(width: 12),
+                  Text(
+                    'Nenhuma solicitação de amizade pendente para você.',
+                    style: TextStyle(color: HudTheme.textMuted, fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: received.length,
+              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              itemBuilder: (context, index) {
+                final req = received[index];
+                final initials = req.senderDisplayName.isNotEmpty
+                    ? req.senderDisplayName[0].toUpperCase()
+                    : req.senderUsername[0].toUpperCase();
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: HudTheme.bgCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: HudTheme.divider),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: HudTheme.blurple,
+                        child: Text(
+                          initials,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              req.senderDisplayName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '@${req.senderUsername}',
+                              style: const TextStyle(color: HudTheme.green, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Botão Aceitar
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: HudTheme.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        icon: const Icon(Icons.check, size: 16),
+                        label: const Text('Aceitar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () => state.acceptFriendRequest(req),
+                      ),
+                      const SizedBox(width: 8),
+                      // Botão Recusar
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: HudTheme.red,
+                          side: const BorderSide(color: HudTheme.divider),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        icon: const Icon(Icons.close, size: 16),
+                        label: const Text('Recusar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () => state.rejectFriendRequest(req),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+          const SizedBox(height: 24),
+
+          // Seção 2: Solicitações Enviadas
+          const Text(
+            'SOLICITAÇÕES ENVIADAS (AGUARDANDO)',
+            style: TextStyle(
+              color: HudTheme.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (sent.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              decoration: BoxDecoration(
+                color: HudTheme.bgCard,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: HudTheme.divider),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.outbox_rounded, color: HudTheme.textMuted, size: 18),
+                  SizedBox(width: 12),
+                  Text(
+                    'Você não possui solicitações enviadas pendentes.',
+                    style: TextStyle(color: HudTheme.textMuted, fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sent.length,
+              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              itemBuilder: (context, index) {
+                final req = sent[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: HudTheme.bgCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: HudTheme.divider),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: HudTheme.bgHover,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded, color: HudTheme.accent, size: 16),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '@${req.recipientUsername}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Aguardando aprovação...',
+                              style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: HudTheme.textMuted, size: 18),
+                        tooltip: 'Cancelar Solicitação',
+                        onPressed: () => state.cancelFriendRequest(req),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   // --- SEÇÃO PRINCIPAL DE AMIGOS ---
   Widget _buildFriendsListSection(
     BuildContext context,
@@ -345,6 +632,9 @@ class _HomePageViewState extends State<HomePageView> {
         break;
       case FriendViewTab.all:
         tabTitle = 'TODOS OS AMIGOS';
+        break;
+      case FriendViewTab.pending:
+        tabTitle = 'SOLICITAÇÕES';
         break;
       case FriendViewTab.offline:
         tabTitle = 'OFFLINE';

@@ -44,7 +44,7 @@ class _AddFriendDialogState extends State<AddFriendDialog> {
     });
 
     final state = context.read<AppState>();
-    final error = await state.addFriendByHandle(text);
+    final error = await state.sendFriendRequest(text);
 
     if (!mounted) return;
 
@@ -63,10 +63,10 @@ class _AddFriendDialogState extends State<AddFriendDialog> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           content: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: HudTheme.green, size: 20),
+              const Icon(Icons.mark_email_read_rounded, color: HudTheme.green, size: 20),
               const SizedBox(width: 12),
               Text(
-                '@$cleanTag adicionado com sucesso ao seu squad!',
+                'Solicitação de amizade enviada para @$cleanTag!',
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ],
@@ -262,7 +262,7 @@ class _AddFriendDialogState extends State<AddFriendDialog> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Adicionar ao Squad', style: TextStyle(fontWeight: FontWeight.bold)),
+                      : const Text('Enviar Solicitação', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

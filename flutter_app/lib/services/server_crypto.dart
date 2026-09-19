@@ -72,6 +72,46 @@ class ServerCrypto {
   static String presenceTopic(String inviteCode) =>
       'papocall/v2/r/${topicIdFor(inviteCode)}/presence';
 
+  static String userInboxTopic(String username) =>
+      'papocall/v2/u/${topicIdFor("inbox:${username.trim().toLowerCase()}")}/inbox';
+
+  static String userPresenceTopic(String username) =>
+      'papocall/v2/u/${topicIdFor("presence:${username.trim().toLowerCase()}")}/presence';
+
+  static String inboxKeySecret(String username) =>
+      'inbox_key:${username.trim().toLowerCase()}';
+
+  static String presenceKeySecret(String username) =>
+      'presence_key:${username.trim().toLowerCase()}';
+
+  static Future<String> encryptInboxPayload(
+    String targetUsername,
+    Map<String, dynamic> payload,
+  ) {
+    return encryptPayload(inboxKeySecret(targetUsername), payload);
+  }
+
+  static Future<Map<String, dynamic>?> decryptInboxPayload(
+    String myUsername,
+    String envelope,
+  ) {
+    return decryptPayload(inboxKeySecret(myUsername), envelope);
+  }
+
+  static Future<String> encryptFriendPresencePayload(
+    String myUsername,
+    Map<String, dynamic> payload,
+  ) {
+    return encryptPayload(presenceKeySecret(myUsername), payload);
+  }
+
+  static Future<Map<String, dynamic>?> decryptFriendPresencePayload(
+    String friendUsername,
+    String envelope,
+  ) {
+    return decryptPayload(presenceKeySecret(friendUsername), envelope);
+  }
+
   /// Cifra o payload. O envelope publicado no broker contém apenas o nonce e o
   /// texto cifrado autenticado — nenhum metadado legível.
   static Future<String> encryptPayload(

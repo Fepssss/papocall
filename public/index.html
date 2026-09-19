@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0l
+          Baixar v1.0.0m
         </a>
       </div>
     </div>
@@ -747,7 +747,7 @@
       </div>
       <h1>Comunicação de Alta Fidelidade <span>para o seu Squad.</span></h1>
       <p>
-        O PapoCall entrega conferências de voz com ultra-baixa latência via WebRTC LiveKit, mensageria cifrada E2EE AES-256-GCM, novo HUD de configurações em abas e Central de Comando operacional.
+        O PapoCall entrega conferências de voz com ultra-baixa latência via WebRTC LiveKit, mensageria cifrada E2EE AES-256-GCM, nova Central de Amigos com solicitações em tempo real e sincronização de presença.
       </p>
       <div class="hero-ctas">
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe" class="btn-primary-download" id="download-btn-hero">
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0l • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0m • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0m', this)">
+          v1.0.0m <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0l', this)">
-          v1.0.0l <span class="badge-current">ATUAL</span>
+          v1.0.0l
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0k', this)">
           v1.0.0k
@@ -911,12 +914,44 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0m -->
+        <article class="release-card latest" data-version="v1.0.0m">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0m</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Contas novas limpas sem servidores padrão, sistema completo de solicitações de amizade E2EE com aba dedicada e sincronização em tempo real de mensagens e presença.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Contas Novas Limpas</strong>: Contas recém-criadas não possuem nenhum servidor padrão pré-carregado, iniciando diretamente na tela inicial com layout tático limpo.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Central de Solicitações de Amizade (E2EE)</strong>: Nova aba "Solicitações" na Central de Amigos com contador de pendências em tempo real, permitindo aceitar, recusar e cancelar pedidos com notificação instantânea cifrada.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Sincronização Instantânea de Mensagens</strong>: Padronização determinística dos identificadores de canais de chat e fallback inteligente por nome de canal, garantindo entrega imediata a todos os membros conectados no servidor.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Sincronização de Usuários Online (Servidores e Amigos)</strong>: Presença em tempo real sincronizada na lista de membros do servidor e na lista de amigos (mesmo sem servidores em comum), com verificação contínua de inatividade.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0l -->
-        <article class="release-card latest" data-version="v1.0.0l">
+        <article class="release-card" data-version="v1.0.0l">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0l</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1117,7 +1152,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0l</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0m</strong></p>
     </div>
   </footer>
 

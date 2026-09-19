@@ -18,6 +18,7 @@ class HomeNavSidebar extends StatelessWidget {
     final onlineCount = state.friendsWithLiveStatus
         .where((f) => f.status != UserStatus.offline)
         .length;
+    final pendingCount = state.pendingRequestsCount;
 
     return Container(
       color: HudTheme.bgSidebar,
@@ -90,17 +91,43 @@ class HomeNavSidebar extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        if (onlineCount > 0)
+                        if (pendingCount > 0) ...[
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: HudTheme.green,
                               borderRadius: BorderRadius.circular(10),
                             ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.mail_rounded, size: 10, color: Colors.black),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$pendingCount',
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        if (onlineCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: HudTheme.green.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: HudTheme.green.withValues(alpha: 0.5)),
+                            ),
                             child: Text(
                               '$onlineCount',
                               style: const TextStyle(
-                                color: Colors.black,
+                                color: HudTheme.green,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),

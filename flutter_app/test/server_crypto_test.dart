@@ -81,5 +81,36 @@ void main() {
       expect(await ServerCrypto.decryptPayload(novoConvite, envelopeAntigo), isNull);
       expect(await ServerCrypto.decryptPayload(convite, envelopeNovo), isNull);
     });
+
+    test('comunicação direta entre usuários (inbox) funciona com E2EE', () async {
+      const username = 'feps';
+      final payload = {
+        'action': 'friend_request',
+        'senderUsername': 'squad_leader',
+      };
+
+      final envelope = await ServerCrypto.encryptInboxPayload(username, payload);
+      final decrypted = await ServerCrypto.decryptInboxPayload(username, envelope);
+
+      expect(decrypted, isNotNull);
+      expect(decrypted!['action'], 'friend_request');
+      expect(decrypted['senderUsername'], 'squad_leader');
+
+      // Outro usuário não consegue decifrar o inbox
+      final intruso = await ServerCrypto.decryptInboxPayload('outro_usuario', envelope);
+      expect(intruso, isNull);
+    });
+
+    test('tópicos de inbox e presença de usuários são únicos e opacos', () {
+      final inboxFeps = ServerCrypto.userInboxTopic('feps');
+      final inboxOutro = ServerCrypto.userInboxTopic('outro');
+      final presenceFeps = ServerCrypto.userPresenceTopic('feps');
+
+      expect(inboxFeps.startsWith('papocall/v2/u/'), isTrue);
+      expect(inboxFeps.endsWith('/inbox'), isTrue);
+      expect(inboxFeps.contains('feps'), isFalse);
+      expect(inboxFeps, isNot(inboxOutro));
+      expect(inboxFeps, isNot(presenceFeps));
+    });
   });
 }
