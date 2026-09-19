@@ -27,11 +27,12 @@ class LiveKitGrant {
 /// sessão, confere se o usuário pode entrar na sala pedida e então assina o
 /// token do LiveKit no servidor, onde o segredo permanece.
 class LiveKitTokenService {
-  /// URL do backend, injetada em tempo de build (--dart-define=PAPOCALL_API_URL).
+  /// Endereço padrão do backend caso não injetado via --dart-define.
+  static const String _defaultApiUrl = 'https://papocall.onrender.com';
   static const String _apiUrlFromEnv = String.fromEnvironment('PAPOCALL_API_URL');
 
   static String get apiBaseUrl =>
-      _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : 'https://papocall.vercel.app';
+      _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : _defaultApiUrl;
 
   /// Solicita ao backend um token de acesso para a sala informada.
   ///

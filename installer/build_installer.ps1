@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 
-$appVersion = "1.0.0n"
+$appVersion = "1.0.0o"
 
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "          PAPOCALL - BUILD INSTALADOR             " -ForegroundColor Cyan
@@ -14,7 +14,7 @@ Write-Host "==================================================" -ForegroundColor
 # O binário distribuído NUNCA deve conter LIVEKIT_API_KEY / LIVEKIT_API_SECRET:
 # o cliente pede o token de voz ao backend, que assina com o segredo no servidor.
 Write-Host "[1/4] Preparando configuracao publica do build (sem segredos)..." -ForegroundColor Yellow
-$apiUrl = "https://papocall.vercel.app"
+$apiUrl = "https://papocall.onrender.com"
 if (Test-Path ".env") {
     Get-Content ".env" | ForEach-Object {
         $line = $_.Trim()

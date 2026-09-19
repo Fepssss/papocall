@@ -60,11 +60,29 @@ module.exports = async (req, res) => {
   }
 
   if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL || !JWT_PUBLIC_KEY) {
-    res.status(500).json({
-      success: false,
-      error: { code: 'SERVER_MISCONFIGURED', message: 'Serviço de voz indisponível.' },
-    });
-    return;
+    // Redundância / Proxy transparente: repassa para o backend oficial no Render
+    const backendUrl = process.env.PAPOCALL_BACKEND_URL || 'https://papocall.onrender.com';
+    try {
+      const forwardRes = await fetch(`${backendUrl}/livekit/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+        },
+        body: JSON.stringify(req.body || {}),
+      });
+
+      const forwardData = await forwardRes.json();
+      res.status(forwardRes.status).json(forwardData);
+      return;
+    } catch (proxyError) {
+      console.error('[livekit-token] Erro ao repassar requisição ao backend:', proxyError);
+      res.status(500).json({
+        success: false,
+        error: { code: 'SERVER_MISCONFIGURED', message: 'Serviço de voz indisponível.' },
+      });
+      return;
+    }
   }
 
   const authHeader = req.headers.authorization || '';

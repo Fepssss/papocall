@@ -69,14 +69,20 @@ class MqttService {
   Future<bool> _attemptConnect(String clientId) async {
     _teardownClient();
 
+    // Cada tentativa usa um sufixo novo no clientId: o broker público derruba a
+    // sessão anterior quando o mesmo identificador reaparece, o que geraria um
+    // laço de desconexões entre a tentativa nova e a conexão zumbi antiga.
+    final base = clientId.length > 4 ? clientId.substring(0, clientId.length - 4) : clientId;
+    final attemptId = '$base${DateTime.now().microsecondsSinceEpoch % 10000}';
+
     // 1. TLS nativo na porta 8883 (mqtts).
-    if (await _tryConnectTls(clientId)) return true;
+    if (await _tryConnectTls(attemptId)) return true;
 
     // 2. Fallback para WebSocket seguro na porta 8084 (caso a 8883 esteja bloqueada na rede do usuário).
     // Não existe fallback em texto puro: o payload já é cifrado ponta a ponta,
     // mas o TLS ainda protege os metadados (quais tópicos, quando, de qual IP).
     debugPrint('[MQTT] Tentando fallback para WebSocket seguro (wss)...');
-    return await _tryConnectWs(clientId);
+    return await _tryConnectWs(attemptId);
   }
 
   void _scheduleRetry() {
@@ -92,29 +98,27 @@ class MqttService {
       if (!_wantsConnection) return;
       final id = _clientId;
       if (id == null) return;
-      // Cada tentativa usa um sufixo novo no clientId: o broker público derruba
-      // a sessão anterior quando o mesmo identificador reaparece, o que geraria
-      // um laço de desconexões entre a tentativa nova e a conexão zumbi antiga.
-      final base = id.length > 4 ? id.substring(0, id.length - 4) : id;
-      final freshId = '$base${DateTime.now().millisecondsSinceEpoch % 10000}';
-      final ok = await _attemptConnect(freshId);
+      final ok = await _attemptConnect(id);
       if (!ok) _scheduleRetry();
     });
   }
 
   Future<bool> _tryConnectTls(String clientId) async {
+    MqttServerClient? client;
     try {
-      final client = MqttServerClient('broker.emqx.io', clientId);
+      client = MqttServerClient('broker.emqx.io', clientId);
       client.port = 8883;
       client.secure = true;
       client.keepAlivePeriod = 20;
-      client.autoReconnect = true;
+      client.autoReconnect = false;
       client.logging(on: false);
 
+      // Sem will: a spec MQTT exige Will QoS 0 quando a Will Flag é 0. Passar
+      // withWillQos sem tópico de will faz o broker encerrar o CONNECT sem
+      // nunca responder CONNACK — as três portas falhavam igual.
       final connMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
-          .startClean()
-          .withWillQos(MqttQos.atLeastOnce);
+          .startClean();
       client.connectionMessage = connMessage;
 
       _configureCallbacks(client);
@@ -129,28 +133,26 @@ class MqttService {
         debugPrint('[MQTT] Conectado via TLS 8883 com sucesso!');
         return true;
       }
-      try {
-        client.disconnect();
-      } catch (_) {}
     } catch (e) {
       debugPrint('[MQTT] Falha na conexão TLS 8883: $e');
     }
+    _discard(client);
     return false;
   }
 
   Future<bool> _tryConnectWs(String clientId) async {
+    MqttServerClient? client;
     try {
-      final client = MqttServerClient.withPort('wss://broker.emqx.io/mqtt', clientId, 8084);
+      client = MqttServerClient.withPort('wss://broker.emqx.io/mqtt', clientId, 8084);
       client.useWebSocket = true;
       client.websocketProtocols = MqttClientConstants.protocolsSingleDefault;
       client.keepAlivePeriod = 20;
-      client.autoReconnect = true;
+      client.autoReconnect = false;
       client.logging(on: false);
 
       final connMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
-          .startClean()
-          .withWillQos(MqttQos.atLeastOnce);
+          .startClean();
       client.connectionMessage = connMessage;
 
       _configureCallbacks(client);
@@ -165,36 +167,45 @@ class MqttService {
         debugPrint('[MQTT] Conectado via WebSocket 8084 com sucesso!');
         return true;
       }
-      try {
-        client.disconnect();
-      } catch (_) {}
     } catch (e) {
       debugPrint('[MQTT] Falha na conexão WebSocket: $e');
     }
+    _discard(client);
     return false;
   }
 
+  /// Derruba um cliente de uma tentativa que não foi adotada.
+  ///
+  /// Um connect() que estoura o timeout continua existindo: se ele completar
+  /// depois, ocupa o clientId e derruba a conexão boa que veio a seguir.
+  void _discard(MqttServerClient? client) {
+    if (client == null) return;
+    try {
+      client.disconnect();
+    } catch (_) {}
+  }
+
   void _configureCallbacks(MqttServerClient client) {
+    // Callback de uma tentativa já descartada não pode mexer no estado: sem essa
+    // guarda, um zumbi atrasado flipava a conectividade da UI e reassinava
+    // tópicos no cliente errado.
+    bool isCurrent() => identical(_client, client);
+
     client.onConnected = () {
       debugPrint('[MQTT] Callback: Conectado.');
+      if (!isCurrent()) return;
       _setConnected(true);
       _resubscribeAll();
     };
     client.onDisconnected = () {
       debugPrint('[MQTT] Callback: Desconectado.');
+      if (!isCurrent()) return;
       _setConnected(false);
-      // O autoReconnect do pacote cobre quedas momentâneas; se ele desistir
-      // (cliente encerrado de vez), o backoff assume e tenta do zero.
-      if (_wantsConnection && !client.autoReconnect) {
-        _scheduleRetry();
-      }
-    };
-    client.onAutoReconnected = () {
-      debugPrint('[MQTT] Callback: Reconectado automaticamente.');
-      _retryAttempt = 0;
-      _retryTimer?.cancel();
-      _setConnected(true);
-      _resubscribeAll();
+      _client = null;
+      // O autoReconnect do pacote está desligado de propósito (ele reinsiste com
+      // o mesmo clientId e colide com a tentativa nova), então o backoff próprio
+      // é o único caminho de recuperação.
+      if (_wantsConnection) _scheduleRetry();
     };
   }
 
