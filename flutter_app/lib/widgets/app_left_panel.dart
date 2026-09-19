@@ -1,15 +1,16 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import 'channels_sidebar.dart';
+import 'home_nav_sidebar.dart';
 import 'server_rail.dart';
 import 'user_profile_bar.dart';
 import 'voice_connection_hud.dart';
 
-/// Painel esquerdo unificado que agrupa o Server Rail (72px) e os Canais (240px),
+/// Painel esquerdo unificado que agrupa o Server Rail (72px) e os Canais ou Home Sidebar (240px),
 /// estendendo a barra de conexão de voz e a barra do perfil de usuário por toda
-/// a largura inferior (312px), exatamente como na arquitetura do webapp.
+/// a largura inferior (312px), garantindo acesso contínuo às configurações e áudio.
 class AppLeftPanel extends StatelessWidget {
   const AppLeftPanel({super.key});
 
@@ -27,13 +28,17 @@ class AppLeftPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Área Superior: Rail de Servidores (72px) + Lista de Canais (240px)
+          // Área Superior: Rail de Servidores (72px) + Barra de Navegação (240px)
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: const [
-                ServerRail(),
-                Expanded(child: ChannelsSidebar()),
+              children: [
+                const ServerRail(),
+                Expanded(
+                  child: state.isHomePageActive
+                      ? const HomeNavSidebar()
+                      : const ChannelsSidebar(),
+                ),
               ],
             ),
           ),

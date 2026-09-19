@@ -4,7 +4,6 @@ import '../models/channel.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
-import 'modals/server_invite_dialog.dart';
 
 class ChannelsSidebar extends StatelessWidget {
   const ChannelsSidebar({super.key});
@@ -22,55 +21,34 @@ class ChannelsSidebar extends StatelessWidget {
       child: Column(
         children: [
           // Server Header
-          InkWell(
-            onTap: () {
-              if (srv != null) {
-                ServerInviteDialog.show(context, srv);
-              }
-            },
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: HudTheme.divider, width: 1)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ClipOval(
-                          child: Image.asset('assets/logo.png', width: 24, height: 24),
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            srv?.name ?? 'PapoCall',
-                            style: const TextStyle(
-                              color: HudTheme.textHeader,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: HudTheme.divider, width: 1)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipOval(
+                      child: Image.asset('assets/logo.png', width: 24, height: 24),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person_add_alt_1_rounded, color: HudTheme.green, size: 18),
-                    tooltip: 'Convidar Amigos',
-                    splashRadius: 18,
-                    onPressed: () {
-                      if (srv != null) {
-                        ServerInviteDialog.show(context, srv);
-                      }
-                    },
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 10),
+                    Text(
+                      srv?.name ?? 'PapoCall',
+                      style: const TextStyle(
+                        color: HudTheme.textHeader,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+                const Icon(Icons.keyboard_arrow_down, color: HudTheme.textNormal),
+              ],
             ),
           ),
 

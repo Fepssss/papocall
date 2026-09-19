@@ -23,8 +23,8 @@ if (Test-Path ".env") {
     }
 }
 
-# 2. Compilar binário nativo Flutter v1.0.0e com as credenciais embutidas
-Write-Host "[2/4] Compilando Flutter Release v1.0.0e para Windows..." -ForegroundColor Yellow
+# 2. Compilar binário nativo Flutter v1.0.0f com as credenciais embutidas
+Write-Host "[2/4] Compilando Flutter Release v1.0.0f para Windows..." -ForegroundColor Yellow
 $env:PATH = "E:\DevTools\git\cmd;E:\DevTools\flutter\bin;$env:PATH"
 Push-Location "flutter_app"
 flutter build windows --release --dart-define=LIVEKIT_URL="$lkUrl" --dart-define=LIVEKIT_API_KEY="$lkKey" --dart-define=LIVEKIT_API_SECRET="$lkSecret"
@@ -45,7 +45,7 @@ if (!$iscc -or !(Test-Path $iscc)) {
 }
 
 # 4. Compilar setup.iss
-Write-Host "[4/4] Compilando PapoCall-Setup.exe v1.0.0e..." -ForegroundColor Yellow
+Write-Host "[4/4] Compilando PapoCall-Setup.exe v1.0.0f..." -ForegroundColor Yellow
 & "$iscc" "installer\setup.iss"
 
 if ($LASTEXITCODE -eq 0 -and (Test-Path "public\downloads\PapoCall-Setup.exe")) {

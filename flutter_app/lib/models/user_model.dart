@@ -16,7 +16,7 @@ class UserModel {
 
   UserModel({
     required this.id,
-    required this.username,
+    required String username,
     String? displayName,
     this.avatar = '',
     this.status = UserStatus.online,
@@ -27,7 +27,8 @@ class UserModel {
     this.currentVoiceChannelId,
     this.currentVoiceServerId,
     int? lastSeen,
-  })  : displayName = (displayName != null && displayName.trim().isNotEmpty)
+  })  : username = username.replaceAll('@', '').trim(),
+        displayName = (displayName != null && displayName.trim().isNotEmpty)
             ? displayName.trim()
             : username.replaceAll('@', '').trim(),
         lastSeen = lastSeen ?? DateTime.now().millisecondsSinceEpoch;
@@ -55,7 +56,7 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] as String? ?? '',
-      username: json['username'] as String? ?? 'Usuário',
+      username: (json['username'] as String? ?? 'Usuário').replaceAll('@', '').trim(),
       displayName: json['displayName'] as String? ?? json['display_name'] as String?,
       avatar: json['avatar'] as String? ?? '',
       status: UserStatus.values.firstWhere(

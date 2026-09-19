@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/app_state.dart';
@@ -20,7 +21,9 @@ class _SettingsModalState extends State<SettingsModal> {
     super.initState();
     final state = context.read<AppState>();
     _displayNameController = TextEditingController(text: state.currentUser.displayName);
-    _usernameController = TextEditingController(text: state.currentUser.username);
+    _usernameController = TextEditingController(
+      text: state.currentUser.username.replaceAll('@', '').trim(),
+    );
   }
 
   @override
@@ -150,10 +153,33 @@ class _SettingsModalState extends State<SettingsModal> {
             TextField(
               controller: _usernameController,
               style: const TextStyle(color: HudTheme.textNormal),
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'[@\s]')),
+                LengthLimitingTextInputFormatter(32),
+              ],
+              onChanged: (val) {
+                if (val.contains('@')) {
+                  final clean = val.replaceAll('@', '').trim();
+                  _usernameController.value = TextEditingValue(
+                    text: clean,
+                    selection: TextSelection.collapsed(offset: clean.length),
+                  );
+                }
+              },
               decoration: InputDecoration(
-                prefixText: '@',
-                prefixStyle: const TextStyle(color: HudTheme.green, fontWeight: FontWeight.bold),
-                hintText: 'tag_do_usuario (para adicionar amigos)',
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(left: 14, right: 4),
+                  child: Text(
+                    '@',
+                    style: TextStyle(
+                      color: HudTheme.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                prefixIconConstraints: const BoxConstraints(minWidth: 26, minHeight: 0),
+                hintText: 'tag_do_usuario (ex: feps)',
                 hintStyle: const TextStyle(color: HudTheme.textMuted),
                 filled: true,
                 fillColor: HudTheme.bgInput,
@@ -218,7 +244,7 @@ class _SettingsModalState extends State<SettingsModal> {
                       ),
                       onPressed: () async {
                         await state.setDisplayName(_displayNameController.text);
-                        await state.setUsername(_usernameController.text);
+                        await state.setUsername(_usernameController.text.trim().replaceAll('@', '').toLowerCase());
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(

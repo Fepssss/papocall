@@ -22,8 +22,10 @@ class AuthUser {
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
-    final rawUser = json['rawUsername'] as String? ??
-        (json['username'] as String? ?? '').replaceAll('@', '').toLowerCase();
+    final rawUser = (json['rawUsername'] as String? ?? json['username'] as String? ?? '')
+        .replaceAll('@', '')
+        .trim()
+        .toLowerCase();
     final disp = json['displayName'] as String? ?? json['display_name'] as String? ?? rawUser;
 
     return AuthUser(
@@ -46,9 +48,12 @@ class AuthUser {
   };
 
   UserModel toUserModel() {
+    final cleanUser = (rawUsername.isNotEmpty ? rawUsername : username)
+        .replaceAll('@', '')
+        .trim();
     return UserModel(
       id: id,
-      username: username,
+      username: cleanUser,
       displayName: displayName,
       status: UserStatus.online,
     );

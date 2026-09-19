@@ -9,8 +9,24 @@ import 'modals/create_server_dialog.dart';
 import 'modals/add_friend_dialog.dart';
 import 'modals/server_invite_dialog.dart';
 
-class HomePageView extends StatelessWidget {
+class HomePageView extends StatefulWidget {
   const HomePageView({super.key});
+
+  @override
+  State<HomePageView> createState() => _HomePageViewState();
+}
+
+enum FriendViewTab { online, all, offline }
+
+class _HomePageViewState extends State<HomePageView> {
+  FriendViewTab _selectedTab = FriendViewTab.online;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,12 +34,45 @@ class HomePageView extends StatelessWidget {
     final currentUser = state.currentUser;
     final isVoiceConnected = state.connectedVoiceChannelId != null;
 
+    final allFriends = state.friendsWithLiveStatus;
+    final onlineFriends = allFriends.where((f) => f.status != UserStatus.offline).toList();
+    final offlineFriends = allFriends.where((f) => f.status == UserStatus.offline).toList();
+
+    List<UserModel> currentList;
+    switch (_selectedTab) {
+      case FriendViewTab.online:
+        currentList = onlineFriends;
+        break;
+      case FriendViewTab.all:
+        currentList = allFriends;
+        break;
+      case FriendViewTab.offline:
+        currentList = offlineFriends;
+        break;
+    }
+
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      currentList = currentList.where((u) {
+        final nameMatches = u.displayNameOrUsername.toLowerCase().contains(query);
+        final handleMatches = u.handle.toLowerCase().contains(query);
+        final tagMatches = u.username.toLowerCase().contains(query);
+        return nameMatches || handleMatches || tagMatches;
+      }).toList();
+    }
+
     return Container(
       color: HudTheme.bgChat,
       child: Column(
         children: [
-          // Barra de Navegação Superior HUD
-          _buildTopBar(context, state),
+          // Barra de Navegação Superior HUD (com abas de Amigos)
+          _buildTopBar(
+            context,
+            state,
+            onlineFriends.length,
+            allFriends.length,
+            offlineFriends.length,
+          ),
 
           // Painel de Rolagem Principal
           Expanded(
@@ -42,34 +91,25 @@ class HomePageView extends StatelessWidget {
                     const SizedBox(height: 24),
                   ],
 
+                  // Barra de Busca Rápida de Amigos
+                  _buildSearchBar(),
+                  const SizedBox(height: 18),
+
+                  // Seção Principal: Central de Amigos
+                  _buildFriendsListSection(
+                    context,
+                    state,
+                    currentList,
+                    allFriends.length,
+                  ),
+                  const SizedBox(height: 32),
+
                   // Seção: Meus Servidores (Grid Tático)
                   _buildServersSection(context, state),
                   const SizedBox(height: 28),
 
-                  // Layout em 2 Colunas: Salas de Voz Táticas & Squad de Amigos
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isWide = constraints.maxWidth > 900;
-                      if (isWide) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: _buildVoiceLoungesCard(context, state)),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildSquadFriendsCard(context, state)),
-                          ],
-                        );
-                      } else {
-                        return Column(
-                          children: [
-                            _buildVoiceLoungesCard(context, state),
-                            const SizedBox(height: 20),
-                            _buildSquadFriendsCard(context, state),
-                          ],
-                        );
-                      }
-                    },
-                  ),
+                  // Salas de Voz Disponíveis
+                  _buildVoiceLoungesCard(context, state),
                   const SizedBox(height: 28),
 
                   // Painel de Diagnósticos do Sistema HUD
@@ -83,28 +123,35 @@ class HomePageView extends StatelessWidget {
     );
   }
 
-  // --- TOP BAR ---
-  Widget _buildTopBar(BuildContext context, AppState state) {
+  // --- TOP BAR COM ABAS DE AMIGOS ---
+  Widget _buildTopBar(
+    BuildContext context,
+    AppState state,
+    int onlineCount,
+    int allCount,
+    int offlineCount,
+  ) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: const BoxDecoration(
         color: HudTheme.bgSidebar,
         border: Border(bottom: BorderSide(color: HudTheme.divider, width: 1)),
       ),
       child: Row(
         children: [
+          // Ícone e Título Amigos
           Container(
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: HudTheme.green.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.dashboard_customize_rounded, color: HudTheme.green, size: 20),
+            child: const Icon(Icons.people_alt_rounded, color: HudTheme.green, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           const Text(
-            'CENTRAL DE COMANDO',
+            'Amigos',
             style: TextStyle(
               color: HudTheme.textHeader,
               fontWeight: FontWeight.bold,
@@ -112,33 +159,35 @@ class HomePageView extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
+          const SizedBox(width: 16),
+          Container(width: 1, height: 20, color: HudTheme.divider),
           const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: HudTheme.green.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: HudTheme.green.withValues(alpha: 0.3)),
+
+          // Abas de Filtro
+          _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
+          const SizedBox(width: 6),
+          _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
+          const SizedBox(width: 6),
+          _buildFilterTab(FriendViewTab.offline, 'Offline', offlineCount),
+          const SizedBox(width: 12),
+
+          // Botão Verde Neon: Adicionar Amigo
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: HudTheme.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              elevation: 1,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: HudTheme.green,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'ONLINE',
-                  style: TextStyle(color: HudTheme.green, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ],
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+            label: const Text(
+              'Adicionar Amigo',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
+            onPressed: () => AddFriendDialog.show(context),
           ),
+
           const Spacer(),
 
           // Botão: Entrar via Código de Convite
@@ -146,45 +195,384 @@ class HomePageView extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: HudTheme.accent,
               side: const BorderSide(color: HudTheme.divider),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            icon: const Icon(Icons.vpn_key_rounded, size: 15),
-            label: const Text('Entrar com Convite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+            icon: const Icon(Icons.vpn_key_rounded, size: 14),
+            label: const Text('Entrar com Convite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
             onPressed: () => _showJoinInviteDialog(context, state),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Botão: Criar Novo Servidor
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: HudTheme.green,
+              backgroundColor: HudTheme.bgCard,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              side: const BorderSide(color: HudTheme.divider),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              elevation: 2,
             ),
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Criar Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            icon: const Icon(Icons.add_rounded, size: 16, color: HudTheme.green),
+            label: const Text('Criar Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
             onPressed: () => CreateServerDialog.show(context),
           ),
-          const SizedBox(width: 12),
 
-          // Botão: Retornar ao Servidor Ativo
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: HudTheme.textHeader,
-              side: const BorderSide(color: HudTheme.divider),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          if (state.activeServer != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: HudTheme.textHeader,
+                side: const BorderSide(color: HudTheme.divider),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: HudTheme.accent),
+              label: Text(
+                state.activeServer!.name,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+              ),
+              onPressed: state.closeHomePage,
             ),
-            icon: const Icon(Icons.arrow_forward_rounded, size: 15, color: HudTheme.accent),
-            label: Text(
-              state.activeServer?.name ?? 'Servidor',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTab(FriendViewTab tab, String label, int count) {
+    final isSelected = _selectedTab == tab;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedTab = tab;
+        });
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? HudTheme.bgHover : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : HudTheme.textMuted,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 13,
+              ),
             ),
-            onPressed: state.closeHomePage,
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isSelected ? HudTheme.green : HudTheme.bgCard,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    color: isSelected ? Colors.black : HudTheme.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- BARRA DE BUSCA RÁPIDA ---
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: HudTheme.bgSidebar,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded, color: HudTheme.textMuted, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Buscar amigos por nome de exibição ou @tag...',
+                hintStyle: TextStyle(color: HudTheme.textMuted, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
           ),
+          if (_searchController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: HudTheme.textMuted, size: 16),
+              splashRadius: 16,
+              onPressed: () {
+                setState(() {
+                  _searchController.clear();
+                });
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- SEÇÃO PRINCIPAL DE AMIGOS ---
+  Widget _buildFriendsListSection(
+    BuildContext context,
+    AppState state,
+    List<UserModel> friends,
+    int totalFriendsCount,
+  ) {
+    String tabTitle;
+    switch (_selectedTab) {
+      case FriendViewTab.online:
+        tabTitle = 'DISPONÍVEIS';
+        break;
+      case FriendViewTab.all:
+        tabTitle = 'TODOS OS AMIGOS';
+        break;
+      case FriendViewTab.offline:
+        tabTitle = 'OFFLINE';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: HudTheme.bgSidebar,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.people_alt_rounded, color: HudTheme.green, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    '$tabTitle (${friends.length})',
+                    style: const TextStyle(
+                      color: HudTheme.textHeader,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Total de Amigos: $totalFriendsCount',
+                style: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (friends.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: HudTheme.green.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.radar_rounded, color: HudTheme.green, size: 38),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    _selectedTab == FriendViewTab.online
+                        ? 'Nenhum amigo online no momento.'
+                        : (_selectedTab == FriendViewTab.offline
+                            ? 'Nenhum amigo offline.'
+                            : 'Nenhum amigo encontrado.'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Adicione seus amigos usando a tag única @usuario para iniciar chamadas e conversar.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 18),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: HudTheme.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                    label: const Text('Adicionar Amigo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    onPressed: () => AddFriendDialog.show(context),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: friends.length,
+              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              itemBuilder: (context, index) {
+                final friend = friends[index];
+                final inCall = friend.currentVoiceChannelId != null;
+                final isOffline = friend.status == UserStatus.offline;
+
+                Color statusBadgeColor;
+                String statusLabel;
+                switch (friend.status) {
+                  case UserStatus.online:
+                    statusBadgeColor = HudTheme.statusOnline;
+                    statusLabel = inCall ? 'Em chamada de voz' : 'Disponível no PapoCall';
+                    break;
+                  case UserStatus.idle:
+                    statusBadgeColor = HudTheme.statusIdle;
+                    statusLabel = 'Ausente';
+                    break;
+                  case UserStatus.dnd:
+                    statusBadgeColor = HudTheme.statusDnd;
+                    statusLabel = 'Não Perturbe';
+                    break;
+                  case UserStatus.offline:
+                    statusBadgeColor = HudTheme.statusOffline;
+                    statusLabel = 'Offline';
+                    break;
+                }
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  hoverColor: HudTheme.bgHover.withValues(alpha: 0.5),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      children: [
+                        // Avatar com indicador de presença
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: isOffline ? HudTheme.bgSidebar : HudTheme.bgHover,
+                              child: Text(
+                                friend.initials,
+                                style: TextStyle(
+                                  color: isOffline ? HudTheme.textMuted : Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: statusBadgeColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: HudTheme.bgSidebar, width: 2),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 14),
+
+                        // Nome de Exibição + Tag @usuario
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    friend.displayNameOrUsername,
+                                    style: TextStyle(
+                                      color: isOffline ? HudTheme.textMuted : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    friend.handle,
+                                    style: const TextStyle(
+                                      color: HudTheme.green,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  color: inCall ? HudTheme.green : HudTheme.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Ações Rápidas
+                        if (inCall)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: HudTheme.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            icon: const Icon(Icons.call_rounded, size: 14),
+                            label: const Text(
+                              'Entrar na Call',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () {
+                              state.connectVoice(friend.currentVoiceChannelId!);
+                              state.selectChannel(friend.currentVoiceChannelId!);
+                              state.closeHomePage();
+                            },
+                          ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          icon: const Icon(Icons.person_remove_rounded, size: 18, color: HudTheme.textMuted),
+                          tooltip: 'Remover dos Amigos',
+                          splashRadius: 18,
+                          onPressed: () => state.removeFriend(friend.id),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -781,188 +1169,6 @@ class HomePageView extends StatelessWidget {
                 ),
               );
             }),
-        ],
-      ),
-    );
-  }
-
-  // --- SEÇÃO: SQUAD & AMIGOS ONLINE/OFFLINE ---
-  Widget _buildSquadFriendsCard(BuildContext context, AppState state) {
-    final squadMembers = <UserModel>[];
-    for (final f in state.friendsWithLiveStatus) {
-      squadMembers.add(f);
-    }
-    for (final o in state.onlineMembers) {
-      if (!squadMembers.any((m) => m.id == o.id)) {
-        squadMembers.add(o);
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: HudTheme.bgSidebar,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: HudTheme.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.military_tech_rounded, color: HudTheme.green, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                'Squad & Amigos (${squadMembers.length})',
-                style: const TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: HudTheme.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  minimumSize: const Size(60, 28),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 13),
-                label: const Text('Adicionar Amigo', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                onPressed: () => AddFriendDialog.show(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (squadMembers.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(24),
-              alignment: Alignment.center,
-              child: Column(
-                children: const [
-                  Icon(Icons.radar_rounded, color: HudTheme.textMuted, size: 36),
-                  SizedBox(height: 8),
-                  Text(
-                    'Nenhum membro do squad no radar.\nAdicione amigos usando a tag @usuario para conectar!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: HudTheme.textMuted, fontSize: 12, height: 1.4),
-                  ),
-                ],
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: squadMembers.length,
-              itemBuilder: (context, index) {
-                final friend = squadMembers[index];
-                final inCall = friend.currentVoiceChannelId != null;
-                final isOffline = friend.status == UserStatus.offline;
-                final isSavedFriend = state.friends.any((f) => f.id == friend.id);
-
-                String statusSubtitle;
-                if (inCall) {
-                  statusSubtitle = 'Em chamada (#${friend.currentVoiceChannelId})';
-                } else if (friend.status == UserStatus.online) {
-                  statusSubtitle = 'Disponível no PapoCall';
-                } else if (friend.status == UserStatus.idle) {
-                  statusSubtitle = 'Ausente';
-                } else if (friend.status == UserStatus.dnd) {
-                  statusSubtitle = 'Não Perturbe';
-                } else {
-                  statusSubtitle = 'Offline';
-                }
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: HudTheme.bgCard,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: inCall ? HudTheme.green.withValues(alpha: 0.3) : HudTheme.divider),
-                  ),
-                  child: Row(
-                    children: [
-                      Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: isOffline ? HudTheme.bgSidebar : HudTheme.bgHover,
-                            child: Text(
-                              friend.initials,
-                              style: TextStyle(
-                                color: isOffline ? HudTheme.textMuted : Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              width: 9,
-                              height: 9,
-                              decoration: BoxDecoration(
-                                color: isOffline ? HudTheme.statusOffline : HudTheme.statusOnline,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: HudTheme.bgCard, width: 1.5),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              friend.displayNameOrUsername,
-                              style: TextStyle(
-                                color: isOffline ? HudTheme.textMuted : Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              '${friend.handle}  •  $statusSubtitle',
-                              style: TextStyle(
-                                color: inCall ? HudTheme.green : HudTheme.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (inCall)
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: HudTheme.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: const Size(70, 28),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          ),
-                          icon: const Icon(Icons.call_rounded, size: 12),
-                          label: const Text('Juntar-se', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          onPressed: () {
-                            state.connectVoice(friend.currentVoiceChannelId!);
-                            state.selectChannel(friend.currentVoiceChannelId!);
-                            state.closeHomePage();
-                          },
-                        ),
-                      if (isSavedFriend && !inCall)
-                        IconButton(
-                          icon: const Icon(Icons.person_remove_rounded, size: 16, color: HudTheme.textMuted),
-                          tooltip: 'Remover dos Amigos',
-                          splashRadius: 16,
-                          onPressed: () => state.removeFriend(friend.id),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
         ],
       ),
     );

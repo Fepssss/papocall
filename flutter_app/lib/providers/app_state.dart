@@ -53,7 +53,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   AppState() {
     currentUser = UserModel(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
-      username: 'Usuário',
+      username: 'usuario',
+      displayName: 'Usuário',
       status: UserStatus.online,
     );
     WidgetsBinding.instance.addObserver(this);
@@ -314,7 +315,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final file = _getSettingsFile();
       final data = {
         'user_id': currentUser.id,
-        'username': currentUser.username,
+        'username': currentUser.username.replaceAll('@', '').trim(),
         'displayName': currentUser.displayName,
       };
       await file.writeAsString(jsonEncode(data));
@@ -419,7 +420,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final savedUsername = data['username'] as String?;
         final savedDisplayName = data['displayName'] as String?;
         if (savedUsername != null && savedUsername.isNotEmpty && !isAuthenticated) {
-          currentUser.username = savedUsername;
+          currentUser.username = savedUsername.replaceAll('@', '').trim();
         }
         if (savedDisplayName != null && savedDisplayName.isNotEmpty && !isAuthenticated) {
           currentUser.displayName = savedDisplayName;
@@ -428,6 +429,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Erro ao carregar configurações: $e');
     }
+
+    currentUser.username = currentUser.username.replaceAll('@', '').trim();
 
     await _loadServers();
     await _loadChatHistory();
@@ -860,9 +863,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> setUsername(String newName) async {
-    final rawUser = newName.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    final rawUser = newName.trim().replaceAll('@', '').toLowerCase();
     if (rawUser.isEmpty) return;
-    currentUser.username = '@$rawUser';
+    currentUser.username = rawUser;
 
     if (currentSession != null) {
       currentSession = AuthSession(

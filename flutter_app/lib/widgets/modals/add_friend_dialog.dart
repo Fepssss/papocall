@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../theme/hud_theme.dart';
@@ -29,7 +30,7 @@ class _AddFriendDialogState extends State<AddFriendDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    final text = _handleController.text.trim();
+    final text = _handleController.text.trim().replaceAll('@', '').toLowerCase();
     if (text.isEmpty) {
       setState(() {
         _errorMessage = 'Por favor, informe a tag ou nome de usuário.';
@@ -181,13 +182,37 @@ class _AddFriendDialogState extends State<AddFriendDialog> {
               controller: _handleController,
               autofocus: true,
               style: const TextStyle(color: HudTheme.textNormal),
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'[@\s]')),
+                LengthLimitingTextInputFormatter(32),
+              ],
+              onChanged: (val) {
+                if (val.contains('@')) {
+                  final clean = val.replaceAll('@', '').trim();
+                  _handleController.value = TextEditingValue(
+                    text: clean,
+                    selection: TextSelection.collapsed(offset: clean.length),
+                  );
+                }
+              },
               onSubmitted: (_) => _handleSubmit(),
               decoration: InputDecoration(
-                hintText: 'Ex: feps ou @feps',
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(left: 14, right: 4),
+                  child: Text(
+                    '@',
+                    style: TextStyle(
+                      color: HudTheme.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                prefixIconConstraints: const BoxConstraints(minWidth: 26, minHeight: 0),
+                hintText: 'tag_do_amigo (ex: feps)',
                 hintStyle: const TextStyle(color: HudTheme.textMuted),
                 filled: true,
                 fillColor: HudTheme.bgInput,
-                prefixIcon: const Icon(Icons.alternate_email, color: HudTheme.textMuted, size: 18),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
                   borderSide: BorderSide.none,

@@ -17,12 +17,12 @@ class ServerRail extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 12),
-          // Botão no topo esquerdo da aba de servidores: Página Inicial do App (em tela cheia)
+          // Botão no topo esquerdo da aba de servidores: Início & Amigos (em tela cheia)
           _buildServerIcon(
             isActive: state.isHomePageActive,
-            title: 'Página Inicial do App',
+            title: 'Início & Amigos',
             initials: 'H',
-            iconData: Icons.home_rounded,
+            iconData: Icons.people_alt_rounded,
             onTap: state.toggleHomePage,
           ),
           const SizedBox(height: 8),
