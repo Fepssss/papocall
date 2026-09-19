@@ -81,6 +81,10 @@ class LiveKitTokenService {
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode != 200 || body['success'] != true) {
+      if (response.statusCode == 401) {
+        // Sessão não pôde ser renovada no servidor; limpa o arquivo local
+        await AuthService.clearSession();
+      }
       final message = body['error']?['message'] as String? ??
           'Não foi possível obter autorização para entrar na sala de voz.';
       throw Exception(message);

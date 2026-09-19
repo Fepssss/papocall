@@ -1133,12 +1133,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         connectedVoiceChannelId = null;
         currentUser.currentVoiceChannelId = null;
         voiceErrorMessage = _voiceService.lastErrorMessage ?? 'Falha ao conectar à chamada de voz.';
+        final lower = voiceErrorMessage!.toLowerCase();
+        if (lower.contains('sessão expirou') || lower.contains('faça login') || lower.contains('não autorizado')) {
+          Future.microtask(() => logout());
+        }
       }
     } catch (e) {
       debugPrint('Erro ao conectar no LiveKit para o canal $channelId: $e');
       connectedVoiceChannelId = null;
       currentUser.currentVoiceChannelId = null;
       voiceErrorMessage = e.toString().replaceFirst('Exception: ', '');
+      final lower = voiceErrorMessage!.toLowerCase();
+      if (lower.contains('sessão expirou') || lower.contains('faça login') || lower.contains('não autorizado')) {
+        Future.microtask(() => logout());
+      }
     } finally {
       isConnectingVoice = false;
       _sendPresence();
