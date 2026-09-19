@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/livekit/token",
+      "dest": "/api/livekit-token.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },

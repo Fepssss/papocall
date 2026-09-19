@@ -9,6 +9,7 @@ import '../models/chat_message.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
+import '../services/server_crypto.dart';
 import '../services/voice_service.dart';
 import '../services/sound_service.dart';
 import '../services/auth_service.dart';
@@ -398,6 +399,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _initStorageAndNetwork() async {
+    // Apaga tokens e hashes de senha gravados em texto puro pelas versões
+    // anteriores antes de qualquer outra coisa.
+    await AuthService.purgeLegacyInsecureFiles();
+
     try {
       final savedSession = await AuthService.loadSession();
       if (savedSession != null) {
@@ -456,11 +461,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _startNetwork() async {
     try {
       _stopNetwork();
-      final clientId = 'papocall_${currentUser.id}_${DateTime.now().millisecondsSinceEpoch % 10000}';
-      debugPrint('[AppState] Conectando rede MQTT como $clientId...');
+      // clientId aleatório: não deriva mais do userId, que era publicado em
+      // claro no broker público e permitia rastrear um usuário entre sessões.
+      final clientId = 'pc_${_uuid.v4().replaceAll('-', '').substring(0, 20)}';
+      debugPrint('[AppState] Conectando rede MQTT...');
       await _mqtt.connect(clientId);
-      _mqtt.subscribe('papocall/v1/srv/+/chat');
-      _mqtt.subscribe('papocall/v1/global/presence');
+
+      _subscribeToOwnServers();
 
       _mqttSubscription = _mqtt.messageStream.listen(_handleIncomingNetworkData);
 
@@ -468,6 +475,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _sendPresence();
     } catch (e) {
       debugPrint('Erro ao inicializar rede: $e');
+    }
+  }
+
+  /// Assina somente os tópicos dos servidores que o usuário realmente integra.
+  ///
+  /// A versão anterior assinava 'papocall/v1/srv/+/chat' com curinga, o que
+  /// entregava a todo cliente o chat de TODOS os servidores, inclusive os que o
+  /// usuário nunca foi convidado. Os tópicos agora derivam de um hash do código
+  /// de convite, então nem o nome do tópico é adivinhável sem o convite.
+  void _subscribeToOwnServers() {
+    _mqtt.unsubscribeAll();
+    for (final srv in servers) {
+      if (srv.inviteCode.trim().isEmpty) continue;
+      _mqtt.subscribe(ServerCrypto.chatTopic(srv.inviteCode));
+      _mqtt.subscribe(ServerCrypto.presenceTopic(srv.inviteCode));
     }
   }
 
@@ -527,31 +549,75 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void _sendPresence() {
+  /// Publica presença apenas nos servidores que o usuário integra, cifrada com
+  /// a chave de cada servidor.
+  ///
+  /// Antes isso ia para um tópico global único em texto puro, expondo perfil,
+  /// status e a lista completa de servidores de cada usuário para qualquer
+  /// pessoa conectada ao broker público, a cada 10 segundos.
+  Future<void> _sendPresence() async {
     if (!_mqtt.isConnected) return;
-    final presenceData = {
-      'action': 'presence',
-      'userId': currentUser.id,
-      'username': currentUser.username,
-      'displayName': currentUser.displayName,
-      'avatar': currentUser.avatar,
-      'status': currentUser.status.name,
-      'isMuted': currentUser.isMuted,
-      'isDeafened': currentUser.isDeafened,
-      'isScreenSharing': currentUser.isScreenSharing,
-      'voiceChannelId': connectedVoiceChannelId,
-      'voiceServerId': activeServerId,
-      'servers': servers.map((s) => s.id).toList(),
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    };
-    _mqtt.publish('papocall/v1/global/presence', presenceData);
+
+    for (final srv in servers) {
+      if (srv.inviteCode.trim().isEmpty) continue;
+
+      final presenceData = {
+        'action': 'presence',
+        'userId': currentUser.id,
+        'username': currentUser.username,
+        'displayName': currentUser.displayName,
+        'avatar': currentUser.avatar,
+        'status': currentUser.status.name,
+        'isMuted': currentUser.isMuted,
+        'isDeafened': currentUser.isDeafened,
+        'isScreenSharing': currentUser.isScreenSharing,
+        // Só revela o canal de voz se ele pertencer a este servidor.
+        'voiceChannelId': activeServerId == srv.id ? connectedVoiceChannelId : null,
+        'voiceServerId': activeServerId == srv.id ? activeServerId : null,
+        'serverId': srv.id,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      try {
+        final envelope = await ServerCrypto.encryptPayload(srv.inviteCode, presenceData);
+        _mqtt.publishEncrypted(ServerCrypto.presenceTopic(srv.inviteCode), envelope);
+      } catch (e) {
+        debugPrint('Erro ao publicar presença em ${srv.id}: $e');
+      }
+    }
   }
 
-  void _handleIncomingNetworkData(Map<String, dynamic> data) {
+  /// Recebe o envelope cifrado, descobre a qual servidor ele pertence pelo
+  /// tópico, decifra e só então processa.
+  ///
+  /// Se o MAC não confere, a mensagem foi adulterada ou publicada por alguém
+  /// sem o código de convite: é descartada sem qualquer efeito.
+  Future<void> _handleIncomingNetworkData(MqttEnvelope envelope) async {
+    Server? origin;
+    for (final srv in servers) {
+      if (srv.inviteCode.trim().isEmpty) continue;
+      final id = ServerCrypto.topicIdFor(srv.inviteCode);
+      if (envelope.topic.contains(id)) {
+        origin = srv;
+        break;
+      }
+    }
+    if (origin == null) return;
+
+    final data = await ServerCrypto.decryptPayload(origin.inviteCode, envelope.payload);
+    if (data == null) return;
+
+    _processNetworkPayload(data, origin);
+  }
+
+  void _processNetworkPayload(Map<String, dynamic> data, Server origin) {
     final action = data['action'] as String?;
     if (action == 'chat_message') {
       final channelId = data['channelId'] as String?;
-      if (channelId != null) {
+      // O canal precisa pertencer ao servidor de onde a mensagem veio, senão um
+      // membro de um servidor conseguiria injetar mensagens no canal de outro.
+      final belongsToOrigin = origin.channels.any((c) => c.id == channelId);
+      if (channelId != null && belongsToOrigin) {
         final newMsg = ChatMessage.fromJson(data['message'] as Map<String, dynamic>);
         _messages.putIfAbsent(channelId, () => []);
         if (!_messages[channelId]!.any((m) => m.id == newMsg.id)) {
@@ -568,9 +634,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
             );
             _saveKnownUsers();
 
-            final currentSrv = activeServer;
-            if (currentSrv != null && !currentSrv.memberIds.contains(newMsg.authorId)) {
-              currentSrv.memberIds.add(newMsg.authorId);
+            // Registra o autor como membro do servidor de ORIGEM da mensagem,
+            // não do servidor que estiver aberto na tela no momento.
+            if (!origin.memberIds.contains(newMsg.authorId)) {
+              origin.memberIds.add(newMsg.authorId);
               _saveServers();
             }
           }
@@ -601,18 +668,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _knownUsers[uid] = user;
         _saveKnownUsers();
 
-        final remoteServers = data['servers'] as List<dynamic>?;
-        if (remoteServers != null) {
-          for (final sid in remoteServers) {
-            final srv = servers.firstWhere(
-              (s) => s.id == sid,
-              orElse: () => Server(id: '', name: '', inviteCode: '', channels: []),
-            );
-            if (srv.id.isNotEmpty && !srv.memberIds.contains(uid)) {
-              srv.memberIds.add(uid);
-              _saveServers();
-            }
-          }
+        // A presença agora é publicada por servidor e cifrada com a chave dele,
+        // então a associação vem do tópico de origem — o cliente não anuncia
+        // mais a lista completa dos seus servidores para a rede.
+        if (!origin.memberIds.contains(uid)) {
+          origin.memberIds.add(uid);
+          _saveServers();
         }
         notifyListeners();
       }
@@ -690,6 +751,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     servers.add(newServer);
     await _saveServers();
+    _subscribeToOwnServers();
 
     final firstText = channels.firstWhere(
       (c) => c.type == ChannelType.text,
@@ -768,6 +830,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     servers.add(joinedServer);
     await _saveServers();
+    _subscribeToOwnServers();
     selectServer(joinedServer.id);
     _sendPresence();
     SoundService.playJoinCall();
@@ -803,12 +866,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveChatHistory();
     notifyListeners();
 
+    _publishChatMessage(activeChannelId, newMsg);
+  }
+
+  Future<void> _publishChatMessage(String channelId, ChatMessage message) async {
+    final srv = activeServer;
+    if (srv == null || srv.inviteCode.trim().isEmpty) return;
+
     final chatPayload = {
       'action': 'chat_message',
-      'channelId': activeChannelId,
-      'message': newMsg.toJson(),
+      'channelId': channelId,
+      'message': message.toJson(),
     };
-    _mqtt.publish('papocall/v1/srv/$activeServerId/chat', chatPayload);
+
+    try {
+      final envelope = await ServerCrypto.encryptPayload(srv.inviteCode, chatPayload);
+      _mqtt.publishEncrypted(ServerCrypto.chatTopic(srv.inviteCode), envelope);
+    } catch (e) {
+      debugPrint('Erro ao publicar mensagem cifrada: $e');
+    }
   }
 
   void toggleMute() {
@@ -1020,9 +1096,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       (s) => s.id == serverId,
       orElse: () => activeServer ?? servers.first,
     );
+    // Regenerar o convite rotaciona a chave de criptografia e o topico do
+    // servidor: quem tinha o codigo antigo perde o acesso as mensagens novas.
     final randomCode = _uuid.v4().substring(0, 8);
     srv.inviteCode = 'papo-$randomCode';
     await _saveServers();
+    _subscribeToOwnServers();
     notifyListeners();
     return srv.inviteCode;
   }
@@ -1035,14 +1114,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
 
     try {
-      // Identidade única e determinística por sessão para evitar colisão DUPLICATE_IDENTITY no LiveKit
-      final randomSuffix = (DateTime.now().millisecondsSinceEpoch % 100000).toString().padLeft(5, '0');
-      final uniqueIdentity = '${currentUser.username}_${currentUser.id}_$randomSuffix';
-
+      // A identity do LiveKit passa a ser definida pelo backend a partir do JWT,
+      // e não mais montada aqui, para impedir personificação de outro usuário.
       final success = await _voiceService.joinVoice(
         roomName: channelId,
-        identity: uniqueIdentity,
-        name: currentUser.username,
+        accessToken: currentSession?.accessToken ?? '',
       );
 
       if (success) {

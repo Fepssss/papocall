@@ -54,19 +54,19 @@ class VoiceService {
 
   Future<bool> joinVoice({
     required String roomName,
-    required String identity,
-    required String name,
+    required String accessToken,
   }) async {
-    _log('Iniciando conexão com sala: $roomName para $name ($identity)');
+    _log('Iniciando conexão com a sala: $roomName');
     try {
       await leaveVoice();
 
-      final token = LiveKitTokenService.generateToken(
+      // O token é emitido pelo backend: a identity vem do JWT da sessão,
+      // nunca do cliente, e o segredo do LiveKit nunca sai do servidor.
+      final grant = await LiveKitTokenService.requestGrant(
         roomName: roomName,
-        identity: identity,
-        name: name,
+        accessToken: accessToken,
       );
-      _log('Token gerado para a sala $roomName');
+      _log('Token recebido do backend para a sala $roomName');
 
       const roomOptions = RoomOptions(
         adaptiveStream: false,
@@ -84,8 +84,8 @@ class VoiceService {
 
       _log('Chamando room.connect...');
       await _room!.connect(
-        LiveKitTokenService.liveKitUrl,
-        token,
+        grant.serverUrl,
+        grant.token,
         connectOptions: const ConnectOptions(
           autoSubscribe: true,
         ),

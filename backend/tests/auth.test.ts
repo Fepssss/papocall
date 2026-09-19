@@ -9,6 +9,18 @@ let server: http.Server;
 let baseUrl: string;
 
 // Helper para fazer requisições HTTP JSON de forma limpa nos testes
+/**
+ * Marca o e-mail como verificado direto no banco.
+ * A rota de voz agora exige e-mail confirmado, e o token real de verificação
+ * só existe dentro do e-mail enviado.
+ */
+async function verifyEmailFor(email: string): Promise<void> {
+  await prisma.user.update({
+    where: { email },
+    data: { email_verified: true },
+  });
+}
+
 async function apiRequest(
   method: string,
   path: string,
@@ -269,6 +281,33 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
         password: 'Password123!',
       });
       userAccessToken = loginRes.body.data.accessToken;
+    });
+
+    it('POST /livekit/token deve recusar usuário com e-mail não verificado', async () => {
+      const res = await apiRequest('POST', '/livekit/token', { room: 'v-jogos' }, userAccessToken);
+
+      assert.equal(res.status, 403);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'EMAIL_NOT_VERIFIED');
+    });
+
+    it('POST /livekit/token deve recusar identificador de sala malformado', async () => {
+      await verifyEmailFor('joao.silva@teste.com');
+      const verified = await apiRequest('POST', '/auth/login', {
+        identifier: '@joaosilva',
+        password: 'Password123!',
+      });
+      userAccessToken = verified.body.data.accessToken;
+
+      const res = await apiRequest(
+        'POST',
+        '/livekit/token',
+        { room: '../outra-sala privada' },
+        userAccessToken
+      );
+
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'VALIDATION_ERROR');
     });
 
     it('GET /auth/me deve rejeitar requisição sem token', async () => {

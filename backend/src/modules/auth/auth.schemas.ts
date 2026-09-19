@@ -37,6 +37,9 @@ export const RegisterSchema = z.object({
   password: z
     .string({ required_error: 'Senha é obrigatória.' })
     .min(8, 'A senha deve ter no mínimo 8 caracteres.')
+    // Teto recomendado pela OWASP: o Argon2id aloca 19 MB por hash, então
+    // senhas gigantes viram um vetor barato de esgotamento de memória.
+    .max(128, 'A senha pode ter no máximo 128 caracteres.')
     .regex(
       PASSWORD_REGEX,
       'A senha deve conter pelo menos uma letra maiúscula e pelo menos um número.'
@@ -106,6 +109,7 @@ export const ResetPasswordSchema = z.object({
   newPassword: z
     .string({ required_error: 'Nova senha é obrigatória.' })
     .min(8, 'A nova senha deve ter no mínimo 8 caracteres.')
+    .max(128, 'A nova senha pode ter no máximo 128 caracteres.')
     .regex(
       PASSWORD_REGEX,
       'A nova senha deve conter pelo menos uma letra maiúscula e pelo menos um número.'
@@ -140,10 +144,19 @@ export const ChangeUsernameSchema = z.object({
     ),
 });
 
+/**
+ * Identificador de sala restrito a um conjunto seguro de caracteres.
+ * Sem isso, o cliente poderia pedir um nome de sala arbitrário e usar o token
+ * do LiveKit para entrar em qualquer conferência do projeto.
+ */
 export const LivekitTokenSchema = z.object({
   room: z
     .string()
     .min(1, 'Identificador de sala não pode ser vazio.')
     .max(64, 'Nome da sala muito longo.')
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      'Identificador de sala inválido: use apenas letras, números, hífen e underscore.'
+    )
     .default('v-geral'),
 });

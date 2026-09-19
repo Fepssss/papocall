@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { env } from '../config/env';
 import { logSecurityEvent } from '../utils/logger';
 
 interface RateLimitRecord {
@@ -33,11 +34,20 @@ export function createRateLimiter(options: {
   }, 5 * 60 * 1000).unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // Determina o IP do cliente (respeitando X-Forwarded-For se atrás de proxy)
-    const clientIp =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      'unknown_ip';
+    // A suíte automatizada exercita dezenas de registros e logins a partir do
+    // mesmo IP; o limitador é validado explicitamente em tests/security.test.ts.
+    if (env.NODE_ENV === 'test') {
+      return next();
+    }
+
+    // IP resolvido pelo Express a partir da configuração 'trust proxy'.
+    //
+    // NUNCA ler X-Forwarded-For diretamente: é um cabeçalho controlado pelo
+    // cliente, então bastava enviar um valor diferente a cada tentativa para
+    // zerar o contador e anular por completo a proteção contra força bruta.
+    // Com 'trust proxy' configurado no app, req.ip considera apenas os saltos
+    // de proxy confiáveis.
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown_ip';
 
     const key = `${options.keyPrefix || 'rl'}:${clientIp}`;
     const now = Date.now();
@@ -91,4 +101,39 @@ export const loginRateLimiter = createRateLimiter({
   max: 5,
   keyPrefix: 'login',
   message: 'Limite de tentativas de login excedido. Aguarde 15 minutos antes de tentar novamente.',
+});
+
+/**
+ * Limitador para criação de contas: impede registro automatizado em massa.
+ */
+export const registerRateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  keyPrefix: 'register',
+  message: 'Limite de criação de contas excedido. Tente novamente em 1 hora.',
+});
+
+/**
+ * Limitador para recuperação de senha.
+ *
+ * Sem ele, o endpoint serve como amplificador de e-mail: um atacante dispara
+ * milhares de mensagens de "redefinição de senha" para a caixa da vítima.
+ */
+export const passwordResetRateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  keyPrefix: 'pwreset',
+  message: 'Muitas solicitações de redefinição. Aguarde 1 hora antes de tentar novamente.',
+});
+
+/**
+ * Limitador para rotas consultadas com frequência pela interface
+ * (disponibilidade de @username, verificação de e-mail, refresh de sessão).
+ * Também reduz a enumeração de usuários existentes.
+ */
+export const lookupRateLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  keyPrefix: 'lookup',
+  message: 'Muitas consultas em sequência. Aguarde alguns instantes.',
 });

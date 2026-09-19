@@ -9,6 +9,14 @@ import { errorHandler, AppError } from './middlewares/error.middleware';
 export const app = express();
 
 // =============================================================================
+// CONFIANÇA EM PROXY REVERSO
+// =============================================================================
+// Necessário para que req.ip reflita o IP real do cliente atrás da Vercel/CDN.
+// Confia em exatamente 1 salto: confiar na cadeia inteira permitiria ao cliente
+// forjar X-Forwarded-For e escapar do rate limiting.
+app.set('trust proxy', 1);
+
+// =============================================================================
 // CABEÇALHOS DE SEGURANÇA (HELMET)
 // =============================================================================
 // Configura Content Security Policy (CSP), esconde cabeçalho X-Powered-By,

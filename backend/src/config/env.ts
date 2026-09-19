@@ -24,6 +24,7 @@ const envSchema = z.object({
   LIVEKIT_URL: z.string().default('wss://seu-projeto.livekit.cloud'),
   LIVEKIT_API_KEY: z.string().default('your_api_key_here'),
   LIVEKIT_API_SECRET: z.string().default('your_api_secret_here'),
+  // Origens permitidas explicitamente; ver validação de produção abaixo.
   // E-mail
   EMAIL_FROM: z.string().default('nao-responda@papocall.com'),
   FRONTEND_URL: z.string().default('https://papocall.vercel.app'),
@@ -42,3 +43,28 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+// =============================================================================
+// VALIDAÇÃO ADICIONAL DE PRODUÇÃO
+// =============================================================================
+// Os defaults acima existem para o ambiente de desenvolvimento funcionar sem
+// configuração. Em produção eles são perigosos: um deploy com a chave de
+// exemplo aceitaria requisições e falharia apenas na hora da chamada de voz,
+// ou pior, rodaria com um segredo previsível. Falhar na inicialização torna o
+// problema visível imediatamente.
+if (env.NODE_ENV === 'production') {
+  const placeholders: string[] = [];
+
+  if (env.LIVEKIT_API_KEY === 'your_api_key_here') placeholders.push('LIVEKIT_API_KEY');
+  if (env.LIVEKIT_API_SECRET === 'your_api_secret_here') placeholders.push('LIVEKIT_API_SECRET');
+  if (env.LIVEKIT_URL === 'wss://seu-projeto.livekit.cloud') placeholders.push('LIVEKIT_URL');
+  if (!env.SMTP_HOST) placeholders.push('SMTP_HOST');
+
+  if (placeholders.length > 0) {
+    console.error(
+      '❌ Falha crítica: variáveis obrigatórias em produção não configuradas ou com valor de exemplo:',
+      placeholders.join(', ')
+    );
+    process.exit(1);
+  }
+}

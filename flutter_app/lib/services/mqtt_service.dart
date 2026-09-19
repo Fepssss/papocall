@@ -1,35 +1,50 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
+/// Mensagem bruta recebida do broker, ainda cifrada.
+/// A decifragem acontece em [ServerCrypto], não aqui: este serviço é apenas
+/// transporte e nunca tem acesso ao conteúdo em claro.
+class MqttEnvelope {
+  final String topic;
+  final String payload;
+
+  const MqttEnvelope({required this.topic, required this.payload});
+}
+
 class MqttService {
+  /// Teto de tamanho por mensagem recebida (256 KB).
+  static const int _maxPayloadBytes = 256 * 1024;
+
   MqttServerClient? _client;
   bool _isConnected = false;
   final Set<String> _subscribedTopics = {};
 
-  final StreamController<Map<String, dynamic>> _messagesController = StreamController.broadcast();
-  Stream<Map<String, dynamic>> get messageStream => _messagesController.stream;
+  final StreamController<MqttEnvelope> _messagesController = StreamController.broadcast();
+  Stream<MqttEnvelope> get messageStream => _messagesController.stream;
 
   bool get isConnected => _isConnected;
 
   Future<bool> connect(String clientId) async {
     disconnect();
 
-    // 1. Tentar conexão direta TCP na porta 1883 (mais rápida e padrão para desktop nativo)
-    final tcpSuccess = await _tryConnectTcp(clientId);
-    if (tcpSuccess) return true;
+    // 1. TLS nativo na porta 8883 (mqtts).
+    final tlsSuccess = await _tryConnectTls(clientId);
+    if (tlsSuccess) return true;
 
-    // 2. Fallback para WebSocket seguro na porta 8084 (caso TCP direto esteja bloqueado na rede do usuário)
+    // 2. Fallback para WebSocket seguro na porta 8084 (caso a 8883 esteja bloqueada na rede do usuário).
+    // Não existe fallback em texto puro: o payload já é cifrado ponta a ponta,
+    // mas o TLS ainda protege os metadados (quais tópicos, quando, de qual IP).
     debugPrint('[MQTT] Tentando fallback para WebSocket seguro (wss)...');
     return await _tryConnectWs(clientId);
   }
 
-  Future<bool> _tryConnectTcp(String clientId) async {
+  Future<bool> _tryConnectTls(String clientId) async {
     try {
       final client = MqttServerClient('broker.emqx.io', clientId);
-      client.port = 1883;
+      client.port = 8883;
+      client.secure = true;
       client.keepAlivePeriod = 20;
       client.autoReconnect = true;
       client.logging(on: false);
@@ -42,17 +57,17 @@ class MqttService {
 
       _configureCallbacks(client);
 
-      final status = await client.connect().timeout(const Duration(seconds: 4));
+      final status = await client.connect().timeout(const Duration(seconds: 6));
       if (status?.state == MqttConnectionState.connected) {
         _client = client;
         _isConnected = true;
         _setupMessageListener(client);
         _resubscribeAll();
-        debugPrint('[MQTT] Conectado via TCP 1883 com sucesso!');
+        debugPrint('[MQTT] Conectado via TLS 8883 com sucesso!');
         return true;
       }
     } catch (e) {
-      debugPrint('[MQTT] Falha na conexão TCP 1883: $e');
+      debugPrint('[MQTT] Falha na conexão TLS 8883: $e');
     }
     return false;
   }
@@ -110,12 +125,14 @@ class MqttService {
     client.updates?.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
       for (final msg in messages) {
         final recMess = msg.payload as MqttPublishMessage;
-        final pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
-        try {
-          final data = jsonDecode(pt) as Map<String, dynamic>;
-          data['_topic'] = msg.topic;
-          _messagesController.add(data);
-        } catch (_) {}
+
+        // O broker é público: qualquer um pode publicar qualquer coisa nos
+        // tópicos. Descarta payloads absurdos antes de alocar a string, para
+        // que um terceiro não consiga inflar a memória do app.
+        if (recMess.payload.message.length > _maxPayloadBytes) continue;
+
+        final raw = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+        _messagesController.add(MqttEnvelope(topic: msg.topic, payload: raw));
       }
     });
   }
@@ -135,11 +152,12 @@ class MqttService {
     }
   }
 
-  void publish(String topic, Map<String, dynamic> data) {
+  /// Publica um envelope já cifrado. Este serviço nunca recebe texto em claro.
+  void publishEncrypted(String topic, String encryptedEnvelope) {
     if (_client != null && _isConnected) {
       try {
         final builder = MqttClientPayloadBuilder();
-        builder.addString(jsonEncode(data));
+        builder.addString(encryptedEnvelope);
         _client!.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
       } catch (e) {
         debugPrint('[MQTT] Erro ao publicar em $topic: $e');
@@ -149,8 +167,18 @@ class MqttService {
     }
   }
 
+  void unsubscribeAll() {
+    for (final topic in _subscribedTopics) {
+      try {
+        _client?.unsubscribe(topic);
+      } catch (_) {}
+    }
+    _subscribedTopics.clear();
+  }
+
   void disconnect() {
     _isConnected = false;
+    _subscribedTopics.clear();
     try {
       _client?.disconnect();
     } catch (_) {}

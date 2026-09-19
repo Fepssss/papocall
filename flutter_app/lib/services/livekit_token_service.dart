@@ -1,147 +1,82 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import 'package:http/http.dart' as http;
 
-class LiveKitConfig {
-  final String url;
-  final String apiKey;
-  final String apiSecret;
+/// Resultado da emissão de um token de voz pelo backend.
+class LiveKitGrant {
+  final String serverUrl;
+  final String token;
+  final String identity;
 
-  const LiveKitConfig({
-    required this.url,
-    required this.apiKey,
-    required this.apiSecret,
+  const LiveKitGrant({
+    required this.serverUrl,
+    required this.token,
+    required this.identity,
   });
 }
 
+/// Obtenção de credenciais de voz (LiveKit) exclusivamente pelo backend.
+///
+/// MODELO DE SEGURANÇA (a partir da v1.0.0g):
+/// O aplicativo distribuído NÃO possui, NÃO lê e NÃO assina nada com a
+/// LIVEKIT_API_SECRET. Todo binário entregue ao usuário é considerado público:
+/// qualquer segredo embutido nele (via --dart-define, arquivo JSON ao lado do
+/// executável ou .env) é extraível com um editor hexadecimal.
+///
+/// O cliente apenas apresenta seu access token JWT ao backend, que valida a
+/// sessão, confere se o usuário pode entrar na sala pedida e então assina o
+/// token do LiveKit no servidor, onde o segredo permanece.
 class LiveKitTokenService {
-  static const String defaultLiveKitUrl = 'wss://seu-projeto.livekit.cloud';
-  static const String defaultApiKey = 'your_api_key_here';
-  static const String defaultApiSecret = 'your_api_secret_here';
+  /// URL do backend, injetada em tempo de build (--dart-define=PAPOCALL_API_URL).
+  static const String _apiUrlFromEnv = String.fromEnvironment('PAPOCALL_API_URL');
 
-  // Injetadas em tempo de build seguro via --dart-define (sem expor no repositório git)
-  static const String envLiveKitUrl = String.fromEnvironment('LIVEKIT_URL');
-  static const String envApiKey = String.fromEnvironment('LIVEKIT_API_KEY');
-  static const String envApiSecret = String.fromEnvironment('LIVEKIT_API_SECRET');
+  static String get apiBaseUrl =>
+      _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : 'https://papocall.vercel.app';
 
-  static LiveKitConfig? _cachedConfig;
-
-  static LiveKitConfig getConfig() {
-    if (_cachedConfig != null) return _cachedConfig!;
-
-    // 1. Variáveis de compilação (--dart-define)
-    if (envLiveKitUrl.isNotEmpty &&
-        envApiKey.isNotEmpty &&
-        envApiSecret.isNotEmpty &&
-        envApiKey != defaultApiKey) {
-      _cachedConfig = LiveKitConfig(
-        url: envLiveKitUrl,
-        apiKey: envApiKey,
-        apiSecret: envApiSecret,
-      );
-      return _cachedConfig!;
+  /// Solicita ao backend um token de acesso para a sala informada.
+  ///
+  /// [accessToken] é o JWT de sessão do usuário autenticado. A identity usada
+  /// no LiveKit é derivada desse JWT pelo servidor e nunca enviada pelo cliente,
+  /// o que impede personificação de outro usuário.
+  static Future<LiveKitGrant> requestGrant({
+    required String roomName,
+    required String accessToken,
+  }) async {
+    if (accessToken.isEmpty) {
+      throw Exception('Sessão inválida. Faça login novamente para entrar na chamada.');
     }
 
-    // 2. Arquivo de configuração embutido na pasta do executável ({app}\data\livekit.json)
-    try {
-      final exeDir = File(Platform.resolvedExecutable).parent.path;
-      final bundledFile = File('$exeDir\\data\\livekit.json');
-      if (bundledFile.existsSync()) {
-        final content = bundledFile.readAsStringSync();
-        if (content.isNotEmpty) {
-          final json = jsonDecode(content) as Map<String, dynamic>;
-          final url = json['url'] as String? ?? defaultLiveKitUrl;
-          final key = json['apiKey'] as String? ?? defaultApiKey;
-          final secret = json['apiSecret'] as String? ?? defaultApiSecret;
-          if (key != defaultApiKey && secret != defaultApiSecret) {
-            _cachedConfig = LiveKitConfig(url: url, apiKey: key, apiSecret: secret);
-            return _cachedConfig!;
-          }
-        }
-      }
-    } catch (_) {}
+    final uri = Uri.parse('$apiBaseUrl/livekit/token');
+    final response = await http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode({'room': roomName}),
+        )
+        .timeout(const Duration(seconds: 10));
 
-    // 3. %APPDATA%/PapoCall/livekit.json
-    try {
-      final appData = Platform.environment['APPDATA'] ?? Platform.environment['USERPROFILE'] ?? '.';
-      final configFile = File('$appData\\PapoCall\\livekit.json');
-      if (configFile.existsSync()) {
-        final content = configFile.readAsStringSync();
-        if (content.isNotEmpty) {
-          final json = jsonDecode(content) as Map<String, dynamic>;
-          final url = json['url'] as String? ?? defaultLiveKitUrl;
-          final key = json['apiKey'] as String? ?? defaultApiKey;
-          final secret = json['apiSecret'] as String? ?? defaultApiSecret;
-          if (key != defaultApiKey && secret != defaultApiSecret) {
-            _cachedConfig = LiveKitConfig(url: url, apiKey: key, apiSecret: secret);
-            return _cachedConfig!;
-          }
-        }
-      }
-    } catch (_) {}
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
 
-    // 4. Arquivo .env local (em desenvolvimento)
-    try {
-      final envFile = File('.env');
-      if (envFile.existsSync()) {
-        final lines = envFile.readAsLinesSync();
-        String url = defaultLiveKitUrl;
-        String key = defaultApiKey;
-        String secret = defaultApiSecret;
-        for (final line in lines) {
-          final trimmed = line.trim();
-          if (trimmed.startsWith('LIVEKIT_URL=')) {
-            url = trimmed.substring('LIVEKIT_URL='.length).replaceAll('"', '').trim();
-          } else if (trimmed.startsWith('LIVEKIT_API_KEY=')) {
-            key = trimmed.substring('LIVEKIT_API_KEY='.length).replaceAll('"', '').trim();
-          } else if (trimmed.startsWith('LIVEKIT_API_SECRET=')) {
-            secret = trimmed.substring('LIVEKIT_API_SECRET='.length).replaceAll('"', '').trim();
-          }
-        }
-        if (key != defaultApiKey && secret != defaultApiSecret) {
-          _cachedConfig = LiveKitConfig(url: url, apiKey: key, apiSecret: secret);
-          return _cachedConfig!;
-        }
-      }
-    } catch (_) {}
+    if (response.statusCode != 200 || body['success'] != true) {
+      final message = body['error']?['message'] as String? ??
+          'Não foi possível obter autorização para entrar na sala de voz.';
+      throw Exception(message);
+    }
 
-    _cachedConfig = const LiveKitConfig(
-      url: defaultLiveKitUrl,
-      apiKey: defaultApiKey,
-      apiSecret: defaultApiSecret,
-    );
-    return _cachedConfig!;
-  }
+    final data = body['data'] as Map<String, dynamic>;
+    final serverUrl = data['serverUrl'] as String? ?? '';
+    final token = data['token'] as String? ?? '';
 
-  static String get liveKitUrl => getConfig().url;
+    if (serverUrl.isEmpty || token.isEmpty) {
+      throw Exception('Resposta inválida do servidor de voz.');
+    }
 
-  /// Gera um token de acesso LiveKit compatível com a API de Nuvem LiveKit
-  static String generateToken({
-    required String roomName,
-    required String identity,
-    required String name,
-  }) {
-    final config = getConfig();
-    final jwt = JWT(
-      {
-        'name': name,
-        'video': {
-          'roomJoin': true,
-          'room': roomName,
-          'canPublish': true,
-          'canSubscribe': true,
-          'canPublishData': true,
-        },
-      },
-      issuer: config.apiKey,
-      subject: identity,
-    );
-
-    return jwt.sign(
-      SecretKey(config.apiSecret),
-      algorithm: JWTAlgorithm.HS256,
-      expiresIn: const Duration(hours: 12),
-      notBefore: const Duration(seconds: -5),
+    return LiveKitGrant(
+      serverUrl: serverUrl,
+      token: token,
+      identity: data['identity'] as String? ?? '',
     );
   }
 }

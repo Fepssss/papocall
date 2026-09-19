@@ -110,8 +110,12 @@ export class AuthService {
       },
     });
 
-    // Envia e-mail de confirmação
-    await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
+    // A conta já foi criada; uma falha no envio não deve derrubar o registro.
+    try {
+      await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
+    } catch (error) {
+      console.error('[EMAIL] Falha ao enviar e-mail de verificação:', error);
+    }
 
     // Cria a sessão inicial do usuário
     const session = await this.createSession(user, ip);
@@ -177,10 +181,12 @@ export class AuthService {
     // Mitigação de timing attack se o usuário não for encontrado
     if (!user) {
       await dummyVerifyPassword();
+      // Não registra o identificador digitado: usuários ocasionalmente digitam
+      // a senha no campo de e-mail, o que gravaria a senha no log de auditoria.
       logSecurityEvent({
         event: 'LOGIN_FAILED',
         ip,
-        details: { identifier, reason: 'USER_NOT_FOUND' },
+        details: { reason: 'USER_NOT_FOUND' },
       });
       throw new AppError(
         'Credenciais inválidas. Verifique seu e-mail/username e senha.',
@@ -422,7 +428,14 @@ export class AuthService {
       },
     });
 
-    await emailService.sendPasswordResetEmail(user.email, user.username, resetToken);
+    // A falha de envio não pode alterar a resposta: se o e-mail existente
+    // devolvesse 500 e o inexistente 200, a diferença revelaria quais contas
+    // estão cadastradas.
+    try {
+      await emailService.sendPasswordResetEmail(user.email, user.username, resetToken);
+    } catch (error) {
+      console.error('[EMAIL] Falha ao enviar e-mail de redefinição de senha:', error);
+    }
 
     logSecurityEvent({
       event: 'PASSWORD_RESET_REQUESTED',

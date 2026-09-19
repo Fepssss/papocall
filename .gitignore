@@ -12,6 +12,11 @@ backend/.env.*
 .agents/mcp_config.json
 !.agents/mcp_config.example.json
 
+# Arquivo de credenciais LiveKit legado (v1.0.0f e anteriores).
+# O cliente NAO deve mais conter segredo algum: o token vem do backend.
+livekit.json
+**/livekit.json
+
 # Bancos de Dados Locais
 *.db
 *.db-journal

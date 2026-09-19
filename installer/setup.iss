@@ -1,6 +1,6 @@
 ; Script de instalacao profissional do PapoCall utilizando Inno Setup
 #define MyAppName "PapoCall"
-#define MyAppVersion "1.0.0f"
+#define MyAppVersion "1.0.0g"
 #define MyAppPublisher "PapoCall"
 #define MyAppURL "https://papocall.vercel.app"
 #define MyAppExeName "PapoCall.exe"
@@ -25,9 +25,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion=1.0.0.5
+VersionInfoVersion=1.0.0.7
 VersionInfoCompany=PapoCall
-VersionInfoDescription=PapoCall v1.0.0e - Aplicativo Desktop Nativo
+VersionInfoDescription=PapoCall v1.0.0g - Aplicativo Desktop Nativo
 VersionInfoCopyright=Copyright (C) 2026 PapoCall
 
 [Languages]

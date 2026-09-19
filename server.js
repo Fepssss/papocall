@@ -1,10 +1,35 @@
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer, WebSocket } = require('ws');
 
 const PORT = process.env.PORT || 3456;
+// Escuta apenas no loopback por padrao. A versao anterior usava 0.0.0.0, o que
+// expunha o chat sem autenticacao para toda a rede local.
+const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// Origens autorizadas a abrir o WebSocket. Sem essa checagem, qualquer site
+// aberto no navegador do usuario conseguia conectar em ws://localhost:3456,
+// ler todo o historico de mensagens e publicar mensagens forjadas (CSWSH).
+const ALLOWED_WS_ORIGINS = (process.env.ALLOWED_WS_ORIGINS ||
+  `http://localhost:${PORT},http://127.0.0.1:${PORT}`)
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const LIMITS = {
+  messageBytes: 4 * 1024,
+  messageTextLength: 2000,
+  usernameLength: 32,
+  channelNameLength: 32,
+  maxChannels: 100,
+  messagesPerChannel: 150,
+  // Janela deslizante simples por conexao
+  rateWindowMs: 10 * 1000,
+  rateMaxMessages: 40,
+};
 
 // MIME types for static files
 const MIME_TYPES = {
@@ -69,56 +94,13 @@ const server = http.createServer((req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = urlObj.pathname;
 
-  // LiveKit Cloud Token API
-  if (pathname === '/api/livekit/token' || pathname === '/api/livekit-token') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200);
-      res.end();
-      return;
-    }
-
-    if (!AccessToken) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'livekit-server-sdk não carregado' }));
-      return;
-    }
-
-    const room = urlObj.searchParams.get('room') || 'v-geral';
-    const identity = urlObj.searchParams.get('identity') || `user_${Math.random().toString(36).substring(2, 9)}`;
-    const name = urlObj.searchParams.get('name') || identity;
-
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity,
-      name,
-    });
-
-    at.addGrant({
-      room,
-      roomJoin: true,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    });
-
-    at.toJwt().then((token) => {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        serverUrl: LIVEKIT_URL,
-        token,
-        room,
-        identity,
-        name
-      }));
-    }).catch((err) => {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err.message }));
-    });
-    return;
-  }
+  // O endpoint de token do LiveKit foi REMOVIDO deste servidor.
+  //
+  // Ele emitia tokens sem qualquer autenticacao, aceitava a identity pela query
+  // string e respondia com Access-Control-Allow-Origin: *, permitindo que
+  // qualquer um assumisse a identidade de outro usuario e entrasse em qualquer
+  // sala. A emissao de token agora acontece exclusivamente no backend
+  // autenticado (backend/src/modules/livekit) ou em api/livekit-token.js.
 
   let reqUrl = pathname;
   if (reqUrl === '/' || reqUrl === '') {
@@ -126,6 +108,15 @@ const server = http.createServer((req, res) => {
   }
 
   const filePath = path.join(PUBLIC_DIR, reqUrl);
+
+  // Defesa em profundidade: o parser de URL ja normaliza '..', mas a checagem
+  // explicita garante que nenhum caminho escape de PUBLIC_DIR.
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=UTF-8' });
+    res.end('403 Acesso negado');
+    return;
+  }
+
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
@@ -139,7 +130,14 @@ const server = http.createServer((req, res) => {
         res.end('500 Erro Interno');
       }
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'no-referrer',
+        'Content-Security-Policy':
+          "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; object-src 'none'; frame-ancestors 'none'",
+      });
       res.end(content);
     }
   });
@@ -154,7 +152,19 @@ server.on('error', (err) => {
 });
 
 // WebSocket Server
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({
+  server,
+  maxPayload: LIMITS.messageBytes,
+  verifyClient: ({ origin, req }, done) => {
+    // Clientes nativos (Flutter) nao enviam Origin; navegadores sempre enviam.
+    // Portanto, quando ha Origin, ela precisa estar na lista autorizada.
+    if (!origin) return done(true);
+    if (ALLOWED_WS_ORIGINS.includes(origin)) return done(true);
+
+    console.warn(`[PapoCall] Conexao WebSocket bloqueada pela origem: ${origin} (${req.socket.remoteAddress})`);
+    done(false, 403, 'Origem nao autorizada');
+  },
+});
 
 function broadcast(data, excludeWs = null) {
   const message = JSON.stringify(data);
@@ -190,8 +200,35 @@ function getActiveUsersList() {
   return list;
 }
 
+/**
+ * Normaliza texto vindo do cliente: forca string, remove caracteres de controle
+ * (que quebram a renderizacao no cliente) e aplica um teto de tamanho.
+ */
+function sanitizeText(value, maxLength) {
+  if (typeof value !== 'string') return '';
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+/**
+ * Limitador por conexao: impede que um unico cliente inunde o servidor e todos
+ * os outros participantes com mensagens.
+ */
+function allowMessage(user) {
+  const now = Date.now();
+  if (now - user.rateWindowStart > LIMITS.rateWindowMs) {
+    user.rateWindowStart = now;
+    user.rateCount = 0;
+  }
+  user.rateCount += 1;
+  return user.rateCount <= LIMITS.rateMaxMessages;
+}
+
 wss.on('connection', (ws) => {
-  const userId = 'u-' + Math.random().toString(36).substring(2, 9);
+  const userId = 'u-' + crypto.randomBytes(9).toString('hex');
   const user = {
     id: userId,
     username: '',
@@ -199,7 +236,9 @@ wss.on('connection', (ws) => {
     isSpeaking: false,
     isMuted: false,
     isDeafened: false,
-    isScreenSharing: false
+    isScreenSharing: false,
+    rateWindowStart: Date.now(),
+    rateCount: 0
   };
   state.users.set(ws, user);
   state.userSocketMap.set(userId, ws);
@@ -217,10 +256,14 @@ wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
+      if (!msg || typeof msg.type !== 'string') return;
+      if (!allowMessage(user)) return;
+
+      const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
 
       switch (msg.type) {
         case 'user:login': {
-          user.username = (msg.data.username || 'Usuário').trim();
+          user.username = sanitizeText(data.username, LIMITS.usernameLength) || 'Usuário';
           broadcast({
             type: 'user:joined',
             data: {
@@ -240,8 +283,16 @@ wss.on('connection', (ws) => {
 
         case 'chat:send': {
           if (!user.username) return;
-          const { channelId, text } = msg.data;
-          if (!channelId || !text || !text.trim()) return;
+          const channelId = typeof data.channelId === 'string' ? data.channelId : '';
+          const text = sanitizeText(data.text, LIMITS.messageTextLength);
+
+          // Só aceita canais que realmente existem. Antes, qualquer string
+          // criava uma nova entrada em state.messages, permitindo a um cliente
+          // inflar a memoria do servidor indefinidamente.
+          const channelExists = state.channels.some(
+            (c) => c.id === channelId && c.type === 'text'
+          );
+          if (!channelExists || !text) return;
 
           const now = new Date();
           const hours = String(now.getHours()).padStart(2, '0');
@@ -249,7 +300,7 @@ wss.on('connection', (ws) => {
           const timestamp = `Hoje às ${hours}:${minutes}`;
 
           const newMsg = {
-            id: 'm-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            id: 'm-' + Date.now() + '-' + crypto.randomBytes(4).toString('hex'),
             author: user.username,
             authorId: user.id,
             text: text.trim(),
@@ -260,7 +311,7 @@ wss.on('connection', (ws) => {
             state.messages[channelId] = [];
           }
           state.messages[channelId].push(newMsg);
-          if (state.messages[channelId].length > 150) {
+          if (state.messages[channelId].length > LIMITS.messagesPerChannel) {
             state.messages[channelId].shift();
           }
 
@@ -275,8 +326,10 @@ wss.on('connection', (ws) => {
         }
 
         case 'voice:join': {
-          const { channelId } = msg.data;
-          const previousChannel = user.voiceChannelId;
+          const channelId = typeof data.channelId === 'string' ? data.channelId : null;
+          const voiceExists = state.channels.some((c) => c.id === channelId && c.type === 'voice');
+          if (!voiceExists) return;
+
           user.voiceChannelId = channelId;
           user.isSpeaking = false;
 
@@ -350,19 +403,24 @@ wss.on('connection', (ws) => {
 
         // WebRTC Signaling Relay (Offer, Answer, ICE Candidates)
         case 'webrtc:signal': {
-          const { to, data } = msg.data;
+          const to = typeof data.to === 'string' ? data.to : '';
+          const target = state.users.get(state.userSocketMap.get(to));
+          // So repassa sinalizacao entre usuarios que estao na MESMA sala de voz:
+          // antes era possivel forcar uma negociacao WebRTC com qualquer usuario
+          // conectado e assim descobrir o IP dele.
+          if (!to || !target || !user.voiceChannelId || target.voiceChannelId !== user.voiceChannelId) return;
           sendToUser(to, {
             type: 'webrtc:signal',
             data: {
               from: user.id,
-              data
+              data: data.data
             }
           });
           break;
         }
 
         case 'voice:speaking': {
-          user.isSpeaking = Boolean(msg.data.isSpeaking) && !user.isMuted;
+          user.isSpeaking = Boolean(data.isSpeaking) && !user.isMuted;
           broadcast({
             type: 'voice:speaking',
             data: {
@@ -374,7 +432,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'voice:set-mute': {
-          user.isMuted = Boolean(msg.data.isMuted);
+          user.isMuted = Boolean(data.isMuted);
           if (user.isMuted) user.isSpeaking = false;
           broadcast({
             type: 'voice:state',
@@ -390,7 +448,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'voice:set-deafen': {
-          user.isDeafened = Boolean(msg.data.isDeafened);
+          user.isDeafened = Boolean(data.isDeafened);
           if (user.isDeafened) {
             user.isMuted = true;
             user.isSpeaking = false;
@@ -409,7 +467,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'voice:screenshare': {
-          user.isScreenSharing = Boolean(msg.data.isSharing);
+          user.isScreenSharing = Boolean(data.isSharing);
           broadcast({
             type: 'voice:screenshare',
             data: {
@@ -422,14 +480,24 @@ wss.on('connection', (ws) => {
         }
 
         case 'channel:create': {
-          const { name, type } = msg.data;
-          if (!name || !name.trim()) return;
-          const cleanName = name.trim().toLowerCase().replace(/\s+/g, '-');
-          const id = (type === 'voice' ? 'v-' : 'c-') + Date.now();
+          if (!user.username) return;
+          if (state.channels.length >= LIMITS.maxChannels) return;
+
+          const name = sanitizeText(data.name, LIMITS.channelNameLength);
+          const type = data.type === 'voice' ? 'voice' : 'text';
+          if (!name) return;
+
+          // Restringe o nome a um conjunto seguro de caracteres.
+          const cleanName = name
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9\-_]/g, '');
+          if (!cleanName) return;
+          const id = (type === 'voice' ? 'v-' : 'c-') + Date.now() + '-' + crypto.randomBytes(3).toString('hex');
           const newChan = {
             id,
             name: cleanName,
-            type: type === 'voice' ? 'voice' : 'text',
+            type,
             topic: type === 'voice' ? 'Sala de voz criada por usuário' : `Canal #${cleanName}`
           };
           state.channels.push(newChan);
@@ -474,6 +542,9 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[PapoCall] Servidor ativo em todas as interfaces na porta ${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`[PapoCall] Servidor ativo em http://${HOST}:${PORT}`);
+  if (HOST !== '127.0.0.1') {
+    console.warn('[PapoCall] ATENCAO: o servidor esta exposto na rede e NAO possui autenticacao.');
+  }
 });
