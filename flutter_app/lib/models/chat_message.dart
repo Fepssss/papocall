@@ -1,7 +1,9 @@
-﻿class ChatMessage {
+class ChatMessage {
   final String id;
   final String authorId;
   final String author;
+  final String authorDisplayName;
+  final String authorUsername;
   final String authorAvatar;
   final String text;
   final String timestamp;
@@ -14,6 +16,8 @@
     required this.id,
     required this.authorId,
     required this.author,
+    String? authorDisplayName,
+    String? authorUsername,
     this.authorAvatar = '',
     required this.text,
     required this.timestamp,
@@ -21,13 +25,21 @@
     this.replyToAuthor,
     this.replyToText,
     this.isSystem = false,
-  });
+  })  : authorDisplayName = (authorDisplayName != null && authorDisplayName.trim().isNotEmpty)
+            ? authorDisplayName.trim()
+            : author,
+        authorUsername = (authorUsername != null && authorUsername.trim().isNotEmpty)
+            ? (authorUsername.startsWith('@') ? authorUsername.trim() : '@${authorUsername.trim()}')
+            : '';
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final rawAuthor = json['author'] as String? ?? 'Usuário';
     return ChatMessage(
       id: json['id'] as String? ?? '',
       authorId: json['authorId'] as String? ?? '',
-      author: json['author'] as String? ?? 'Usuário',
+      author: rawAuthor,
+      authorDisplayName: json['authorDisplayName'] as String? ?? rawAuthor,
+      authorUsername: json['authorUsername'] as String? ?? '',
       authorAvatar: json['authorAvatar'] as String? ?? '',
       text: json['text'] as String? ?? '',
       timestamp: json['timestamp'] as String? ?? '',
@@ -43,6 +55,8 @@
       'id': id,
       'authorId': authorId,
       'author': author,
+      'authorDisplayName': authorDisplayName,
+      'authorUsername': authorUsername,
       'authorAvatar': authorAvatar,
       'text': text,
       'timestamp': timestamp,

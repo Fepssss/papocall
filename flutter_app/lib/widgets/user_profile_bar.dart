@@ -96,72 +96,84 @@ class _UserInfoSectionState extends State<_UserInfoSection> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: _isHovered ? HudTheme.bgHover : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: HudTheme.blurple,
-                  child: Text(
-                    widget.user.initials,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: widget.statusColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: HudTheme.bgProfile, width: 2),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final statusText = widget.user.status == UserStatus.online
+        ? 'Online'
+        : widget.user.status == UserStatus.idle
+            ? 'Ausente'
+            : widget.user.status == UserStatus.dnd
+                ? 'Não Perturbe'
+                : 'Offline';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => const SettingsModal(),
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            color: _isHovered ? HudTheme.bgHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Stack(
                 children: [
-                  Text(
-                    widget.user.username,
-                    style: TextStyle(
-                      color: _isHovered ? Colors.white : HudTheme.textHeader,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: HudTheme.blurple,
+                    child: Text(
+                      widget.user.initials,
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    widget.user.status == UserStatus.online
-                        ? 'Online'
-                        : widget.user.status == UserStatus.idle
-                            ? 'Ausente'
-                            : 'Não Perturbe',
-                    style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: widget.statusColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: HudTheme.bgProfile, width: 2),
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.user.displayNameOrUsername,
+                      style: TextStyle(
+                        color: _isHovered ? Colors.white : HudTheme.textHeader,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${widget.user.handle}  •  $statusText',
+                      style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

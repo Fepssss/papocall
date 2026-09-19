@@ -49,6 +49,7 @@ class AuthUser {
     return UserModel(
       id: id,
       username: username,
+      displayName: displayName,
       status: UserStatus.online,
     );
   }

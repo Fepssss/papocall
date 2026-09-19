@@ -2,13 +2,14 @@ import 'channel.dart';
 
 class Server {
   final String id;
-  final String name;
-  final String icon;
-  final String description;
-  final String inviteCode;
+  String name;
+  String icon;
+  String description;
+  String inviteCode;
   final String ownerId;
-  final String colorHex;
+  String colorHex;
   final bool isCustom;
+  final List<String> memberIds;
   final List<Channel> channels;
 
   Server({
@@ -20,11 +21,13 @@ class Server {
     this.ownerId = '',
     this.colorHex = '22C55E',
     this.isCustom = false,
+    List<String>? memberIds,
     required this.channels,
-  });
+  }) : memberIds = memberIds ?? [];
 
   factory Server.fromJson(Map<String, dynamic> json) {
     final rawChannels = json['channels'] as List<dynamic>? ?? [];
+    final rawMembers = (json['memberIds'] as List<dynamic>?)?.map((m) => m.toString()).toList() ?? [];
     return Server(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Servidor',
@@ -34,6 +37,7 @@ class Server {
       ownerId: json['ownerId'] as String? ?? '',
       colorHex: json['colorHex'] as String? ?? '22C55E',
       isCustom: json['isCustom'] as bool? ?? false,
+      memberIds: rawMembers,
       channels: rawChannels.map((c) => Channel.fromJson(c as Map<String, dynamic>)).toList(),
     );
   }
@@ -48,6 +52,7 @@ class Server {
       'ownerId': ownerId,
       'colorHex': colorHex,
       'isCustom': isCustom,
+      'memberIds': memberIds,
       'channels': channels.map((c) => c.toJson()).toList(),
     };
   }

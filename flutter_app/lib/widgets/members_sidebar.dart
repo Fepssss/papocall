@@ -10,8 +10,9 @@ class MembersSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final members = state.onlineMembers;
-    final totalOnline = members.length + 1; // Includes currentUser
+    final groups = state.getServerMembersGrouped(state.activeServerId);
+    final onlineMembers = groups['online'] ?? [];
+    final offlineMembers = groups['offline'] ?? [];
 
     return Container(
       width: 240,
@@ -27,7 +28,7 @@ class MembersSidebar extends StatelessWidget {
               border: Border(bottom: BorderSide(color: HudTheme.divider, width: 1)),
             ),
             child: Text(
-              'ONLINE — $totalOnline',
+              'DISPONÍVEL — ${onlineMembers.length}',
               style: const TextStyle(
                 color: HudTheme.textMuted,
                 fontSize: 12,
@@ -40,10 +41,33 @@ class MembersSidebar extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               children: [
-                // Current User Item
-                _MemberTile(user: state.currentUser, isSelf: true),
-                // Other Online Users
-                ...members.map((m) => _MemberTile(user: m)),
+                // Membros Disponíveis / Online
+                ...onlineMembers.map((m) => _MemberTile(
+                      user: m,
+                      isSelf: m.id == state.currentUser.id,
+                    )),
+
+                // Categoria e Membros Offline (se houver)
+                if (offlineMembers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      'OFFLINE — ${offlineMembers.length}',
+                      style: const TextStyle(
+                        color: HudTheme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  ...offlineMembers.map((m) => _MemberTile(
+                        user: m,
+                        isSelf: m.id == state.currentUser.id,
+                        isOfflineGroup: true,
+                      )),
+                ],
               ],
             ),
           ),
@@ -56,10 +80,12 @@ class MembersSidebar extends StatelessWidget {
 class _MemberTile extends StatefulWidget {
   final UserModel user;
   final bool isSelf;
+  final bool isOfflineGroup;
 
   const _MemberTile({
     required this.user,
     this.isSelf = false,
+    this.isOfflineGroup = false,
   });
 
   @override
@@ -87,7 +113,10 @@ class _MemberTileState extends State<_MemberTile> {
         break;
     }
 
-    return MouseRegion(
+    final isOffline = widget.user.status == UserStatus.offline || widget.isOfflineGroup;
+    final cleanHandle = widget.user.handle;
+
+    final tileContent = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -105,10 +134,16 @@ class _MemberTileState extends State<_MemberTile> {
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: widget.isSelf ? HudTheme.blurple : HudTheme.bgHover,
+                  backgroundColor: widget.isSelf
+                      ? HudTheme.blurple
+                      : (isOffline ? HudTheme.bgCard : HudTheme.bgHover),
                   child: Text(
                     widget.user.initials,
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: isOffline ? HudTheme.textMuted : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -118,7 +153,7 @@ class _MemberTileState extends State<_MemberTile> {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: statusColor,
+                      color: isOffline ? HudTheme.statusOffline : statusColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: HudTheme.bgSidebar, width: 2),
                     ),
@@ -130,14 +165,17 @@ class _MemberTileState extends State<_MemberTile> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
                       Flexible(
                         child: Text(
-                          widget.user.username,
+                          widget.user.displayNameOrUsername,
                           style: TextStyle(
-                            color: _isHovered ? Colors.white : HudTheme.textHeader,
+                            color: _isHovered
+                                ? Colors.white
+                                : (isOffline ? HudTheme.textMuted : HudTheme.textHeader),
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
                           ),
@@ -160,6 +198,15 @@ class _MemberTileState extends State<_MemberTile> {
                       ],
                     ],
                   ),
+                  const SizedBox(height: 1),
+                  Text(
+                    cleanHandle,
+                    style: const TextStyle(
+                      color: HudTheme.textMuted,
+                      fontSize: 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -167,6 +214,14 @@ class _MemberTileState extends State<_MemberTile> {
         ),
       ),
     );
+
+    if (isOffline) {
+      return Opacity(
+        opacity: _isHovered ? 0.9 : 0.65,
+        child: tileContent,
+      );
+    }
+
+    return tileContent;
   }
 }
-

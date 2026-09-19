@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/channel.dart';
 import '../models/server.dart';
@@ -7,6 +6,8 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import 'modals/create_server_dialog.dart';
+import 'modals/add_friend_dialog.dart';
+import 'modals/server_invite_dialog.dart';
 
 class HomePageView extends StatelessWidget {
   const HomePageView({super.key});
@@ -565,20 +566,10 @@ class HomePageView extends StatelessWidget {
                   const SizedBox(width: 8),
                   _buildMiniBadge(Icons.volume_up, '$voiceChannelsCount', HudTheme.green),
                   const SizedBox(width: 8),
-                  // Botão copiar convite
+                  // Botão abrir detalhes do convite
                   InkWell(
                     borderRadius: BorderRadius.circular(4),
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: server.inviteCode));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: HudTheme.bgSidebar,
-                          behavior: SnackBarBehavior.floating,
-                          content: Text('Código de convite "${server.inviteCode}" copiado!'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
+                    onTap: () => ServerInviteDialog.show(context, server),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -795,9 +786,17 @@ class HomePageView extends StatelessWidget {
     );
   }
 
-  // --- SEÇÃO: SQUAD & AMIGOS ONLINE ---
+  // --- SEÇÃO: SQUAD & AMIGOS ONLINE/OFFLINE ---
   Widget _buildSquadFriendsCard(BuildContext context, AppState state) {
-    final friends = state.onlineMembers;
+    final squadMembers = <UserModel>[];
+    for (final f in state.friendsWithLiveStatus) {
+      squadMembers.add(f);
+    }
+    for (final o in state.onlineMembers) {
+      if (!squadMembers.any((m) => m.id == o.id)) {
+        squadMembers.add(o);
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -814,13 +813,26 @@ class HomePageView extends StatelessWidget {
               const Icon(Icons.military_tech_rounded, color: HudTheme.green, size: 20),
               const SizedBox(width: 10),
               Text(
-                'Squad & Conexões Ativas (${friends.length})',
+                'Squad & Amigos (${squadMembers.length})',
                 style: const TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const Spacer(),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: HudTheme.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: const Size(60, 28),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 13),
+                label: const Text('Adicionar Amigo', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                onPressed: () => AddFriendDialog.show(context),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (friends.isEmpty)
+          if (squadMembers.isEmpty)
             Container(
               padding: const EdgeInsets.all(24),
               alignment: Alignment.center,
@@ -829,7 +841,7 @@ class HomePageView extends StatelessWidget {
                   Icon(Icons.radar_rounded, color: HudTheme.textMuted, size: 36),
                   SizedBox(height: 8),
                   Text(
-                    'Nenhum membro do squad online no radar.\nCompartilhe o link do PapoCall para conectar amigos!',
+                    'Nenhum membro do squad no radar.\nAdicione amigos usando a tag @usuario para conectar!',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: HudTheme.textMuted, fontSize: 12, height: 1.4),
                   ),
@@ -840,10 +852,25 @@ class HomePageView extends StatelessWidget {
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: friends.length,
+              itemCount: squadMembers.length,
               itemBuilder: (context, index) {
-                final friend = friends[index];
+                final friend = squadMembers[index];
                 final inCall = friend.currentVoiceChannelId != null;
+                final isOffline = friend.status == UserStatus.offline;
+                final isSavedFriend = state.friends.any((f) => f.id == friend.id);
+
+                String statusSubtitle;
+                if (inCall) {
+                  statusSubtitle = 'Em chamada (#${friend.currentVoiceChannelId})';
+                } else if (friend.status == UserStatus.online) {
+                  statusSubtitle = 'Disponível no PapoCall';
+                } else if (friend.status == UserStatus.idle) {
+                  statusSubtitle = 'Ausente';
+                } else if (friend.status == UserStatus.dnd) {
+                  statusSubtitle = 'Não Perturbe';
+                } else {
+                  statusSubtitle = 'Offline';
+                }
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -855,13 +882,34 @@ class HomePageView extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: HudTheme.bgHover,
-                        child: Text(
-                          friend.username.replaceAll('@', '').substring(0, 1).toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
+                      Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: isOffline ? HudTheme.bgSidebar : HudTheme.bgHover,
+                            child: Text(
+                              friend.initials,
+                              style: TextStyle(
+                                color: isOffline ? HudTheme.textMuted : Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                color: isOffline ? HudTheme.statusOffline : HudTheme.statusOnline,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: HudTheme.bgCard, width: 1.5),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -869,11 +917,15 @@ class HomePageView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              friend.username,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              friend.displayNameOrUsername,
+                              style: TextStyle(
+                                color: isOffline ? HudTheme.textMuted : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                             Text(
-                              inCall ? 'Em chamada (#${friend.currentVoiceChannelId})' : 'Online no PapoCall',
+                              '${friend.handle}  •  $statusSubtitle',
                               style: TextStyle(
                                 color: inCall ? HudTheme.green : HudTheme.textMuted,
                                 fontSize: 11,
@@ -898,6 +950,13 @@ class HomePageView extends StatelessWidget {
                             state.selectChannel(friend.currentVoiceChannelId!);
                             state.closeHomePage();
                           },
+                        ),
+                      if (isSavedFriend && !inCall)
+                        IconButton(
+                          icon: const Icon(Icons.person_remove_rounded, size: 16, color: HudTheme.textMuted),
+                          tooltip: 'Remover dos Amigos',
+                          splashRadius: 16,
+                          onPressed: () => state.removeFriend(friend.id),
                         ),
                     ],
                   ),

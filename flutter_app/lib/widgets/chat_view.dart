@@ -217,7 +217,10 @@ class _ChatMessageTileState extends State<_ChatMessageTile> {
               radius: 18,
               backgroundColor: msg.isSystem ? HudTheme.green : HudTheme.blurple,
               child: Text(
-                msg.author.isNotEmpty ? msg.author[0].toUpperCase() : '?',
+                (msg.authorDisplayName.isNotEmpty
+                        ? msg.authorDisplayName[0]
+                        : (msg.author.isNotEmpty ? msg.author[0] : '?'))
+                    .toUpperCase(),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
@@ -227,15 +230,24 @@ class _ChatMessageTileState extends State<_ChatMessageTile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        msg.author,
+                        msg.authorDisplayName.isNotEmpty ? msg.authorDisplayName : msg.author,
                         style: const TextStyle(
                           color: HudTheme.textHeader,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
                       ),
+                      if (msg.authorUsername.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          msg.authorUsername.startsWith('@') ? msg.authorUsername : '@${msg.authorUsername}',
+                          style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                        ),
+                      ],
                       const SizedBox(width: 8),
                       Text(
                         msg.timestamp,

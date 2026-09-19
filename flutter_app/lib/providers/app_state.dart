@@ -45,6 +45,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   final Map<String, List<ChatMessage>> _messages = {};
   final Map<String, UserModel> _onlineUsers = {};
+  final Map<String, UserModel> _knownUsers = {};
+  List<UserModel> friends = [];
   Timer? _heartbeatTimer;
   StreamSubscription? _mqttSubscription;
 
@@ -218,6 +220,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   File _getServersFile() => _getAppFile('servers.json');
   File _getChatHistoryFile() => _getAppFile('chat_history.json');
   File _getDraftsFile() => _getAppFile('drafts.json');
+  File _getFriendsFile() => _getAppFile('friends.json');
+  File _getKnownUsersFile() => _getAppFile('known_users.json');
 
   Future<void> _saveServers() async {
     try {
@@ -251,12 +255,67 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _saveFriends() async {
+    try {
+      final file = _getFriendsFile();
+      final list = friends.map((f) => f.toJson()).toList();
+      await file.writeAsString(jsonEncode(list));
+    } catch (e) {
+      debugPrint('Erro ao salvar amigos: $e');
+    }
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final file = _getFriendsFile();
+      if (file.existsSync()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final List<dynamic> raw = jsonDecode(content);
+          friends = raw.map((f) => UserModel.fromJson(f as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar amigos: $e');
+    }
+  }
+
+  Future<void> _saveKnownUsers() async {
+    try {
+      final file = _getKnownUsersFile();
+      final list = _knownUsers.values.map((u) => u.toJson()).toList();
+      await file.writeAsString(jsonEncode(list));
+    } catch (e) {
+      debugPrint('Erro ao salvar usuários conhecidos: $e');
+    }
+  }
+
+  Future<void> _loadKnownUsers() async {
+    try {
+      final file = _getKnownUsersFile();
+      if (file.existsSync()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final List<dynamic> raw = jsonDecode(content);
+          _knownUsers.clear();
+          for (final item in raw) {
+            final u = UserModel.fromJson(item as Map<String, dynamic>);
+            _knownUsers[u.id] = u;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar usuários conhecidos: $e');
+    }
+  }
+
   Future<void> _saveSettings() async {
     try {
       final file = _getSettingsFile();
       final data = {
         'user_id': currentUser.id,
         'username': currentUser.username,
+        'displayName': currentUser.displayName,
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -358,8 +417,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final content = await file.readAsString();
         final data = jsonDecode(content) as Map<String, dynamic>;
         final savedUsername = data['username'] as String?;
+        final savedDisplayName = data['displayName'] as String?;
         if (savedUsername != null && savedUsername.isNotEmpty && !isAuthenticated) {
           currentUser.username = savedUsername;
+        }
+        if (savedDisplayName != null && savedDisplayName.isNotEmpty && !isAuthenticated) {
+          currentUser.displayName = savedDisplayName;
         }
       }
     } catch (e) {
@@ -369,6 +432,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _loadServers();
     await _loadChatHistory();
     await _loadDrafts();
+    await _loadFriends();
+    await _loadKnownUsers();
+
+    // Garante que currentUser faça parte dos servidores carregados
+    for (final srv in servers) {
+      if (!srv.memberIds.contains(currentUser.id)) {
+        srv.memberIds.insert(0, currentUser.id);
+      }
+    }
 
     isCheckingAuth = false;
     notifyListeners();
@@ -458,6 +530,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'action': 'presence',
       'userId': currentUser.id,
       'username': currentUser.username,
+      'displayName': currentUser.displayName,
       'avatar': currentUser.avatar,
       'status': currentUser.status.name,
       'isMuted': currentUser.isMuted,
@@ -481,15 +554,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (!_messages[channelId]!.any((m) => m.id == newMsg.id)) {
           _messages[channelId]!.add(newMsg);
           _saveChatHistory();
+
+          if (newMsg.authorId.isNotEmpty && newMsg.authorId != currentUser.id) {
+            final authorName = newMsg.authorUsername.replaceFirst('@', '').trim();
+            _knownUsers[newMsg.authorId] = UserModel(
+              id: newMsg.authorId,
+              username: authorName.isNotEmpty ? authorName : newMsg.author,
+              displayName: newMsg.authorDisplayName.isNotEmpty ? newMsg.authorDisplayName : newMsg.author,
+              status: UserStatus.offline,
+            );
+            _saveKnownUsers();
+
+            final currentSrv = activeServer;
+            if (currentSrv != null && !currentSrv.memberIds.contains(newMsg.authorId)) {
+              currentSrv.memberIds.add(newMsg.authorId);
+              _saveServers();
+            }
+          }
           notifyListeners();
         }
       }
     } else if (action == 'presence') {
       final uid = data['userId'] as String?;
       if (uid != null && uid != currentUser.id) {
-        _onlineUsers[uid] = UserModel(
+        final username = data['username'] as String? ?? 'Amigo';
+        final displayName = data['displayName'] as String? ?? username;
+        final user = UserModel(
           id: uid,
-          username: data['username'] as String? ?? 'Amigo',
+          username: username,
+          displayName: displayName,
           avatar: data['avatar'] as String? ?? '',
           status: UserStatus.values.firstWhere(
             (s) => s.name == data['status'],
@@ -501,6 +594,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           currentVoiceChannelId: data['voiceChannelId'] as String?,
           currentVoiceServerId: data['voiceServerId'] as String?,
         );
+        _onlineUsers[uid] = user;
+        _knownUsers[uid] = user;
+        _saveKnownUsers();
+
+        final remoteServers = data['servers'] as List<dynamic>?;
+        if (remoteServers != null) {
+          for (final sid in remoteServers) {
+            final srv = servers.firstWhere(
+              (s) => s.id == sid,
+              orElse: () => Server(id: '', name: '', inviteCode: '', channels: []),
+            );
+            if (srv.id.isNotEmpty && !srv.memberIds.contains(uid)) {
+              srv.memberIds.add(uid);
+              _saveServers();
+            }
+          }
+        }
         notifyListeners();
       }
     }
@@ -571,6 +681,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       ownerId: currentUser.id,
       colorHex: colorHex,
       isCustom: true,
+      memberIds: [currentUser.id],
       channels: channels,
     );
 
@@ -628,6 +739,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       orElse: () => Server(id: '', name: '', inviteCode: '', channels: []),
     );
     if (existing.id.isNotEmpty) {
+      if (!existing.memberIds.contains(currentUser.id)) {
+        existing.memberIds.add(currentUser.id);
+        await _saveServers();
+      }
       selectServer(existing.id);
       return true;
     }
@@ -641,6 +756,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       inviteCode: cleanCode,
       isCustom: true,
       colorHex: '38BDF8',
+      memberIds: [currentUser.id],
       channels: [
         Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal de texto'),
         Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
@@ -667,7 +783,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final newMsg = ChatMessage(
       id: _uuid.v4(),
       authorId: currentUser.id,
-      author: currentUser.username,
+      author: currentUser.displayNameOrUsername,
+      authorDisplayName: currentUser.displayName,
+      authorUsername: currentUser.username,
       authorAvatar: currentUser.avatar,
       text: text.trim(),
       timestamp: 'Hoje às ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
@@ -715,12 +833,195 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void setUsername(String newName) async {
-    if (newName.trim().isEmpty) return;
-    currentUser.username = newName.trim();
+  Future<void> setDisplayName(String newDisplayName) async {
+    final trimmed = newDisplayName.trim();
+    if (trimmed.isEmpty) return;
+    currentUser.displayName = trimmed;
+
+    if (currentSession != null) {
+      currentSession = AuthSession(
+        accessToken: currentSession!.accessToken,
+        refreshToken: currentSession!.refreshToken,
+        user: AuthUser(
+          id: currentSession!.user.id,
+          email: currentSession!.user.email,
+          username: currentSession!.user.username,
+          rawUsername: currentSession!.user.rawUsername,
+          displayName: trimmed,
+          emailVerified: currentSession!.user.emailVerified,
+        ),
+      );
+      await AuthService.saveSession(currentSession!);
+    }
+
     await _saveSettings();
     _sendPresence();
     notifyListeners();
+  }
+
+  Future<void> setUsername(String newName) async {
+    final rawUser = newName.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    if (rawUser.isEmpty) return;
+    currentUser.username = '@$rawUser';
+
+    if (currentSession != null) {
+      currentSession = AuthSession(
+        accessToken: currentSession!.accessToken,
+        refreshToken: currentSession!.refreshToken,
+        user: AuthUser(
+          id: currentSession!.user.id,
+          email: currentSession!.user.email,
+          username: '@$rawUser',
+          rawUsername: rawUser,
+          displayName: currentSession!.user.displayName,
+          emailVerified: currentSession!.user.emailVerified,
+        ),
+      );
+      await AuthService.saveSession(currentSession!);
+    }
+
+    await _saveSettings();
+    _sendPresence();
+    notifyListeners();
+  }
+
+  List<UserModel> get friendsWithLiveStatus {
+    return friends.map((f) {
+      if (_onlineUsers.containsKey(f.id)) {
+        return _onlineUsers[f.id]!;
+      }
+      return f;
+    }).toList();
+  }
+
+  Future<String?> addFriendByHandle(String rawHandle) async {
+    final cleanHandle = rawHandle.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    if (cleanHandle.isEmpty) {
+      return 'Por favor, insira uma tag de usuário válida.';
+    }
+    if (cleanHandle == currentUser.username.toLowerCase()) {
+      return 'Você não pode adicionar a si mesmo como amigo.';
+    }
+    if (friends.any((f) => f.username.toLowerCase() == cleanHandle)) {
+      return 'Este usuário já está na sua lista de amigos.';
+    }
+
+    // Procura primeiro entre os usuários online
+    final foundInOnline = _onlineUsers.values.firstWhere(
+      (u) => u.username.toLowerCase() == cleanHandle,
+      orElse: () => _knownUsers.values.firstWhere(
+        (u) => u.username.toLowerCase() == cleanHandle,
+        orElse: () => UserModel(
+          id: 'friend-$cleanHandle',
+          username: cleanHandle,
+          displayName: cleanHandle,
+          status: UserStatus.offline,
+        ),
+      ),
+    );
+
+    friends.add(foundInOnline);
+    await _saveFriends();
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> removeFriend(String friendId) async {
+    friends.removeWhere((f) => f.id == friendId);
+    await _saveFriends();
+    notifyListeners();
+  }
+
+  Map<String, List<UserModel>> getServerMembersGrouped(String serverId) {
+    final srv = servers.firstWhere(
+      (s) => s.id == serverId,
+      orElse: () => activeServer ?? servers.first,
+    );
+
+    if (!srv.memberIds.contains(currentUser.id)) {
+      srv.memberIds.insert(0, currentUser.id);
+    }
+
+    final online = <UserModel>[];
+    final offline = <UserModel>[];
+
+    for (final memberId in srv.memberIds) {
+      if (memberId == currentUser.id) {
+        if (currentUser.status == UserStatus.offline) {
+          offline.add(currentUser);
+        } else {
+          online.add(currentUser);
+        }
+      } else if (_onlineUsers.containsKey(memberId)) {
+        final onlineUser = _onlineUsers[memberId]!;
+        if (onlineUser.status == UserStatus.offline) {
+          offline.add(onlineUser);
+        } else {
+          online.add(onlineUser);
+        }
+      } else if (_knownUsers.containsKey(memberId)) {
+        final known = _knownUsers[memberId]!;
+        offline.add(UserModel(
+          id: known.id,
+          username: known.username,
+          displayName: known.displayName,
+          avatar: known.avatar,
+          status: UserStatus.offline,
+        ));
+      } else {
+        offline.add(UserModel(
+          id: memberId,
+          username: memberId.replaceFirst('user-', 'membro_'),
+          status: UserStatus.offline,
+        ));
+      }
+    }
+
+    // Inclui amigos adicionados caso o servidor seja o padrão para dar vida à visualização
+    if (srv.id == 'server-default') {
+      for (final friend in friends) {
+        if (!srv.memberIds.contains(friend.id)) {
+          if (_onlineUsers.containsKey(friend.id)) {
+            if (!online.any((u) => u.id == friend.id)) {
+              online.add(_onlineUsers[friend.id]!);
+            }
+          } else {
+            if (!offline.any((u) => u.id == friend.id)) {
+              offline.add(friend);
+            }
+          }
+        }
+      }
+    }
+
+    online.sort((a, b) {
+      if (a.id == currentUser.id) return -1;
+      if (b.id == currentUser.id) return 1;
+      return a.displayNameOrUsername.toLowerCase().compareTo(b.displayNameOrUsername.toLowerCase());
+    });
+
+    offline.sort((a, b) {
+      if (a.id == currentUser.id) return -1;
+      if (b.id == currentUser.id) return 1;
+      return a.displayNameOrUsername.toLowerCase().compareTo(b.displayNameOrUsername.toLowerCase());
+    });
+
+    return {
+      'online': online,
+      'offline': offline,
+    };
+  }
+
+  Future<String> regenerateServerInvite(String serverId) async {
+    final srv = servers.firstWhere(
+      (s) => s.id == serverId,
+      orElse: () => activeServer ?? servers.first,
+    );
+    final randomCode = _uuid.v4().substring(0, 8);
+    srv.inviteCode = 'papo-$randomCode';
+    await _saveServers();
+    notifyListeners();
+    return srv.inviteCode;
   }
 
   Future<void> connectVoice(String channelId) async {

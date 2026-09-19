@@ -12,18 +12,21 @@ class SettingsModal extends StatefulWidget {
 }
 
 class _SettingsModalState extends State<SettingsModal> {
-  late TextEditingController _nameController;
+  late TextEditingController _displayNameController;
+  late TextEditingController _usernameController;
 
   @override
   void initState() {
     super.initState();
     final state = context.read<AppState>();
-    _nameController = TextEditingController(text: state.currentUser.username);
+    _displayNameController = TextEditingController(text: state.currentUser.displayName);
+    _usernameController = TextEditingController(text: state.currentUser.username);
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _displayNameController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -36,7 +39,7 @@ class _SettingsModalState extends State<SettingsModal> {
       backgroundColor: HudTheme.bgSidebar,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 500,
+        width: 520,
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -67,6 +70,7 @@ class _SettingsModalState extends State<SettingsModal> {
               decoration: BoxDecoration(
                 color: HudTheme.bgCard,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: HudTheme.divider),
               ),
               child: Row(
                 children: [
@@ -84,7 +88,7 @@ class _SettingsModalState extends State<SettingsModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          state.currentSession?.user.displayName ?? user.username,
+                          user.displayNameOrUsername,
                           style: const TextStyle(
                             color: HudTheme.textHeader,
                             fontSize: 16,
@@ -93,9 +97,7 @@ class _SettingsModalState extends State<SettingsModal> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          state.currentSession != null
-                              ? '${state.currentSession!.user.username}  •  ${state.currentSession!.user.email}'
-                              : 'PapoCall Native v${HudTheme.appVersion}',
+                          '${user.handle}${state.currentSession != null ? "  •  ${state.currentSession!.user.email}" : ""}',
                           style: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
                         ),
                       ],
@@ -106,7 +108,7 @@ class _SettingsModalState extends State<SettingsModal> {
             ),
             const SizedBox(height: 20),
 
-            // Nickname Input
+            // Display Name Input
             const Text(
               'NOME DE EXIBIÇÃO',
               style: TextStyle(
@@ -118,9 +120,41 @@ class _SettingsModalState extends State<SettingsModal> {
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: _nameController,
+              controller: _displayNameController,
               style: const TextStyle(color: HudTheme.textNormal),
               decoration: InputDecoration(
+                hintText: 'Como os outros verão você (ex: Felipe)',
+                hintStyle: const TextStyle(color: HudTheme.textMuted),
+                filled: true,
+                fillColor: HudTheme.bgInput,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Handle / Username Input
+            const Text(
+              'NOME DE USUÁRIO / TAG (IDENTIFICADOR ÚNICO)',
+              style: TextStyle(
+                color: HudTheme.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _usernameController,
+              style: const TextStyle(color: HudTheme.textNormal),
+              decoration: InputDecoration(
+                prefixText: '@',
+                prefixStyle: const TextStyle(color: HudTheme.green, fontWeight: FontWeight.bold),
+                hintText: 'tag_do_usuario (para adicionar amigos)',
+                hintStyle: const TextStyle(color: HudTheme.textMuted),
                 filled: true,
                 fillColor: HudTheme.bgInput,
                 border: OutlineInputBorder(
@@ -182,11 +216,16 @@ class _SettingsModalState extends State<SettingsModal> {
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
-                      onPressed: () {
-                        state.setUsername(_nameController.text);
+                      onPressed: () async {
+                        await state.setDisplayName(_displayNameController.text);
+                        await state.setUsername(_usernameController.text);
+                        if (!context.mounted) return;
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Configurações salvas com sucesso!')),
+                          const SnackBar(
+                            backgroundColor: HudTheme.bgSidebar,
+                            content: Text('Configurações de perfil salvas com sucesso!'),
+                          ),
                         );
                       },
                       child: const Text('Salvar Alterações'),
