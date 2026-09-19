@@ -7,7 +7,8 @@
     "start": "start PapoCall.exe",
     "app": "start PapoCall.exe",
     "build:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build_installer.ps1",
-    "server": "node server.js"
+    "server": "node server.js",
+    "prepare": "husky"
   },
   "keywords": [
     "papocall",
@@ -22,5 +23,8 @@
     "livekit-server-sdk": "^2.19.0",
     "mqtt": "^5.15.2",
     "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }

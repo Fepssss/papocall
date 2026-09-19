@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# Verifica se o gitleaks está instalado e disponível no PATH
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo ""
+  echo "⚠️  [AVISO DE SEGURANÇA] Gitleaks não encontrado no sistema."
+  echo "A verificação de segredos local foi ignorada."
+  echo "Para instalar o gitleaks:"
+  echo "  - Windows: winget install Gitleaks.Gitleaks  ou  choco install gitleaks"
+  echo "  - Mac: brew install gitleaks"
+  echo "  - Linux: https://github.com/gitleaks/gitleaks/releases"
+  echo ""
+  exit 0
+fi
+
+echo "🔍 [Gitleaks] Verificando arquivos em stage contra vazamento de credenciais..."
+gitleaks protect --staged --verbose --redact
+RESULT=$?
+
+if [ $RESULT -ne 0 ]; then
+  echo ""
+  echo "🚨 [ERRO DE SEGURANÇA] O Gitleaks detectou segredo(s) ou credenciais em arquivos staged!"
+  echo "O commit foi BLOQUEADO para prevenir o vazamento no repositório."
+  echo "Por favor, revise os arquivos alterados, remova credenciais reais e use variáveis de ambiente (.env)."
+  echo ""
+  exit 1
+fi
+
+exit 0
