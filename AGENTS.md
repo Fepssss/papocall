@@ -22,6 +22,11 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 4. **Segurança e Commits no Git**:
    - Nunca expor credenciais reais no histórico do Git.
    - O e-mail do autor dos commits Git DEVE ser sempre `fepsmiotti@gmail.com` e o nome `Feps` (para coincidir com o proprietário do plano Vercel e não travar deploys com `seatBlock: COMMIT_AUTHOR_REQUIRED`).
+5. **Atualização do Instalador e do Site a Cada Atualização (Mandatório)**:
+   - No final de toda e qualquer alteração ou atualização de código:
+     - Sempre compilar o instalador oficial Windows executando `installer/build_installer.ps1`.
+     - Atualizar o binário `public/downloads/PapoCall-Setup.exe`.
+     - Fazer commit e push na branch `main` com autor `Feps <fepsmiotti@gmail.com>`, garantindo que o site e o instalador na Vercel (`https://papocall.vercel.app`) fiquem sempre atualizados na última versão.
 
 ---
 

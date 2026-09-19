@@ -17,3 +17,7 @@ description: Regras obrigatórias de desenvolvimento e versionamento do PapoCall
    - Commits devem usar `user.name = "Feps"` e `user.email = "fepsmiotti@gmail.com"` para manter compatibilidade com a verificação de assento da Vercel.
 5. **Estética Visual**:
    - Respeitar sempre as diretrizes de `HudTheme`: fundo escuro tático, bordas finas sutis, tipografia monoespaçada/clean e destaques em verde esmeralda (#22C55E).
+6. **Atualização do Instalador e do Site (Mandatório)**:
+   - Ao final de cada atualização, sem exceção:
+     - Executar `installer/build_installer.ps1` para gerar o novo `PapoCall-Setup.exe`.
+     - Fazer commit e push na branch `main` com autor `Feps <fepsmiotti@gmail.com>` para atualizar o instalador no site e na Vercel (`https://papocall.vercel.app`).
