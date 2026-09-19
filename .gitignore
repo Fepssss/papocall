@@ -9,6 +9,8 @@ package-lock.json
 backend/.env
 backend/.env.*
 !backend/.env.example
+.agents/mcp_config.json
+!.agents/mcp_config.example.json
 
 # Bancos de Dados Locais
 *.db
