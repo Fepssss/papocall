@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'auth_service.dart';
 
 /// Resultado da emissão de um token de voz pelo backend.
 class LiveKitGrant {
@@ -46,7 +47,7 @@ class LiveKitTokenService {
     }
 
     final uri = Uri.parse('$apiBaseUrl/livekit/token');
-    final response = await http
+    http.Response response = await http
         .post(
           uri,
           headers: {
@@ -55,7 +56,27 @@ class LiveKitTokenService {
           },
           body: jsonEncode({'room': roomName}),
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 12));
+
+    // Se o access token tiver expirado (401), tenta renovar silenciosamente via refresh token
+    if (response.statusCode == 401) {
+      final session = await AuthService.loadSession();
+      if (session != null) {
+        final renewed = await AuthService.refreshSession(session);
+        if (renewed != null && renewed.accessToken.isNotEmpty) {
+          response = await http
+              .post(
+                uri,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer ${renewed.accessToken}',
+                },
+                body: jsonEncode({'room': roomName}),
+              )
+              .timeout(const Duration(seconds: 12));
+        }
+      }
+    }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 

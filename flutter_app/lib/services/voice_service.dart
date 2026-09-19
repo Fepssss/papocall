@@ -70,10 +70,13 @@ class VoiceService {
     } catch (_) {}
   }
 
+  String? lastErrorMessage;
+
   Future<bool> joinVoice({
     required String roomName,
     required String accessToken,
   }) async {
+    lastErrorMessage = null;
     _log('Iniciando conexão com a sala: $roomName');
     try {
       await leaveVoice();
@@ -108,9 +111,9 @@ class VoiceService {
           autoSubscribe: true,
         ),
       ).timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 15),
         onTimeout: () {
-          throw TimeoutException('Tempo limite (8s) esgotado ao conectar ao LiveKit Cloud');
+          throw TimeoutException('Tempo limite (15s) esgotado ao conectar ao LiveKit Cloud');
         },
       );
 
@@ -122,6 +125,7 @@ class VoiceService {
 
       return true;
     } catch (e, stack) {
+      lastErrorMessage = e.toString().replaceFirst('Exception: ', '');
       _log('ERRO ao conectar ao LiveKit: $e\n$stack');
       await leaveVoice();
       return false;

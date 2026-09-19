@@ -283,12 +283,22 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
       userAccessToken = loginRes.body.data.accessToken;
     });
 
-    it('POST /livekit/token deve recusar usuário com e-mail não verificado', async () => {
+    it('POST /livekit/token deve autorizar usuário autenticado e emitir token válido', async () => {
       const res = await apiRequest('POST', '/livekit/token', { room: 'v-jogos' }, userAccessToken);
 
-      assert.equal(res.status, 403);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.ok(res.body.data.token);
+      assert.equal(res.body.data.room, 'v-jogos');
+      assert.equal(res.body.data.identity, '@joaosilva');
+    });
+
+    it('POST /livekit/token deve rejeitar requisição anônima sem token', async () => {
+      const res = await apiRequest('POST', '/livekit/token', { room: 'v-jogos' });
+
+      assert.equal(res.status, 401);
       assert.equal(res.body.success, false);
-      assert.equal(res.body.error.code, 'EMAIL_NOT_VERIFIED');
+      assert.equal(res.body.error.code, 'UNAUTHORIZED');
     });
 
     it('POST /livekit/token deve recusar identificador de sala malformado', async () => {

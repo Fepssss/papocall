@@ -1106,11 +1106,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return srv.inviteCode;
   }
 
+  String? voiceErrorMessage;
+
   Future<void> connectVoice(String channelId) async {
     if (isConnectingVoice) return;
     if (connectedVoiceChannelId == channelId) return;
 
     isConnectingVoice = true;
+    voiceErrorMessage = null;
     notifyListeners();
 
     try {
@@ -1124,15 +1127,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (success) {
         connectedVoiceChannelId = channelId;
         currentUser.currentVoiceChannelId = channelId;
+        voiceErrorMessage = null;
         SoundService.playJoinCall();
       } else {
         connectedVoiceChannelId = null;
         currentUser.currentVoiceChannelId = null;
+        voiceErrorMessage = _voiceService.lastErrorMessage ?? 'Falha ao conectar à chamada de voz.';
       }
     } catch (e) {
       debugPrint('Erro ao conectar no LiveKit para o canal $channelId: $e');
       connectedVoiceChannelId = null;
       currentUser.currentVoiceChannelId = null;
+      voiceErrorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
       isConnectingVoice = false;
       _sendPresence();

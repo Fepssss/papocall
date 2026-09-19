@@ -304,4 +304,31 @@ class AuthService {
     // Reportar 'disponível' aqui levaria o usuário a um registro que falha.
     return UsernameAvailabilityResult(available: false, username: '@$clean');
   }
+
+  /// 4. Renovação de Sessão via Refresh Token (Silenciosa)
+  static Future<AuthSession?> refreshSession(AuthSession session) async {
+    if (session.refreshToken.isEmpty) return null;
+
+    try {
+      final res = await http.post(
+        Uri.parse('$apiBaseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': session.refreshToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 && body['success'] == true) {
+        final data = body['data'] as Map<String, dynamic>;
+        final newSession = AuthSession(
+          accessToken: data['accessToken'] as String? ?? session.accessToken,
+          refreshToken: data['refreshToken'] as String? ?? session.refreshToken,
+          user: session.user,
+        );
+        await saveSession(newSession);
+        return newSession;
+      }
+    } catch (_) {}
+
+    return null;
+  }
 }

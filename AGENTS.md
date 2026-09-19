@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento**:
-   - Versão atual do projeto: **`1.0.0h`**.
+   - Versão atual do projeto: **`1.0.0i`**.
    - **Pequenas atualizações / fixes**: Incrementar a letra final sequencialmente (`1.0.0d`, `1.0.0e`, ..., até `1.0.0z`).
    - **Ao esgotar o alfabeto ('z')**: Avançar o patch com 'a' (`1.0.1a`, ..., `1.0.1z`, depois `1.0.2a`...).
    - **Grandes atualizações estruturais (Big Update)**: Avançar para a próxima versão maior (`2.0.0a`).

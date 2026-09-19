@@ -1,33 +1,38 @@
 ; Script de instalacao profissional do PapoCall utilizando Inno Setup
 #define MyAppName "PapoCall"
-#define MyAppVersion "1.0.0h"
+#define MyAppVersion "1.0.0i"
 #define MyAppPublisher "PapoCall"
 #define MyAppURL "https://papocall.vercel.app"
 #define MyAppExeName "PapoCall.exe"
+#define MyAppAssocName MyAppName + " File"
+#define MyAppAssocExt ".papocall"
+#define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
 
 [Setup]
-; Identificador exclusivo da aplicacao
-AppId={{E58E6629-8B94-4F58-9C21-6D59A111F3E2}
+; Identificador exclusivo da aplicacao (gerado via GUID)
+AppId={{C4712F85-6EE6-4B39-8671-5DFEAC66023F}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={localappdata}\Programs\{#MyAppName}
+DefaultDirName={autopf}\{#MyAppName}
+ChangesAssociations=yes
 DisableProgramGroupPage=yes
-; Instalacao por usuario (sem necessidade de permissoes de administrador / sem popup UAC)
+; Nao exige privilégios de administrador obrigatórios para permitir instalacao por usuario
 PrivilegesRequired=lowest
 OutputDir=..\public\downloads
 OutputBaseFilename=PapoCall-Setup
-SetupIconFile=..\assets\icon.ico
+SetupIconFile=..\flutter_app\windows\runner\resources\app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion=1.0.0.8
+VersionInfoVersion=1.0.0.9
 VersionInfoCompany=PapoCall
-VersionInfoDescription=PapoCall v1.0.0h - Aplicativo Desktop Nativo
+VersionInfoDescription=PapoCall v1.0.0i - Aplicativo Desktop Nativo
 VersionInfoCopyright=Copyright (C) 2026 PapoCall
 
 [Languages]

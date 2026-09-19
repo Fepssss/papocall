@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 
-$appVersion = "1.0.0h"
+$appVersion = "1.0.0i"
 
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "          PAPOCALL - BUILD INSTALADOR             " -ForegroundColor Cyan
