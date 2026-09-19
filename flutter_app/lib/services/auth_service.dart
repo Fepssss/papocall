@@ -104,10 +104,39 @@ class AuthService {
   /// Precisa ser HTTPS: até a v1.0.0f o app apontava para 'http://localhost:3333',
   /// endereço que nunca existe na máquina de um usuário final — o que fazia todo
   /// login cair num cofre local inseguro, hoje removido.
+  static const String _defaultApiUrl = 'https://papocall.onrender.com';
   static const String _apiUrlFromEnv = String.fromEnvironment('PAPOCALL_API_URL');
 
   static String get apiBaseUrl =>
-      _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : 'https://papocall.vercel.app';
+      _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : _defaultApiUrl;
+
+  static Future<File> _getLastIdentifierFile() async {
+    final appData = Platform.environment['APPDATA'] ??
+        Platform.environment['USERPROFILE'] ??
+        Directory.current.path;
+    final dir = Directory('$appData\\PapoCall');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return File('${dir.path}\\last_login.txt');
+  }
+
+  static Future<void> saveLastIdentifier(String identifier) async {
+    try {
+      final file = await _getLastIdentifierFile();
+      await file.writeAsString(identifier.trim());
+    } catch (_) {}
+  }
+
+  static Future<String> loadLastIdentifier() async {
+    try {
+      final file = await _getLastIdentifierFile();
+      if (await file.exists()) {
+        return (await file.readAsString()).trim();
+      }
+    } catch (_) {}
+    return '';
+  }
 
   static Future<File> _getSessionFile() async {
     final appData = Platform.environment['APPDATA'] ??
@@ -234,6 +263,7 @@ class AuthService {
       final data = body['data'] as Map<String, dynamic>;
       final session = AuthSession.fromJson(data);
       await saveSession(session);
+      await saveLastIdentifier(email.trim().toLowerCase());
       return session;
     }
 
@@ -264,6 +294,7 @@ class AuthService {
       final data = body['data'] as Map<String, dynamic>;
       final session = AuthSession.fromJson(data);
       await saveSession(session);
+      await saveLastIdentifier(cleanIdentifier);
       return session;
     }
 

@@ -51,7 +51,17 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSavedIdentifier();
     _startBackendWarmUp();
+  }
+
+  Future<void> _loadSavedIdentifier() async {
+    final last = await AuthService.loadLastIdentifier();
+    if (mounted && last.isNotEmpty) {
+      setState(() {
+        _loginIdentifierController.text = last;
+      });
+    }
   }
 
   void _startBackendWarmUp() {
@@ -343,22 +353,25 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildTabButton(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? HudTheme.bgHover : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isSelected ? Colors.white : HudTheme.textMuted,
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? HudTheme.bgHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : HudTheme.textMuted,
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -397,28 +410,22 @@ class _AuthScreenState extends State<AuthScreen> {
 
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _backendStatus == BackendStatus.ready
-                ? HudTheme.blurple
-                : HudTheme.bgCard,
+            backgroundColor: HudTheme.blurple,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 2,
           ),
-          onPressed: (_isLoading || _backendStatus != BackendStatus.ready) ? null : _handleLogin,
+          onPressed: _isLoading ? null : _handleLogin,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                 )
-              : Text(
-                  _backendStatus == BackendStatus.connecting
-                      ? 'Aguardando Servidor...'
-                      : (_backendStatus == BackendStatus.offline
-                          ? 'Servidor Indisponível'
-                          : 'Entrar'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              : const Text(
+                  'Entrar',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
         ),
       ],
@@ -544,28 +551,22 @@ class _AuthScreenState extends State<AuthScreen> {
         // Register Button
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: _backendStatus == BackendStatus.ready
-                ? HudTheme.green
-                : HudTheme.bgCard,
+            backgroundColor: HudTheme.green,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 2,
           ),
-          onPressed: (_isLoading || _backendStatus != BackendStatus.ready) ? null : _handleRegister,
+          onPressed: _isLoading ? null : _handleRegister,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                 )
-              : Text(
-                  _backendStatus == BackendStatus.connecting
-                      ? 'Aguardando Servidor...'
-                      : (_backendStatus == BackendStatus.offline
-                          ? 'Servidor Indisponível'
-                          : 'Criar Conta no PapoCall'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              : const Text(
+                  'Criar Conta no PapoCall',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
         ),
       ],

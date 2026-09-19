@@ -1,6 +1,6 @@
 {
   "name": "papocall",
-  "version": "1.0.0k",
+  "version": "1.0.0l",
   "description": "PapoCall - Aplicativo nativo de voz e chat com tema HUD sóbrio",
   "main": "server.js",
   "scripts": {

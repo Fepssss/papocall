@@ -50,6 +50,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<UserModel> friends = [];
   Timer? _heartbeatTimer;
   StreamSubscription? _mqttSubscription;
+  StreamSubscription? _pingSubscription;
+  bool _isDisposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
 
   AppState() {
     currentUser = UserModel(
@@ -152,10 +160,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     });
 
+    _pingSubscription?.cancel();
+    _pingSubscription = _voiceService.pingStream.listen((_) {
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    });
+
     _voiceService.onDisconnected = () {
       debugPrint('[AppState] LiveKit reportou desconexao da sala de voz.');
       disconnectVoice();
     };
+  }
+
+  int get voicePingMs => _voiceService.currentPingMs;
+
+  String get voiceConnectionQuality {
+    if (voicePingMs <= 0) return 'Conectando...';
+    if (voicePingMs < 60) return 'Excelente (< 60ms)';
+    if (voicePingMs < 120) return 'Boa (< 120ms)';
+    return 'Oscilando (> 120ms)';
   }
 
   Server? get activeServer => servers.firstWhere(
@@ -1206,6 +1230,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _pingSubscription?.cancel();
+    _pingSubscription = null;
     WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     _voiceService.dispose();

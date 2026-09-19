@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
+import 'auth_service.dart';
 import 'livekit_token_service.dart';
 import 'sound_service.dart';
 
@@ -13,6 +15,11 @@ class VoiceService {
 
   bool get isConnected => _room?.connectionState == ConnectionState.connected;
   Room? get room => _room;
+
+  int currentPingMs = 0;
+  Timer? _pingTimer;
+  final StreamController<int> _pingController = StreamController<int>.broadcast();
+  Stream<int> get pingStream => _pingController.stream;
 
   LocalVideoTrack? _screenShareTrack;
   LocalTrackPublication<LocalVideoTrack>? _screenSharePublication;
@@ -119,6 +126,7 @@ class VoiceService {
 
       _log('Conectado com sucesso ao LiveKit! Estado: ${_room?.connectionState}');
       _notifyParticipants();
+      _startPingMeasurement();
 
       // Ativar microfone de forma assíncrona após a conexão estar estável
       _enableMicrophoneSafely();
@@ -315,6 +323,7 @@ class VoiceService {
     } catch (e) {
       _log('Erro ao desconectar voz: $e');
     } finally {
+      _stopPingMeasurement();
       _room = null;
       _listener = null;
       _localParticipantListener = null;
@@ -325,12 +334,68 @@ class VoiceService {
     }
   }
 
+  void _startPingMeasurement() {
+    _pingTimer?.cancel();
+    _measurePing();
+    _pingTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
+      if (isConnected) {
+        _measurePing();
+      } else {
+        _stopPingMeasurement();
+      }
+    });
+  }
+
+  void _stopPingMeasurement() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
+    currentPingMs = 0;
+    if (!_pingController.isClosed) {
+      _pingController.add(0);
+    }
+  }
+
+  Future<void> _measurePing() async {
+    try {
+      final sw = Stopwatch()..start();
+      final client = http.Client();
+      try {
+        final res = await client
+            .head(Uri.parse('https://papocall-9lgrt380.livekit.cloud'))
+            .timeout(const Duration(seconds: 2));
+        sw.stop();
+        if (res.statusCode != 0) {
+          currentPingMs = sw.elapsedMilliseconds;
+        }
+      } finally {
+        client.close();
+      }
+    } catch (_) {
+      try {
+        final sw = Stopwatch()..start();
+        final res = await http
+            .get(Uri.parse('${AuthService.apiBaseUrl}/health'))
+            .timeout(const Duration(seconds: 2));
+        sw.stop();
+        if (res.statusCode == 200) {
+          currentPingMs = sw.elapsedMilliseconds;
+        }
+      } catch (_) {}
+    }
+
+    if (!_pingController.isClosed && isConnected) {
+      _pingController.add(currentPingMs);
+    }
+  }
+
   void dispose() {
+    _stopPingMeasurement();
     _localParticipantListener?.dispose();
     _localParticipantListener = null;
     _listener?.dispose();
     _listener = null;
     leaveVoice();
+    _pingController.close();
     _screenShareTrackController.close();
     _activeSpeakersController.close();
     _participantsController.close();

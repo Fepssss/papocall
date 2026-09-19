@@ -32,17 +32,51 @@ class VoiceConnectionHud extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Connection Status Icon
-          Container(
-            padding: const EdgeInsets.all(6),
+          // Connection Status Icon (Símbolo de Wi-Fi verde com Tooltip de Ping)
+          Tooltip(
+            message: isConnecting
+                ? 'Conectando ao servidor LiveKit RTC...'
+                : (state.voicePingMs > 0
+                    ? 'Latência (Ping): ${state.voicePingMs} ms\nQualidade: ${state.voiceConnectionQuality}\nServidor: LiveKit Cloud RTC HD\nCodec: Opus 48kHz HD\nCriptografia: WebRTC DTLS-SRTP'
+                    : 'Voz Conectada\nMedindo latência com o servidor...'),
             decoration: BoxDecoration(
-              color: (isConnecting ? HudTheme.accent : HudTheme.green).withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+              color: const Color(0xFF0F131D),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: HudTheme.green.withValues(alpha: 0.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Icon(
-              isConnecting ? Icons.sync : Icons.signal_cellular_alt,
-              color: isConnecting ? HudTheme.accent : HudTheme.green,
-              size: 16,
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontFamily: 'JetBrains Mono',
+              height: 1.45,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            waitDuration: const Duration(milliseconds: 150),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.help,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: (isConnecting ? HudTheme.accent : HudTheme.green).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: (isConnecting ? HudTheme.accent : HudTheme.green).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Icon(
+                  isConnecting ? Icons.sync : Icons.wifi,
+                  color: isConnecting ? HudTheme.accent : HudTheme.green,
+                  size: 16,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -64,9 +98,13 @@ class VoiceConnectionHud extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
-                      '/ RTC HD',
-                      style: TextStyle(color: HudTheme.textMuted, fontSize: 10),
+                    Text(
+                      state.voicePingMs > 0 ? '${state.voicePingMs}ms' : '/ RTC HD',
+                      style: TextStyle(
+                        color: state.voicePingMs > 0 ? HudTheme.green : HudTheme.textMuted,
+                        fontSize: 10,
+                        fontWeight: state.voicePingMs > 0 ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),
