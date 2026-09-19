@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import 'modals/create_server_dialog.dart';
+import 'server_context_menu.dart';
 
 class ServerRail extends StatelessWidget {
   const ServerRail({super.key});
@@ -53,6 +54,7 @@ class ServerRail extends StatelessWidget {
                     customColor: srvColor,
                     mentionCount: state.mentionCountForServer(srv.id),
                     onTap: () => state.selectServer(srv.id),
+                    onSecondaryTap: (offset) => ServerContextMenu.show(context, srv, offset),
                   ),
                 );
               },
@@ -92,6 +94,7 @@ class ServerRail extends StatelessWidget {
     IconData? iconData,
     Color? customColor,
     int mentionCount = 0,
+    void Function(Offset position)? onSecondaryTap,
   }) {
     return _ServerRailItem(
       isActive: isActive,
@@ -102,6 +105,7 @@ class ServerRail extends StatelessWidget {
       iconData: iconData,
       customColor: customColor,
       mentionCount: mentionCount,
+      onSecondaryTap: onSecondaryTap,
     );
   }
 }
@@ -116,6 +120,10 @@ class _ServerRailItem extends StatefulWidget {
   final Color? customColor;
   final int mentionCount;
 
+  /// Abre o menu de contexto do servidor no ponto exato do clique com o botão
+  /// direito. Nulo no ícone de Início, que não representa um servidor.
+  final void Function(Offset position)? onSecondaryTap;
+
   const _ServerRailItem({
     required this.isActive,
     required this.title,
@@ -125,6 +133,7 @@ class _ServerRailItem extends StatefulWidget {
     this.iconData,
     this.customColor,
     this.mentionCount = 0,
+    this.onSecondaryTap,
   });
 
   @override
@@ -171,6 +180,9 @@ class _ServerRailItemState extends State<_ServerRailItem> {
             // Server Icon
             GestureDetector(
               onTap: widget.onTap,
+              onSecondaryTapUp: widget.onSecondaryTap == null
+                  ? null
+                  : (details) => widget.onSecondaryTap!(details.globalPosition),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [

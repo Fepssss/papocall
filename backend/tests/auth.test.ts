@@ -276,11 +276,36 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
     let userAccessToken: string;
 
     before(async () => {
+      // A rota de voz exige e-mail confirmado, então o login precisa acontecer
+      // depois da verificação para que o access token saia com a claim correta.
+      await verifyEmailFor('joao.silva@teste.com');
       const loginRes = await apiRequest('POST', '/auth/login', {
         identifier: '@joaosilva',
         password: 'Password123!',
       });
       userAccessToken = loginRes.body.data.accessToken;
+    });
+
+    it('POST /livekit/token deve recusar usuário autenticado sem e-mail confirmado', async () => {
+      await prisma.user.update({
+        where: { email: 'joao.silva@teste.com' },
+        data: { email_verified: false },
+      });
+      const unverified = await apiRequest('POST', '/auth/login', {
+        identifier: '@joaosilva',
+        password: 'Password123!',
+      });
+      const res = await apiRequest(
+        'POST',
+        '/livekit/token',
+        { room: 'v-jogos' },
+        unverified.body.data.accessToken
+      );
+
+      assert.equal(res.status, 403);
+      assert.equal(res.body.error.code, 'EMAIL_NOT_VERIFIED');
+
+      await verifyEmailFor('joao.silva@teste.com');
     });
 
     it('POST /livekit/token deve autorizar usuário autenticado e emitir token válido', async () => {

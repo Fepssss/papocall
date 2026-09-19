@@ -17,8 +17,9 @@ const tokenRateLimiter = createRateLimiter({
 });
 
 // Endpoint protegido para geração de token LiveKit.
-// Exige autenticação JWT válida e aplica rate-limit rigoroso.
-router.post('/token', tokenRateLimiter, authMiddleware, (req, res, next) =>
+// Exige autenticação JWT válida, e-mail confirmado e aplica rate-limit rigoroso:
+// cada token emitido consome RTC faturado na LiveKit Cloud.
+router.post('/token', tokenRateLimiter, authMiddleware, requireVerifiedEmail, (req, res, next) =>
   livekitController.generateToken(req, res, next)
 );
 

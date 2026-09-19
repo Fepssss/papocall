@@ -448,6 +448,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Servidores com o som de menção silenciado. É preferência local: não altera
+  /// nada do que chega pelo broker, apenas o que toca nesta máquina.
+  final Set<String> _mutedServerIds = {};
+
+  bool isServerMuted(String serverId) => _mutedServerIds.contains(serverId);
+
+  void toggleServerMuted(String serverId) {
+    if (serverId.isEmpty) return;
+    if (!_mutedServerIds.remove(serverId)) _mutedServerIds.add(serverId);
+    _saveSettings();
+    notifyListeners();
+  }
+
   Future<void> _saveSettings() async {
     try {
       final file = _getSettingsFile();
@@ -455,6 +468,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'user_id': currentUser.id,
         'username': currentUser.username.replaceAll('@', '').trim(),
         'displayName': currentUser.displayName,
+        'mutedServers': _mutedServerIds.toList(),
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -578,6 +592,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
         if (savedDisplayName != null && savedDisplayName.isNotEmpty && !isAuthenticated) {
           currentUser.displayName = savedDisplayName;
+        }
+        final muted = data['mutedServers'];
+        if (muted is List) {
+          _mutedServerIds.addAll(muted.whereType<String>());
         }
       }
     } catch (e) {
@@ -1438,7 +1456,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
             // Avisa quando a mensagem marca este usuário. Só para mensagem
             // alheia e recém-chegada: um retrato de histórico pode trazer
             // marcações antigas, e elas não devem tocar de novo.
-            if (mentionsUser(newMsg.text, currentUser.username)) {
+            if (mentionsUser(newMsg.text, currentUser.username) && !isServerMuted(origin.id)) {
               SoundService.playMention();
             }
           }
@@ -1694,6 +1712,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (channelId.isEmpty) return;
     _lastReadAt[channelId] = DateTime.now().millisecondsSinceEpoch;
     _saveReadMarks();
+  }
+
+  /// Marca todos os canais de um servidor como lidos de uma vez, gravando o
+  /// disco uma única vez: chamar markChannelRead por canal faria uma escrita
+  /// por canal pelo simples fechar de um menu.
+  void markServerRead(String serverId) {
+    final index = servers.indexWhere((s) => s.id == serverId);
+    if (index == -1) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final canal in servers[index].channels) {
+      _lastReadAt[canal.id] = now;
+    }
+    _saveReadMarks();
+    notifyListeners();
   }
 
   /// Quantas mensagens ainda não lidas deste canal marcam o usuário atual.

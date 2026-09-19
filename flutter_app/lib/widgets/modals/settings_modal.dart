@@ -15,14 +15,18 @@ enum SettingsTab {
 }
 
 class SettingsModal extends StatefulWidget {
-  const SettingsModal({super.key});
+  const SettingsModal({super.key, this.initialTab = SettingsTab.account});
+
+  /// Aba aberta ao mostrar o modal. O menu de contexto do servidor usa para
+  /// levar o usuário direto à configuração que ele pediu.
+  final SettingsTab initialTab;
 
   @override
   State<SettingsModal> createState() => _SettingsModalState();
 }
 
 class _SettingsModalState extends State<SettingsModal> {
-  SettingsTab _selectedTab = SettingsTab.account;
+  late SettingsTab _selectedTab = widget.initialTab;
 
   late TextEditingController _displayNameController;
   late TextEditingController _usernameController;

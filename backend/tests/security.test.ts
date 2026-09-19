@@ -24,10 +24,13 @@ describe('7. Salvaguardas de Seguranca e Sanitizacao de Arquivos de Exemplo', ()
     assert.ok(fs.existsSync(backendExamplePath), 'backend/.env.example deve existir');
     const content = fs.readFileSync(backendExamplePath, 'utf-8');
 
-    // Nao pode conter credenciais expostas conhecidas
-    assert.ok(!content.includes('APInwQYax6X6V9Y'), 'Nao pode conter a chave antiga APInwQYax6X6V9Y');
-    assert.ok(!content.includes('MEvhqw634u8yUnYflJVMCrc8eKGQUrH1LbUj7wtpKt5'), 'Nao pode conter o secret antigo');
-    assert.ok(!content.includes('APIdzjusbH2TnW4'), 'Nao pode conter a chave nova de producao');
+    // Nao pode conter credenciais expostas conhecidas.
+    // Só o prefixo de cada uma fica no código: `includes` do prefixo continua
+    // detectando o valor completo se ele voltar a ser commitado, sem que o
+    // próprio teste volte a publicar o segredo no repositório.
+    assert.ok(!content.includes('APInwQYa'), 'Nao pode conter a chave antiga');
+    assert.ok(!content.includes('MEvhqw63'), 'Nao pode conter o secret antigo');
+    assert.ok(!content.includes('APIdzjus'), 'Nao pode conter a chave nova de producao');
 
     // Chaves LiveKit devem ser estritamente placeholders
     assert.match(content, /LIVEKIT_API_KEY="your_api_key_here"/);
@@ -59,9 +62,9 @@ describe('7. Salvaguardas de Seguranca e Sanitizacao de Arquivos de Exemplo', ()
     assert.ok(fs.existsSync(rootExamplePath), 'root .env.example deve existir');
     const content = fs.readFileSync(rootExamplePath, 'utf-8');
 
-    assert.ok(!content.includes('APInwQYax6X6V9Y'));
-    assert.ok(!content.includes('MEvhqw634u8yUnYflJVMCrc8eKGQUrH1LbUj7wtpKt5'));
-    assert.ok(!content.includes('APIdzjusbH2TnW4'));
+    assert.ok(!content.includes('APInwQYa'));
+    assert.ok(!content.includes('MEvhqw63'));
+    assert.ok(!content.includes('APIdzjus'));
     assert.match(content, /LIVEKIT_API_KEY=your_api_key_here/);
     assert.match(content, /LIVEKIT_API_SECRET=your_api_secret_here/);
   });

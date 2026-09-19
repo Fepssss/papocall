@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0o</span>
+        <span class="version-tag">v1.0.0p</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0o
+          Baixar v1.0.0p
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0o • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0p • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0o - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.0.0p - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0p', this)">
+          v1.0.0p <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0o', this)">
-          v1.0.0o <span class="badge-current">ATUAL</span>
+          v1.0.0o
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0n', this)">
           v1.0.0n
@@ -920,12 +923,52 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0p -->
+        <article class="release-card latest" data-version="v1.0.0p">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0p</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Menu de contexto na barra de servidores e endurecimento do login e da emissão de tokens de voz.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Menu de Contexto do Servidor</strong>: O botão direito sobre o ícone de um servidor abre uma janela desenhada no próprio HUD com <em>Marcar como lida</em>, <em>Convidar para o servidor</em>, <em>Silenciar</em>, <em>Config. de notificação</em>, <em>Config. de privacidade</em> e <em>Remover/Sair do servidor</em>. Toda opção executa uma ação real — nada de item decorativo — e o menu se reposiciona para nunca nascer fora da janela.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Silêncio de marcações por servidor</strong>: É possível silenciar o aviso sonoro de marcações em servidores específicos. A preferência fica salva apenas nesta máquina e não altera nem filtra nada do que chega pelo broker.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Marcar servidor inteiro como lido em uma gravação</strong>: A leitura dos canais de um servidor é registrada de uma só vez, evitando uma escrita em disco por canal ao fechar o menu.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>E-mail confirmado volta a ser exigido na voz</strong>: A rota de emissão de token LiveKit recuperou a guarda <code>requireVerifiedEmail</code> perdida na v1.0.0i, com teste de regressão que valida a recusa <code>403 / EMAIL_NOT_VERIFIED</code>. Cada token emitido consome RTC faturado na nuvem.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Teto de tamanho no login</strong>: O identificador passou a aceitar no máximo 254 caracteres e a senha no máximo 128. Sem o teto, a verificação de senha fictícia do Argon2id (19&nbsp;MB por tentativa) era um caminho de esgotamento de memória acessível a qualquer pessoa, sem precisar de conta.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Guarda de credenciais sem credencial no repositório</strong>: A checagem que impede o retorno de chaves antigas ao código passou a comparar apenas os prefixos conhecidos, mantendo a detecção intacta e parando de republicar o próprio segredo a cada execução da suíte.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0o -->
-        <article class="release-card latest" data-version="v1.0.0o">
+        <article class="release-card" data-version="v1.0.0o">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0o</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1230,7 +1273,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0o</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0p</strong></p>
     </div>
   </footer>
 

@@ -69,11 +69,15 @@ export const LoginSchema = z.object({
   identifier: z
     .string({ required_error: 'E-mail ou @username é obrigatório.' })
     .min(1, 'Informe seu e-mail ou @username.')
+    .max(254, 'Identificador muito longo.')
     .transform((val) => val.trim()),
 
   password: z
     .string({ required_error: 'Senha é obrigatória.' })
-    .min(1, 'Informe sua senha.'),
+    .min(1, 'Informe sua senha.')
+    // Sem teto aqui, o dummy-verify do Argon2id (19 MB por hash) passa a ser um
+    // vetor de esgotamento de memória acionável por qualquer pessoa, sem conta.
+    .max(128, 'A senha pode ter no máximo 128 caracteres.'),
 });
 
 export const RefreshTokenSchema = z.object({
