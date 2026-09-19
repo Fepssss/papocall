@@ -23,36 +23,8 @@ class _CreateServerDialogState extends State<CreateServerDialog> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
 
-  String _selectedTemplate = 'gaming';
   String _selectedColorHex = '22C55E';
   bool _isSubmitting = false;
-
-  final List<Map<String, dynamic>> _templates = [
-    {
-      'id': 'gaming',
-      'title': 'Squad & Jogos',
-      'subtitle': 'Salas táticas Alfa/Bravo e canais de clipes',
-      'icon': Icons.sports_esports,
-    },
-    {
-      'id': 'community',
-      'title': 'Comunidade Geral',
-      'subtitle': 'Bate-papo livre, lounges e comunicados',
-      'icon': Icons.groups_rounded,
-    },
-    {
-      'id': 'study',
-      'title': 'Estudo & Foco',
-      'subtitle': 'Salas de reunião, foco silencioso e projetos',
-      'icon': Icons.school_rounded,
-    },
-    {
-      'id': 'custom',
-      'title': 'Personalizado',
-      'subtitle': 'Estrutura inicial compacta e limpa',
-      'icon': Icons.tune_rounded,
-    },
-  ];
 
   final List<Map<String, dynamic>> _colors = [
     {'hex': '22C55E', 'color': Color(0xFF22C55E), 'name': 'Verde Tático'},
@@ -96,7 +68,6 @@ class _CreateServerDialogState extends State<CreateServerDialog> {
       await state.createServer(
         name: _nameController.text.trim(),
         description: _descController.text.trim(),
-        template: _selectedTemplate,
         colorHex: _selectedColorHex,
       );
 
@@ -381,78 +352,27 @@ class _CreateServerDialogState extends State<CreateServerDialog> {
               ),
               const SizedBox(height: 20),
 
-              // Template Selector
-              const Text(
-                'TEMPLATE DE CANAIS',
-                style: TextStyle(
-                  color: HudTheme.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.4,
+              // Estrutura inicial fixa: sem escolha de template.
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: HudTheme.bgCard,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: HudTheme.divider),
                 ),
-              ),
-              const SizedBox(height: 8),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 2.8,
-                children: _templates.map((tpl) {
-                  final isSelected = _selectedTemplate == tpl['id'];
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => setState(() => _selectedTemplate = tpl['id'] as String),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected ? HudTheme.bgActive : HudTheme.bgCard,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected ? badgeColor : HudTheme.divider,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            tpl['icon'] as IconData,
-                            color: isSelected ? badgeColor : HudTheme.textMuted,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  tpl['title'] as String,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : HudTheme.textNormal,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  tpl['subtitle'] as String,
-                                  style: const TextStyle(
-                                    color: HudTheme.textMuted,
-                                    fontSize: 10,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                child: Row(
+                  children: const [
+                    Icon(Icons.account_tree_rounded, color: HudTheme.textMuted, size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Começa com #geral, #anúncios e uma Sala de Voz. Novos canais '
+                        'se criam depois, de dentro do servidor.',
+                        style: TextStyle(color: HudTheme.textNormal, fontSize: 12),
                       ),
                     ),
-                  );
-                }).toList(),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
 

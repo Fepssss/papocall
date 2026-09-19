@@ -4,11 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:papocall/models/channel.dart';
 import 'package:papocall/models/server.dart';
+import 'package:papocall/models/user_model.dart';
 import 'package:papocall/providers/app_state.dart';
 import 'package:papocall/widgets/server_context_menu.dart';
 import 'package:papocall/widgets/server_rail.dart';
+import 'app_sandbox.dart';
 
 void main() {
+  useAppDataSandbox();
+
   Server buildServer() => Server(
         id: 'srv-menu',
         name: 'Servidor de Teste',
@@ -53,6 +57,8 @@ void main() {
     expect(find.text('Marcar como lida'), findsOneWidget);
     expect(find.text('Convidar para o servidor'), findsOneWidget);
     expect(find.text('Silenciar'), findsOneWidget);
+    expect(find.text('Cargos e permissões'), findsNothing);
+    expect(find.text('Excluir servidor para todos'), findsNothing);
     expect(find.text('Config. de notificação'), findsOneWidget);
     expect(find.text('Config. de privacidade'), findsOneWidget);
     // O dono vê "Remover servidor"; quem só participa vê "Sair do servidor".
@@ -122,5 +128,33 @@ void main() {
     // Sem mensagens não lidas o contador derivado continua em zero, e a
     // marcação gravada vale para os dois canais do servidor.
     expect(state.mentionCountForServer('srv-menu'), 0);
+  });
+
+  testWidgets('Dono tem a gestão de cargos e o túmulo pede o nome digitado',
+      (tester) async {
+    final state = AppState()
+      ..currentUser = UserModel(id: 'dono-1', username: 'dono')
+      ..servers.add(buildServer());
+    await pumpRail(tester, state);
+
+    await rightClickOnIcon(tester);
+    expect(find.text('Cargos e permissões'), findsOneWidget);
+    expect(find.text('Excluir servidor para todos'), findsOneWidget);
+
+    await tester.tap(find.text('Excluir servidor para todos'));
+    await tester.pumpAndSettle();
+
+    // Confirmar sem escrever o nome não apaga nada.
+    await tester.tap(find.text('Excluir definitivamente'));
+    await tester.pumpAndSettle();
+    expect(find.text('O nome digitado não confere.'), findsOneWidget);
+    expect(state.servers.length, 1);
+
+    await tester.enterText(find.byType(TextField), 'Servidor de Teste');
+    await tester.tap(find.text('Excluir definitivamente'));
+    await tester.pumpAndSettle();
+
+    expect(state.servers, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 }

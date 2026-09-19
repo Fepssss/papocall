@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/channel.dart';
+import '../models/role.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
@@ -12,6 +13,7 @@ class ChannelsSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final srv = state.activeServer;
+    final canManage = srv != null && state.can(srv.id, Permissions.manageChannels);
 
     final textChannels = srv?.channels.where((c) => c.type == ChannelType.text).toList() ?? [];
     final voiceChannels = srv?.channels.where((c) => c.type == ChannelType.voice).toList() ?? [];
@@ -85,12 +87,14 @@ class ChannelsSidebar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               children: [
                 // Text Channels Category
-                _buildCategoryHeader('CANAIS DE TEXTO'),
-                ...textChannels.map((c) => _buildChannelItem(context, c, state)),
+                _buildCategoryHeader(context, state, srv?.id ?? '', 'CANAIS DE TEXTO',
+                    canManage: canManage, type: ChannelType.text),
+                ...textChannels.map((c) => _buildChannelItem(context, c, state, canManage)),
                 const SizedBox(height: 16),
                 // Voice Channels Category
-                _buildCategoryHeader('CANAIS DE VOZ'),
-                ...voiceChannels.map((c) => _buildChannelItem(context, c, state)),
+                _buildCategoryHeader(context, state, srv?.id ?? '', 'CANAIS DE VOZ',
+                    canManage: canManage, type: ChannelType.voice),
+                ...voiceChannels.map((c) => _buildChannelItem(context, c, state, canManage)),
               ],
             ),
           ),
@@ -99,22 +103,114 @@ class ChannelsSidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryHeader(String title) {
+  Widget _buildCategoryHeader(
+    BuildContext context,
+    AppState state,
+    String serverId,
+    String title, {
+    required bool canManage,
+    required ChannelType type,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: HudTheme.textMuted,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: HudTheme.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          // Criar canal é a única ação nova que a barra oferece, e ela só aparece
+          // para quem tem 'gerenciar_canais'.
+          if (canManage)
+            GestureDetector(
+              onTap: () => _promptNewChannel(context, state, serverId, type),
+              child: const Tooltip(
+                message: 'Criar canal',
+                child: Icon(Icons.add_rounded, size: 16, color: HudTheme.textMuted),
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildChannelItem(BuildContext context, Channel channel, AppState state) {
+  Future<void> _promptNewChannel(
+    BuildContext context,
+    AppState state,
+    String serverId,
+    ChannelType type,
+  ) async {
+    final name = await _ChannelNameDialog.show(context, type);
+    if (name == null || name.trim().isEmpty) return;
+    final ok = await state.addChannel(serverId, name: name, type: type);
+    if (!context.mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível criar o canal — ele já existe ou é o último.'),
+          backgroundColor: HudTheme.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    AppState state,
+    String serverId,
+    Channel channel,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: HudTheme.bgSidebar,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: HudTheme.divider),
+        ),
+        title: Text('Apagar #${channel.name}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'O canal some para todos os membros do servidor. As mensagens que ele guarda '
+          'continuam no computador de cada um até serem sincronizadas de novo.',
+          style: TextStyle(color: HudTheme.textNormal, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: HudTheme.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Apagar',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final ok = await state.deleteChannel(serverId, channel.id);
+    if (!context.mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Um servidor precisa manter ao menos um canal.'),
+          backgroundColor: HudTheme.red,
+        ),
+      );
+    }
+  }
+
+  Widget _buildChannelItem(
+      BuildContext context, Channel channel, AppState state, bool canManage) {
     final isText = channel.type == ChannelType.text;
     final isSelected = state.activeChannelId == channel.id;
     final isConnected = state.connectedVoiceChannelId == channel.id;
@@ -142,7 +238,9 @@ class ChannelsSidebar extends StatelessWidget {
             isText: isText,
             isSelected: isSelected,
             isConnected: isConnected,
+            canDelete: canManage,
             mentionCount: isText ? state.mentionCountFor(channel.id) : 0,
+            onDelete: () => _confirmDelete(context, state, state.activeServerId, channel),
             onTap: () {
               state.selectChannel(channel.id);
               if (!isText) {
@@ -173,16 +271,20 @@ class _ChannelRow extends StatefulWidget {
   final bool isText;
   final bool isSelected;
   final bool isConnected;
+  final bool canDelete;
   final int mentionCount;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _ChannelRow({
     required this.channel,
     required this.isText,
     required this.isSelected,
     required this.isConnected,
+    required this.canDelete,
     required this.mentionCount,
     required this.onTap,
+    required this.onDelete,
   });
 
   @override
@@ -268,6 +370,19 @@ class _ChannelRowState extends State<_ChannelRow> {
                     shape: BoxShape.circle,
                   ),
                 ),
+              // Lixeira no lugar da engrenagem: apagar é a única ação de
+              // administração que a lista de canais oferece.
+              if (widget.canDelete && _isHovered)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: GestureDetector(
+                    onTap: widget.onDelete,
+                    child: const Tooltip(
+                      message: 'Apagar canal',
+                      child: Icon(Icons.delete_outline_rounded, size: 15, color: HudTheme.red),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -350,6 +465,84 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Caixa mínima de criação de canal: um nome e o tipo, que já vem da seção em
+/// que o "+" foi clicado.
+class _ChannelNameDialog extends StatefulWidget {
+  const _ChannelNameDialog({required this.type});
+
+  final ChannelType type;
+
+  static Future<String?> show(BuildContext context, ChannelType type) {
+    return showDialog<String>(
+      context: context,
+      builder: (_) => _ChannelNameDialog(type: type),
+    );
+  }
+
+  @override
+  State<_ChannelNameDialog> createState() => _ChannelNameDialogState();
+}
+
+class _ChannelNameDialogState extends State<_ChannelNameDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isText = widget.type == ChannelType.text;
+    return AlertDialog(
+      backgroundColor: HudTheme.bgSidebar,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: HudTheme.divider),
+      ),
+      title: Text(
+        isText ? 'Novo canal de texto' : 'Novo canal de voz',
+        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+      ),
+      content: SizedBox(
+        width: 320,
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          maxLength: 24,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          onSubmitted: (v) => Navigator.of(context).pop(v),
+          decoration: InputDecoration(
+            hintText: isText ? 'ex: táticas, clipes...' : 'ex: Sala Alfa...',
+            hintStyle: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
+            counterText: '',
+            filled: true,
+            fillColor: HudTheme.bgCard,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: HudTheme.divider),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: HudTheme.green),
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Criar',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }

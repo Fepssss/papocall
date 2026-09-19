@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import 'member_context_menu.dart';
 
 class MembersSidebar extends StatelessWidget {
   const MembersSidebar({super.key});
@@ -13,6 +15,10 @@ class MembersSidebar extends StatelessWidget {
     final groups = state.getServerMembersGrouped(state.activeServerId);
     final onlineMembers = groups['online'] ?? [];
     final offlineMembers = groups['offline'] ?? [];
+    final server = state.serverById(state.activeServerId);
+    // A barra só aparece dentro de um servidor, mas o ID ativo pode estar entre
+    // uma troca e outra; sem servidor não há o que listar.
+    if (server == null) return const SizedBox.shrink();
 
     return Container(
       width: 240,
@@ -44,6 +50,7 @@ class MembersSidebar extends StatelessWidget {
                 // Membros Disponíveis / Online
                 ...onlineMembers.map((m) => _MemberTile(
                       user: m,
+                      server: server,
                       isSelf: m.id == state.currentUser.id,
                     )),
 
@@ -64,6 +71,7 @@ class MembersSidebar extends StatelessWidget {
                   ),
                   ...offlineMembers.map((m) => _MemberTile(
                         user: m,
+                        server: server,
                         isSelf: m.id == state.currentUser.id,
                         isOfflineGroup: true,
                       )),
@@ -79,11 +87,13 @@ class MembersSidebar extends StatelessWidget {
 
 class _MemberTile extends StatefulWidget {
   final UserModel user;
+  final Server server;
   final bool isSelf;
   final bool isOfflineGroup;
 
   const _MemberTile({
     required this.user,
+    required this.server,
     this.isSelf = false,
     this.isOfflineGroup = false,
   });
@@ -115,6 +125,16 @@ class _MemberTileState extends State<_MemberTile> {
 
     final isOffline = widget.user.status == UserStatus.offline || widget.isOfflineGroup;
     final cleanHandle = widget.user.handle;
+
+    final state = context.watch<AppState>();
+    final isOwner = widget.server.isOwnedBy(widget.user.id);
+    final roleName = state.roleNameFor(widget.server.id, widget.user.id);
+    final roleColor = isOwner
+        ? HudTheme.yellow
+        : state.roleColorFor(widget.server.id, widget.user.id) ?? HudTheme.textMuted;
+    // Só quem foi promovido (ou manda no servidor) tem a linha de cargo; para o
+    // membro comum ela sumiria e sobraria apenas o @, como sempre foi.
+    final showsRole = isOwner || (roleName != 'Membro' && roleName.isNotEmpty);
 
     final tileContent = MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -199,13 +219,25 @@ class _MemberTileState extends State<_MemberTile> {
                     ],
                   ),
                   const SizedBox(height: 1),
-                  Text(
-                    cleanHandle,
-                    style: const TextStyle(
-                      color: HudTheme.textMuted,
-                      fontSize: 11,
-                    ),
+                  RichText(
                     overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 11),
+                      children: [
+                        if (showsRole)
+                          TextSpan(
+                            text: '$roleName  ',
+                            style: TextStyle(
+                              color: roleColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        TextSpan(
+                          text: cleanHandle,
+                          style: const TextStyle(color: HudTheme.textMuted),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -216,12 +248,20 @@ class _MemberTileState extends State<_MemberTile> {
     );
 
     if (isOffline) {
-      return Opacity(
-        opacity: _isHovered ? 0.9 : 0.65,
-        child: tileContent,
+      return GestureDetector(
+        onSecondaryTapUp: (details) =>
+            MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
+        child: Opacity(
+          opacity: _isHovered ? 0.9 : 0.65,
+          child: tileContent,
+        ),
       );
     }
 
-    return tileContent;
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
+      child: tileContent,
+    );
   }
 }

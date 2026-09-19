@@ -1,4 +1,5 @@
 import 'channel.dart';
+import 'role.dart';
 
 class Server {
   final String id;
@@ -6,7 +7,7 @@ class Server {
   String icon;
   String description;
   String inviteCode;
-  final String ownerId;
+  String ownerId;
   String colorHex;
   final bool isCustom;
   final List<String> memberIds;
@@ -26,6 +27,14 @@ class Server {
   /// salas do LiveKit distintas dentro do "mesmo" servidor.
   bool isSynced;
 
+  /// Cargos definidos neste servidor. O Dono não aparece aqui: ele é o
+  /// [ownerId] e tem todas as permissões por definição.
+  final List<ServerRole> roles;
+
+  /// Cargo de cada membro, por ID de usuário. Quem não está no mapa é
+  /// simplesmente Membro, sem permissões extras.
+  final Map<String, String> memberRoles;
+
   Server({
     required this.id,
     required this.name,
@@ -39,11 +48,48 @@ class Server {
     required this.channels,
     this.revision = 1,
     this.isSynced = true,
-  }) : memberIds = memberIds ?? [];
+    List<ServerRole>? roles,
+    Map<String, String>? memberRoles,
+  })  : memberIds = memberIds ?? [],
+        roles = roles ?? [],
+        memberRoles = memberRoles ?? {};
+
+  bool isOwnedBy(String userId) => ownerId.isNotEmpty && ownerId == userId;
+
+  ServerRole? roleOf(String userId) {
+    final roleId = memberRoles[userId];
+    if (roleId == null) return null;
+    for (final role in roles) {
+      if (role.id == roleId) return role;
+    }
+    return null;
+  }
+
+  /// A permissão manda, mas o Dono manda mais: ele nunca fica de fora da
+  /// própria administração por um cargo mal atribuído.
+  bool hasPermission(String userId, String permission) {
+    if (isOwnedBy(userId)) return true;
+    return roleOf(userId)?.has(permission) ?? false;
+  }
+
+  /// Impede escalar privilégios: ninguém entrega a outro um cargo que tenha
+  /// uma permissão que o próprio usuário não tem.
+  bool canGrantRole(ServerRole role, String granterId) {
+    if (isOwnedBy(granterId)) return true;
+    for (final permission in role.permissions) {
+      if (!hasPermission(granterId, permission)) return false;
+    }
+    return true;
+  }
 
   factory Server.fromJson(Map<String, dynamic> json) {
     final rawChannels = json['channels'] as List<dynamic>? ?? [];
     final rawMembers = (json['memberIds'] as List<dynamic>?)?.map((m) => m.toString()).toList() ?? [];
+    final rawRoles = json['roles'] as List<dynamic>? ?? [];
+    final rawMemberRoles = (json['memberRoles'] as Map<String, dynamic>?)?.map(
+          (key, value) => MapEntry(key, value.toString()),
+        ) ??
+        <String, String>{};
     return Server(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? 'Servidor',
@@ -56,6 +102,8 @@ class Server {
       memberIds: rawMembers,
       channels: rawChannels.map((c) => Channel.fromJson(c as Map<String, dynamic>)).toList(),
       revision: json['revision'] as int? ?? 1,
+      roles: rawRoles.map((r) => ServerRole.fromJson(r as Map<String, dynamic>)).toList(),
+      memberRoles: rawMemberRoles,
       // Servidores gravados por versões anteriores não tinham o conceito de
       // sincronização; tratá-los como sincronizados manteria os canais
       // inventados pelo convite. Eles são remarcados para sincronizar de novo.
@@ -75,6 +123,8 @@ class Server {
       'isCustom': isCustom,
       'memberIds': memberIds,
       'channels': channels.map((c) => c.toJson()).toList(),
+      'roles': roles.map((r) => r.toJson()).toList(),
+      'memberRoles': memberRoles,
       'revision': revision,
       'isSynced': isSynced,
     };
@@ -97,5 +147,23 @@ class Server {
       ..addAll(newChannels);
     revision = newRevision;
     isSynced = true;
+  }
+
+  /// Adota a tabela de cargos. Chamada apenas para publicação vinda do Dono:
+  /// um membro qualquer não pode se auto-promover escrevendo o próprio cargo
+  /// na estrutura que circula pelo broker.
+  void adoptRoles({
+    required List<ServerRole> newRoles,
+    required Map<String, String> newMemberRoles,
+  }) {
+    roles
+      ..clear()
+      ..addAll(newRoles);
+    memberRoles
+      ..clear()
+      ..addAll(newMemberRoles);
+    // Um membro que saiu e voltou pode ter ficado com cargo órfão de um cargo
+    // que o Dono apagou entretempo.
+    memberRoles.removeWhere((_, roleId) => !roles.any((r) => r.id == roleId));
   }
 }

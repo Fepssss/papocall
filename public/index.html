@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0p</span>
+        <span class="version-tag">v1.0.0q</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0p
+          Baixar v1.0.0q
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0p • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0q • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0p - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.0.0q - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0q', this)">
+          v1.0.0q <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0p', this)">
-          v1.0.0p <span class="badge-current">ATUAL</span>
+          v1.0.0p
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0o', this)">
           v1.0.0o
@@ -923,12 +926,68 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0q -->
+        <article class="release-card latest" data-version="v1.0.0q">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0q</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Sistema de cargos com permissões personalizadas, gestão de canais pela interface, expulsão de membros, apagamento de mensagens e exclusão definitiva do servidor para todos.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Cargos personalizáveis</strong>: Cada servidor nasce com <em>Administrador</em> e <em>Moderador</em> e o dono cria quantos quiser. Nome, cor e permissões são editáveis, e o nome do cargo aparece colorido na lista de membros. A tabela viaja assinada dentro da estrutura do servidor: só uma publicação vinda do <em>ownerId</em> é aceita, então nenhum membro consegue se promover escrevendo o próprio cargo.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Cinco permissões que fazem algo de verdade</strong>: <em>Gerenciar canais</em>, <em>Gerenciar cargos</em>, <em>Gerenciar servidor</em>, <em>Expulsar membros</em> e <em>Apagar mensagens</em>. Cada chave corresponde a um ponto do código que a consulta antes de deixar o usuário agir — não existe permissão decorativa na lista.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Regra anti-escalada</strong>: Ninguém cria, edita ou atribui um cargo que contenha uma permissão que o próprio usuário não tem. Sem isso, um moderador promovido a <em>Gerenciar cargos</em> se faria equivalente ao dono em dois cliques. A mesma regra vale para editar e excluir: só se mexe num cargo mais fraco ou igual a quem mexe.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Atribuição por dois caminhos</strong>: A tela <em>Cargos e permissões</em> mostra cargos, membros e atribuições lado a lado, e o botão direito sobre um membro na lista abre o mesmo menu reduzido com <em>Expulsar</em>. Atribuir exige o poder de quem atribui; o dono fica fora do mapa porque não é um cargo.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Canais criados e apagos pela interface</strong>: O cabeçalho das seções passa a ter o botão <em>+</em> para quem tem a permissão, e apagar um canal aparece ao passar o mouse. O identificador do canal é gerado uma única vez e propagado: como a sala do LiveKit leva o nome do canal, dois membros nunca cairiam em salas diferentes dentro do mesmo servidor. O último canal do servidor é protegido contra exclusão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Expulsar membro e apagar mensagem</strong>: A expulsão avisa o servidor pelo tópico cifrado e quem recebe confere a permissão do autor antes de acatar; o expulso remove o servidor do próprio cliente e limpa seus compartimentos no broker. Mensagens têm lixeira no hover: o autor apaga a sua, e apagar a alheia exige <em>Apagar mensagens</em>.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Apagamento não ressurge</strong>: As mensagens excluídas entram num conjunto de túmulos persistido em disco (com teto de 3&nbsp;000 identificadores). Sem isso, o retrato de histórico retido por outro membro traria de volta cada mensagem apagada na sincronização seguinte.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Excluir o servidor para sempre</strong>: O dono pode apagar o servidor de verdade — não só da própria máquina. A exclusão limpa os tópicos retidos de presença e histórico de cada membro e publica um túmulo assinado no tópico de estrutura, de modo que quem estava offline apaga ao voltar e quem entra pelo convite não encontra mais nada. Confirmar exige digitar o nome do servidor.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Estrutura padrão única</strong>: O seletor de modelos de servidor saiu do aplicativo. Todo servidor nasce com <em>geral</em>, <em>anúncios</em> e uma sala de voz, e o resto se monta pela gestão de canais. Menos uma escolha no momento da criação e uma fonte de estruturas divergentes entre membros.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Nomes acentuados em canais</strong>: O identificador gerado translitera os acentos do nome, então <em>Táticas</em> passa a ser <code>taticas</code> em vez de <code>t-ticas</code>. A sala do LiveKit e o histórico compartilham esse identificador, e ele precisava continuar legível.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0p -->
-        <article class="release-card latest" data-version="v1.0.0p">
+        <article class="release-card" data-version="v1.0.0p">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0p</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1273,7 +1332,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0p</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0q</strong></p>
     </div>
   </footer>
 

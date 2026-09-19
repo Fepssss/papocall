@@ -123,6 +123,47 @@ class _ChatViewState extends State<ChatView> {
     _closeMentions();
   }
 
+  /// Apagar a própria mensagem não pede confirmação; apagar a alheia sim,
+  /// porque ela já chegou aos outros e o pedido de apagamento vai voltar.
+  Future<void> _confirmDeleteMessage(AppState state, ChatMessage msg) async {
+    final ehMinha = msg.authorId == state.currentUser.id;
+    if (!ehMinha) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: HudTheme.bgSidebar,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: HudTheme.divider),
+          ),
+          title: const Text('Apagar mensagem',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text(
+            'A mensagem de ${msg.authorDisplayName.isNotEmpty ? msg.authorDisplayName : msg.author} '
+            'sai do histórico de todos os membros que estiverem conectados.',
+            style: const TextStyle(color: HudTheme.textNormal, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: HudTheme.red),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Apagar',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+    final channelId = state.activeChannelId;
+    if (channelId.isEmpty) return;
+    await state.deleteMessage(state.activeServerId, channelId, msg.id);
+  }
+
   KeyEventResult _handleKey(AppState state, KeyEvent event) {
     if (!_isMentioning || event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -259,6 +300,9 @@ class _ChatViewState extends State<ChatView> {
                           isMentioningMe: msg.authorId != state.currentUser.id &&
                               !msg.isSystem &&
                               mentionsUser(msg.text, selfHandle),
+                          canDelete: !msg.isSystem &&
+                              state.canDeleteMessage(state.activeServerId, msg),
+                          onDelete: () => _confirmDeleteMessage(state, msg),
                         );
                       },
                     ),
@@ -464,12 +508,16 @@ class _ChatMessageTile extends StatefulWidget {
   final Set<String> knownHandles;
   final String selfHandle;
   final bool isMentioningMe;
+  final bool canDelete;
+  final VoidCallback onDelete;
 
   const _ChatMessageTile({
     required this.msg,
     required this.knownHandles,
     required this.selfHandle,
     required this.isMentioningMe,
+    this.canDelete = false,
+    required this.onDelete,
   });
 
   @override
@@ -574,6 +622,19 @@ class _ChatMessageTileState extends State<_ChatMessageTile> {
                 ],
               ),
             ),
+            // A lixeira só aparece com o cursor em cima, e só para quem pode:
+            // o autor da mensagem ou quem tem 'apagar_mensagens'.
+            if (widget.canDelete && _isHovered)
+              Padding(
+                padding: const EdgeInsets.only(left: 6, top: 6),
+                child: GestureDetector(
+                  onTap: widget.onDelete,
+                  child: const Tooltip(
+                    message: 'Apagar mensagem',
+                    child: Icon(Icons.delete_outline_rounded, size: 16, color: HudTheme.red),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

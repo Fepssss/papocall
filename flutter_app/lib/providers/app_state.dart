@@ -7,6 +7,7 @@ import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import '../models/channel.dart';
 import '../models/chat_message.dart';
 import '../models/friend_request.dart';
+import '../models/role.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
@@ -87,6 +88,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Teto de mensagens mantidas em memória e em disco por canal.
   static const int _channelMessageCap = 600;
 
+  /// IDs das mensagens que foram apagadas por alguém com permissão.
+  ///
+  /// O histórico é mesclado por adição: sem esta lista, o retrato retido de
+  /// outro membro trazeria de volta a mensagem que acabamos de apagar.
+  final Set<String> _deletedMessageIds = {};
+  static const int _deletedIdCap = 3000;
+
   /// Teto de tamanho do retrato cifrado (o recebimento corta em 256 KB).
   static const int _historyMaxBytes = 160 * 1024;
 
@@ -113,9 +121,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       status: UserStatus.online,
     );
     WidgetsBinding.instance.addObserver(this);
-    _initVoiceListeners();
-    _initDefaultData();
-    _initStorageAndNetwork();
+    // Com a raiz de dados redirecionada estamos em teste: nada de abrir socket,
+    // cronômetro de heartbeat nem ler a sessão gravada nesta máquina.
+    if (dataRootOverride == null) {
+      _initVoiceListeners();
+      _initDefaultData();
+      _initStorageAndNetwork();
+    }
   }
 
   void setWindowFocused(bool focused) {
@@ -274,8 +286,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     isHomePageActive = true;
   }
 
+  /// Raiz dos dados locais. Os testes apontam isto para um diretório
+  /// temporário: sem isso, criar um servidor de teste sobrescreveria o
+  /// `servers.json` real desta máquina.
+  @visibleForTesting
+  static String? dataRootOverride;
+
   File _getAppFile(String fileName) {
-    final appData = Platform.environment['APPDATA'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    final appData = dataRootOverride ??
+        Platform.environment['APPDATA'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
     final dir = Directory('$appData/PapoCall');
     if (!dir.existsSync()) {
       dir.createSync(recursive: true);
@@ -291,6 +312,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   File _getKnownUsersFile() => _getAppFile('known_users.json');
   File _getFriendRequestsFile() => _getAppFile('friend_requests.json');
   File _getReadMarksFile() => _getAppFile('read_marks.json');
+  File _getDeletedMessagesFile() => _getAppFile('deleted_messages.json');
 
   Future<void> _saveReadMarks() async {
     try {
@@ -537,6 +559,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           for (final entry in raw.entries) {
             final list = (entry.value as List)
                 .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
+                // O disco pode ter ficado com uma mensagem apagada antes de a
+                // gravação chegar. O túmulo manda.
+                .where((m) => !_deletedMessageIds.contains(m.id))
                 .toList();
             if (list.isEmpty) continue;
 
@@ -559,6 +584,45 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('Erro ao carregar histórico de chat: $e');
     }
+  }
+
+  Future<void> _saveDeletedMessages() async {
+    try {
+      await _getDeletedMessagesFile().writeAsString(jsonEncode(_deletedMessageIds.toList()));
+    } catch (e) {
+      debugPrint('Erro ao salvar mensagens apagadas: $e');
+    }
+  }
+
+  Future<void> _loadDeletedMessages() async {
+    try {
+      final file = _getDeletedMessagesFile();
+      if (!file.existsSync()) return;
+      final content = await file.readAsString();
+      if (content.isEmpty) return;
+      for (final id in (jsonDecode(content) as List)) {
+        _deletedMessageIds.add(id.toString());
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar mensagens apagadas: $e');
+    }
+  }
+
+  /// Marca uma mensagem como apagada e a remove de onde ela estiver.
+  void _forgetMessage(String messageId) {
+    if (messageId.isEmpty) return;
+    _deletedMessageIds.add(messageId);
+    if (_deletedMessageIds.length > _deletedIdCap) {
+      // O Set preserva a ordem de inserção, então os primeiros são os mais
+      // antigos: são os menos prováveis de voltar a aparecer num retrato.
+      final excedente = _deletedMessageIds.length - _deletedIdCap;
+      _deletedMessageIds.removeAll(_deletedMessageIds.take(excedente).toList());
+    }
+    for (final lista in _messages.values) {
+      lista.removeWhere((m) => m.id == messageId);
+    }
+    _saveChatHistory();
+    _saveDeletedMessages();
   }
 
   Future<void> _initStorageAndNetwork() async {
@@ -605,6 +669,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     currentUser.username = currentUser.username.replaceAll('@', '').trim();
 
     await _loadServers();
+    await _loadDeletedMessages();
     await _loadChatHistory();
     await _loadDrafts();
     await _loadFriends();
@@ -1007,6 +1072,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (bruta is! Map<String, dynamic>) continue;
         final msg = ChatMessage.fromJson(bruta);
         if (msg.id.isEmpty || conhecidas.contains(msg.id)) continue;
+        if (_deletedMessageIds.contains(msg.id)) continue;
         if (msg.sentAt <= 0) continue; // sem data não há como posicionar
 
         destino.add(msg);
@@ -1079,15 +1145,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Anuncia a estrutura do servidor. Só o dono publica.
+  /// Anuncia a estrutura do servidor.
   ///
   /// A mensagem é retida e o broker guarda apenas a última de cada tópico: se
   /// qualquer membro pudesse publicar, um membro com uma revisão antiga
-  /// sobrescreveria a atual e reverteria os canais de todo mundo.
+  /// sobrescreveria a atual e reverteria os canais de todo mundo. Por isso só
+  /// publica quem tem permissão de mexer na estrutura.
+  ///
+  /// Os cargos viajam junto, mas apenas quando é o Dono que publica. Um membro
+  /// que escrevesse a própria tabela de cargos no pacote estaria se promovendo
+  /// sozinho, e é exatamente contra isso que a checagem do lado de fora
+  /// (`adoptRoles`) protege: sem o `publishedBy` batendo com o `ownerId`, a
+  /// tabela é ignorada.
   Future<void> _publishServerInfo(Server srv) async {
     if (srv.inviteCode.trim().isEmpty) return;
-    if (srv.ownerId != currentUser.id) return;
     if (!srv.isSynced) return; // não propaga uma estrutura provisória
+
+    final isOwner = srv.isOwnedBy(currentUser.id);
+    final podeEditarEstrutura = isOwner ||
+        srv.hasPermission(currentUser.id, Permissions.manageChannels) ||
+        srv.hasPermission(currentUser.id, Permissions.manageServer);
+    if (!podeEditarEstrutura) return;
 
     final payload = {
       'action': 'server_info',
@@ -1096,7 +1174,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'description': srv.description,
       'colorHex': srv.colorHex,
       'ownerId': srv.ownerId,
+      'publishedBy': currentUser.id,
       'channels': srv.channels.map((c) => c.toJson()).toList(),
+      if (isOwner) 'roles': srv.roles.map((r) => r.toJson()).toList(),
+      if (isOwner) 'memberRoles': srv.memberRoles,
       // O roster viaja junto porque é a única forma de quem acabou de entrar
       // descobrir de quem pedir histórico e presença: os compartimentos de cada
       // membro são assinados pelo nome exato, e não dá para assinar o
@@ -1319,10 +1400,42 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     }
 
+    // Quem entrou pelo convite não conhece o Dono — e é exatamente ele que
+    // manda aqui: sem esse campo preenchido, nada de cargos é adotado e nem o
+    // túmulo do servidor seria acatado. Preenche-se uma única vez: depois de
+    // conhecido, o Dono não se troca por um pacote vindo do broker, que é
+    // cifrado com a chave que qualquer membro tem.
+    final donoRecebido = data['ownerId'] as String? ?? '';
+    if (origin.ownerId.isEmpty && donoRecebido.isNotEmpty) {
+      origin.ownerId = donoRecebido;
+      _saveServers();
+      notifyListeners();
+    }
+
     final rawChannels = data['channels'] as List<dynamic>? ?? [];
+    final incomingRevision = data['revision'] as int? ?? 1;
+
+    // Cargos: aceitos apenas de quem é o Dono deste servidor, e nunca de uma
+    // revisão mais velha que a que já temos. Sem as duas condições, um membro
+    // se promoveria publicando a própria tabela, ou um pacote velho regravado
+    // do broker derrubaria um cargo recém-revogado.
+    final rawRoles = data['roles'] as List<dynamic>?;
+    final publishedBy = data['publishedBy'] as String? ?? '';
+    if (rawRoles != null && origin.isOwnedBy(publishedBy) && incomingRevision >= origin.revision) {
+      final rawMemberRoles = (data['memberRoles'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, value.toString()),
+          ) ??
+          <String, String>{};
+      origin.adoptRoles(
+        newRoles: rawRoles.map((r) => ServerRole.fromJson(r as Map<String, dynamic>)).toList(),
+        newMemberRoles: rawMemberRoles,
+      );
+      _saveServers();
+      notifyListeners();
+    }
+
     if (rawChannels.isEmpty) return;
 
-    final incomingRevision = data['revision'] as int? ?? 1;
     // Uma estrutura ainda provisória sempre cede à primeira versão real que
     // chegar; depois disso, só uma revisão maior substitui a local.
     if (origin.isSynced && incomingRevision <= origin.revision) return;
@@ -1383,6 +1496,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Porta de entrada do lado receptor do protocolo, para os testes de
+  /// autorização (quem pode publicar cargos, túmulo e expulsão).
+  @visibleForTesting
+  void processNetworkPayload(Map<String, dynamic> data, Server origin) =>
+      _processNetworkPayload(data, origin);
+
   void _processNetworkPayload(Map<String, dynamic> data, Server origin) {
     final action = data['action'] as String?;
     if (action == 'server_info') {
@@ -1397,6 +1516,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (origin.ownerId == currentUser.id && data['requestedBy'] != currentUser.id) {
         _publishServerInfo(origin);
       }
+      return;
+    }
+    if (action == 'server_destroyed') {
+      // O túmulo chega retido no mesmo tópico da estrutura. Aceitá-lo de
+      // qualquer um seria permitir que um membro apagasse o servidor na máquina
+      // de todos os outros; só a palavra do Dono desfaz o servidor.
+      final publisher = data['publishedBy'] as String? ?? '';
+      if (publisher.isEmpty) return;
+      // Um esqueleto criado por convite recente não tem Dono conhecido e nunca
+      // viu estrutura sincronizada: para ele vale o túmulo em que o publicador
+      // se declara dono, porque é a única informação que restou daquele
+      // servidor. Sem isso, a pessoa ficaria com um servidor morto e vazio na
+      // barra lateral para sempre.
+      final donoDeclarado = data['ownerId'] as String? ?? '';
+      final aceito = origin.isOwnedBy(publisher) ||
+          (!origin.isSynced && origin.ownerId.isEmpty && donoDeclarado == publisher);
+      if (!aceito) return;
+      _forgetServer(origin);
+      return;
+    }
+    if (action == 'member_kicked') {
+      final target = data['targetUserId'] as String? ?? '';
+      if (target.isEmpty || target != currentUser.id) return;
+      final publisher = data['publishedBy'] as String? ?? '';
+      if (publisher == currentUser.id) return;
+      // Mesma razão do túmulo: a ordem só vale se quem a deu tinha a permissão
+      // de expulsar naquele servidor.
+      if (!origin.hasPermission(publisher, Permissions.kickMembers)) return;
+      _forgetServer(origin);
+      return;
+    }
+    if (action == 'message_delete') {
+      _processMessageDelete(data, origin);
       return;
     }
     if (action == 'chat_message') {
@@ -1439,7 +1591,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
 
         final destino = _messages.putIfAbsent(actualChannelId, () => []);
-        if (!destino.any((m) => m.id == newMsg.id)) {
+        if (!_deletedMessageIds.contains(newMsg.id) &&
+            !destino.any((m) => m.id == newMsg.id)) {
           destino.add(newMsg);
           if (destino.length > _channelMessageCap) {
             destino.removeRange(0, destino.length - _channelMessageCap);
@@ -1522,10 +1675,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Estrutura com a qual todo servidor nasce. Não há escolha de template:
+  /// uma base única torna os canais algo que se administra depois, pelos
+  /// cargos, em vez de uma decisão irrevogável tomada na criação.
+  static List<Channel> defaultChannels(String serverId) => [
+        Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Bate-papo geral'),
+        Channel(id: '$serverId-c-anuncios', name: 'anúncios', type: ChannelType.text, topic: 'Comunicados do servidor'),
+        Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
+      ];
+
   Future<Server> createServer({
     required String name,
     String description = '',
-    String template = 'gaming',
     String colorHex = '22C55E',
   }) async {
     final randomCode = _uuid.v4().substring(0, 8);
@@ -1533,42 +1694,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final topicHash = ServerCrypto.topicIdFor(inviteCode);
     final serverId = 'srv-$topicHash';
 
-    List<Channel> channels = [];
-    switch (template) {
-      case 'gaming':
-        channels = [
-          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Bate-papo geral do squad'),
-          Channel(id: '$serverId-c-estrategia', name: 'estratégia', type: ChannelType.text, topic: 'Táticas, calls e jogadas'),
-          Channel(id: '$serverId-c-clipes', name: 'clipes-e-midia', type: ChannelType.text, topic: 'Vídeos e melhores momentos'),
-          Channel(id: '$serverId-v-squad1', name: '🎮 Squad Alfa', type: ChannelType.voice, userLimit: 5),
-          Channel(id: '$serverId-v-squad2', name: '🎮 Squad Bravo', type: ChannelType.voice, userLimit: 5),
-          Channel(id: '$serverId-v-lounge', name: '🔊 Sala de Espera', type: ChannelType.voice, userLimit: 15),
-        ];
-        break;
-      case 'community':
-        channels = [
-          Channel(id: '$serverId-c-boas-vindas', name: 'boas-vindas', type: ChannelType.text, topic: 'Regras e apresentações'),
-          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Conversa livre'),
-          Channel(id: '$serverId-c-anuncios', name: 'anúncios', type: ChannelType.text, topic: 'Comunicados importantes'),
-          Channel(id: '$serverId-v-lounge', name: '🔊 Lounge Principal', type: ChannelType.voice, userLimit: 25),
-          Channel(id: '$serverId-v-batepapo', name: '🔊 Bate-Papo Descontraído', type: ChannelType.voice, userLimit: 12),
-        ];
-        break;
-      case 'study':
-        channels = [
-          Channel(id: '$serverId-c-projetos', name: 'projetos', type: ChannelType.text, topic: 'Anotações e tarefas'),
-          Channel(id: '$serverId-c-recursos', name: 'links-e-recursos', type: ChannelType.text, topic: 'Materiais de apoio'),
-          Channel(id: '$serverId-c-duvidas', name: 'dúvidas', type: ChannelType.text, topic: 'Discussões técnicas'),
-          Channel(id: '$serverId-v-foco', name: '🎧 Sala de Foco (Mudo)', type: ChannelType.voice, userLimit: 20),
-          Channel(id: '$serverId-v-reuniao', name: '📊 Reunião / Alinhamento', type: ChannelType.voice, userLimit: 10),
-        ];
-        break;
-      default:
-        channels = [
-          Channel(id: '$serverId-c-geral', name: 'geral', type: ChannelType.text, topic: 'Canal principal'),
-          Channel(id: '$serverId-v-geral', name: '🔊 Sala de Voz', type: ChannelType.voice, userLimit: 15),
-        ];
-    }
+    final channels = defaultChannels(serverId);
 
     final newServer = Server(
       id: serverId,
@@ -1580,6 +1706,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       isCustom: true,
       memberIds: [currentUser.id],
       channels: channels,
+      roles: ServerRole.defaults(),
     );
 
     servers.add(newServer);
@@ -1613,39 +1740,476 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return newServer;
   }
 
+  /// Sai deste servidor nesta máquina. O servidor continua existindo para os
+  /// demais membros — quem quer acabar com ele para todos usa [destroyServer].
   Future<bool> deleteServer(String serverId) async {
-    final index = servers.indexWhere((s) => s.id == serverId);
-    if (index == -1) return false;
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    _forgetServer(srv);
+    return true;
+  }
 
-    final leaving = servers[index];
-    // Retira a presença retida deste usuário do servidor: sem isso ele
-    // continuaria listado como membro para quem entrasse depois.
-    if (leaving.inviteCode.trim().isNotEmpty) {
-      _mqtt.clearRetained(
-        ServerCrypto.presenceSlotTopic(leaving.inviteCode, currentUser.id),
-      );
-      // O retrato de histórico também é retirado: continuar servindo a
-      // conversa de um servidor que já não se integra seria deixar dados
-      // nossos guardados num tópico do qual saímos.
-      _mqtt.clearRetained(
-        ServerCrypto.historySlotTopic(leaving.inviteCode, currentUser.id),
-      );
+  // ---------------------------------------------------------------------------
+  // Cargos e permissões
+  // ---------------------------------------------------------------------------
+
+  Server? serverById(String serverId) {
+    for (final s in servers) {
+      if (s.id == serverId) return s;
+    }
+    return null;
+  }
+
+  /// Toda mudança de estrutura precisa subir a revisão e ser republicada: o
+  /// receptor só troca a sua tabela quando chega algo mais novo, então uma
+  /// revisão parada no tempo faria o cargo novo nunca chegar a ninguém.
+  Future<void> _propagateStructure(Server srv) async {
+    srv.revision++;
+    await _saveServers();
+    await _publishServerInfo(srv);
+    notifyListeners();
+  }
+
+  /// A regra anti-escalada: ninguém entrega a outro um poder que não tem. Sem
+  /// isso, um Moderador com 'gerenciar_cargos' se faria Dono de fato criando um
+  /// cargo com todas as permissões e se atribuindo a ele.
+  bool _possoConceder(Server srv, Set<String> permissions) {
+    for (final p in permissions) {
+      if (!srv.hasPermission(currentUser.id, p)) return false;
+    }
+    return true;
+  }
+
+  bool can(String serverId, String permission) =>
+      serverById(serverId)?.hasPermission(currentUser.id, permission) ?? false;
+
+  /// Nome exibido do cargo. O Dono não é um cargo da tabela: é quem criou o
+  /// servidor, e aparece como tal em qualquer lista.
+  String roleNameFor(String serverId, String userId) {
+    final srv = serverById(serverId);
+    if (srv == null) return 'Membro';
+    if (srv.isOwnedBy(userId)) return 'Dono';
+    return srv.roleOf(userId)?.name ?? 'Membro';
+  }
+
+  /// Cor do cargo, ou null para quem não tem cargo nenhum — assim a interface
+  /// pinta de cor só quem realmente foi promovido.
+  Color? roleColorFor(String serverId, String userId) {
+    final srv = serverById(serverId);
+    if (srv == null || srv.isOwnedBy(userId)) return null;
+    return srv.roleOf(userId)?.color;
+  }
+
+  List<ServerRole> rolesOf(String serverId) => serverById(serverId)?.roles ?? const [];
+
+  /// Só mexe num cargo quem tem, pessoalmente, todos os poderes dele. Do
+  /// contrário, um Moderador que ganhasse 'gerenciar_cargos' reescreveria o
+  /// Administrador para se colocar acima do Dono — ou apagaria o cargo alheio
+  /// para tirar poder de quem está acima dele.
+  bool canEditRole(String serverId, String roleId) {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.manageRoles)) return false;
+    final role = _roleIn(srv, roleId);
+    if (role == null) return false;
+    return _possoConceder(srv, role.permissions);
+  }
+
+  Future<bool> createRole(
+    String serverId, {
+    required String name,
+    required String colorHex,
+    required Set<String> permissions,
+  }) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.manageRoles)) return false;
+    if (!_possoConceder(srv, permissions)) return false;
+
+    srv.roles.add(
+      ServerRole(
+        id: 'role-${_uuid.v4().substring(0, 8)}',
+        name: name.trim(),
+        colorHex: colorHex,
+        permissions: permissions,
+      ),
+    );
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  Future<bool> updateRole(
+    String serverId,
+    String roleId, {
+    String? name,
+    String? colorHex,
+    Set<String>? permissions,
+  }) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    final role = _roleIn(srv, roleId);
+    if (role == null) return false;
+    if (!canEditRole(serverId, roleId)) return false;
+
+    if (permissions != null && !_possoConceder(srv, permissions)) return false;
+
+    if (name != null && name.trim().isNotEmpty) role.name = name.trim();
+    if (colorHex != null) role.colorHex = colorHex;
+    if (permissions != null) {
+      role.permissions
+        ..clear()
+        ..addAll(permissions);
+    }
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  ServerRole? _roleIn(Server srv, String roleId) {
+    for (final r in srv.roles) {
+      if (r.id == roleId) return r;
+    }
+    return null;
+  }
+
+  Future<bool> deleteRole(String serverId, String roleId) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!canEditRole(serverId, roleId)) return false;
+
+    final index = srv.roles.indexWhere((r) => r.id == roleId);
+    if (index == -1) return false;
+    srv.roles.removeAt(index);
+    // Ninguém fica apontando para um cargo que deixou de existir.
+    srv.memberRoles.removeWhere((_, assigned) => assigned == roleId);
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  /// Atribui (ou remove, com roleId nulo) o cargo de um membro.
+  Future<bool> assignRole(String serverId, String userId, String? roleId) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.manageRoles)) return false;
+    // O Dono não tem cargo: tirá-lo do comando por um clique seria possível se
+    // ele entrasse nesse mapa.
+    if (srv.isOwnedBy(userId)) return false;
+
+    if (roleId == null || roleId.isEmpty) {
+      srv.memberRoles.remove(userId);
+      await _propagateStructure(srv);
+      return true;
     }
 
-    servers.removeAt(index);
+    final role = _roleIn(srv, roleId);
+    if (role == null) return false;
+    if (!_possoConceder(srv, role.permissions)) return false;
+
+    srv.memberRoles[userId] = roleId;
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Canais
+  // ---------------------------------------------------------------------------
+
+  /// Texto ASCII do nome do canal para compor o ID.
+  ///
+  /// O ID é o nome da sala no LiveKit e circula entre os membros, então ele
+  /// precisa ser estável e legível: sem a transliteração, "Táticas" virava
+  /// `t-ticas` (o acento contava como separador).
+  static String _slugDoCanal(String nome) {
+    const transliteracao = {
+      'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+      'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+      'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+      'ç': 'c', 'ñ': 'n', 'ý': 'y',
+    };
+    var s = nome.toLowerCase();
+    transliteracao.forEach((de, para) => s = s.replaceAll(de, para));
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+    return s.isEmpty ? 'canal' : s;
+  }
+
+  Future<bool> addChannel(
+    String serverId, {
+    required String name,
+    required ChannelType type,
+    String topic = '',
+    int userLimit = 15,
+  }) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.manageChannels)) return false;
+
+    final limpo = name.trim();
+    if (limpo.isEmpty) return false;
+    if (srv.channels.any((c) => c.name.toLowerCase() == limpo.toLowerCase())) return false;
+
+    // O ID nasce aqui e é este ID que circula no server_info: como a sala do
+    // LiveKit leva o nome do canal, um ID gerado por cabeça em cada máquina
+    // faria dois membros falarem em salas diferentes dentro do mesmo servidor.
+    final id = '${srv.id}-${type == ChannelType.voice ? 'v' : 'c'}-${_slugDoCanal(limpo)}-${_uuid.v4().substring(0, 4)}';
+
+    srv.channels.add(
+      Channel(
+        id: id,
+        name: limpo,
+        type: type,
+        topic: topic.trim(),
+        userLimit: type == ChannelType.voice ? userLimit : 15,
+      ),
+    );
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  Future<bool> deleteChannel(String serverId, String channelId) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.manageChannels)) return false;
+    // Um servidor sem canal nenhum não tem onde escrever nem para onde ir.
+    if (srv.channels.length <= 1) return false;
+
+    Channel? canal;
+    for (final c in srv.channels) {
+      if (c.id == channelId) {
+        canal = c;
+        break;
+      }
+    }
+    if (canal == null) return false;
+    srv.channels.remove(canal);
+
+    _messages.remove(channelId);
+    _lastReadAt.remove(channelId);
+    await _saveChatHistory();
+    await _saveReadMarks();
+
+    if (connectedVoiceChannelId == channelId) {
+      await disconnectVoice();
+    }
+    if (activeChannelId == channelId) {
+      final fallback = srv.channels.firstWhere(
+        (c) => c.type == ChannelType.text,
+        orElse: () => srv.channels.first,
+      );
+      activeChannelId = fallback.id;
+    }
+    await _propagateStructure(srv);
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Membros
+  // ---------------------------------------------------------------------------
+
+  /// Expulsa um membro. O aviso vai pelo tópico de chat, que só os membros do
+  /// servidor conseguem decifrar; quem recebe confere a permissão de quem
+  /// publicou antes de acatar, e o expulsado remove o servidor do próprio
+  /// cliente — os dados dele no broker são limpos por ele mesmo, porque a
+  /// presença e o histórico de cada um são compartimentos assinados por ele.
+  Future<bool> kickMember(String serverId, String userId) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+    if (!srv.hasPermission(currentUser.id, Permissions.kickMembers)) return false;
+    if (srv.isOwnedBy(userId) || userId == currentUser.id) return false;
+
+    srv.memberIds.remove(userId);
+    srv.memberRoles.remove(userId);
     await _saveServers();
-    _subscribeToOwnServers();
+
+    if (srv.inviteCode.trim().isNotEmpty) {
+      try {
+        final envelope = await ServerCrypto.encryptPayload(srv.inviteCode, {
+          'action': 'member_kicked',
+          'serverId': srv.id,
+          'targetUserId': userId,
+          'publishedBy': currentUser.id,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        _mqtt.publishEncrypted(ServerCrypto.chatTopic(srv.inviteCode), envelope);
+      } catch (e) {
+        debugPrint('Erro ao avisar expulsão de $userId: $e');
+      }
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Apaga uma mensagem de qualquer autor. O próprio autor sempre pode apagar a
+  /// sua; apagar a alheia exige a permissão.
+  bool canDeleteMessage(String serverId, ChatMessage message) {
+    if (message.isSystem) return false;
+    if (message.authorId == currentUser.id) return true;
+    return serverById(serverId)?.hasPermission(currentUser.id, Permissions.manageMessages) ?? false;
+  }
+
+  Future<bool> deleteMessage(String serverId, String channelId, String messageId) async {
+    final srv = serverById(serverId);
+    if (srv == null) return false;
+
+    final mensagens = _messages[channelId];
+    if (mensagens == null) return false;
+    ChatMessage? msg;
+    for (final m in mensagens) {
+      if (m.id == messageId) {
+        msg = m;
+        break;
+      }
+    }
+    if (msg == null) return false;
+
+    final ehMinha = msg.authorId == currentUser.id;
+    if (!ehMinha && !srv.hasPermission(currentUser.id, Permissions.manageMessages)) return false;
+
+    _forgetMessage(messageId);
+    _scheduleHistoryPublish(serverId);
+
+    if (srv.inviteCode.trim().isNotEmpty) {
+      try {
+        final envelope = await ServerCrypto.encryptPayload(srv.inviteCode, {
+          'action': 'message_delete',
+          'serverId': srv.id,
+          'channelId': channelId,
+          'messageId': messageId,
+          'publishedBy': currentUser.id,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        _mqtt.publishEncrypted(ServerCrypto.chatTopic(srv.inviteCode), envelope);
+      } catch (e) {
+        debugPrint('Erro ao publicar apagamento de mensagem: $e');
+      }
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Apaga uma mensagem a pedido de outro membro.
+  ///
+  /// A ordem só é acatada quando dá para provar aqui que quem a deu tinha
+  /// direito: a mensagem precisa estar nesta máquina, e o autor dela tem de ser
+  /// quem publicou ou quem publicado tem de deter a permissão. Sem a mensagem
+  /// local não há como conferir a autoria, e marcar um ID qualquer como apagado
+  /// seria permitir que um membro censurasse a conversa dos outros.
+  void _processMessageDelete(Map<String, dynamic> data, Server origin) {
+    final messageId = data['messageId'] as String? ?? '';
+    if (messageId.isEmpty || _deletedMessageIds.contains(messageId)) return;
+    final publisher = data['publishedBy'] as String? ?? '';
+    if (publisher.isEmpty || publisher == currentUser.id) return;
+
+    final channelId = data['channelId'] as String?;
+    final candidatos = channelId == null
+        ? _messages.values
+        : (_messages[channelId] == null ? const <List<ChatMessage>>[] : [_messages[channelId]!]);
+
+    ChatMessage? alvo;
+    for (final lista in candidatos) {
+      for (final m in lista) {
+        if (m.id == messageId) {
+          alvo = m;
+          break;
+        }
+      }
+      if (alvo != null) break;
+    }
+    if (alvo == null) return;
+
+    final autorizado = alvo.authorId == publisher ||
+        origin.hasPermission(publisher, Permissions.manageMessages);
+    if (!autorizado) return;
+
+    _forgetMessage(messageId);
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Destruição do servidor
+  // ---------------------------------------------------------------------------
+
+  /// Exclui o servidor em definitivo, para todos. Só o Dono pode.
+  ///
+  /// Não basta apagar da própria máquina: a estrutura e os compartimentos de
+  /// presença e histórico de cada membro ficam retidos no broker, e qualquer um
+  /// que entrasse pelo convite ainda os encontraria. Por isso a exclusão limpa
+  /// todos os tópicos retidos que o Dono é capaz de endereçar e deixa no lugar
+  /// da estrutura um túmulo — a última mensagem retida do tópico de info passa
+  /// a ser o aviso de destruição, que faz quem estava offline apagar ao voltar.
+  Future<bool> destroyServer(String serverId) async {
+    final index = servers.indexWhere((s) => s.id == serverId);
+    if (index == -1) return false;
+    final srv = servers[index];
+    if (!srv.isOwnedBy(currentUser.id)) return false;
+
+    final code = srv.inviteCode.trim();
+    if (code.isNotEmpty) {
+      await _publishServerDestroyed(srv);
+      for (final memberId in srv.memberIds) {
+        _mqtt.clearRetained(ServerCrypto.presenceSlotTopic(code, memberId));
+        _mqtt.clearRetained(ServerCrypto.historySlotTopic(code, memberId));
+      }
+      _mqtt.clearRetained(ServerCrypto.presenceTopic(code));
+      _mqtt.clearRetained(ServerCrypto.historyTopic(code));
+    }
+
+    _forgetServer(srv);
+    return true;
+  }
+
+  Future<void> _publishServerDestroyed(Server srv) async {
+    if (srv.inviteCode.trim().isEmpty) return;
+    try {
+      final envelope = await ServerCrypto.encryptPayload(srv.inviteCode, {
+        'action': 'server_destroyed',
+        'serverId': srv.id,
+        'publishedBy': currentUser.id,
+        'ownerId': srv.ownerId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+      _mqtt.publishEncrypted(ServerCrypto.serverInfoTopic(srv.inviteCode), envelope, retain: true);
+    } catch (e) {
+      debugPrint('Erro ao publicar destruição de ${srv.id}: $e');
+    }
+  }
+
+  /// Tira o servidor desta máquina e apaga o que é nosso sobre ele: histórico,
+  /// marcas de leitura e as assinaturas. Usada pelo Dono que destruiu e pelo
+  /// membro que foi expulso ou recebeu o túmulo.
+  void _forgetServer(Server srv) {
+    // Retira a presença e o retrato de histórico deste usuário do servidor: sem
+    // isso ele continuaria listado como membro para quem entrasse depois, e os
+    // dados dele seguiriam servidos num tópico do qual ele saiu. Cada um limpa
+    // os próprios compartimentos porque são assinados com a chave própria.
+    final code = srv.inviteCode.trim();
+    if (code.isNotEmpty) {
+      _mqtt.clearRetained(ServerCrypto.presenceSlotTopic(code, currentUser.id));
+      _mqtt.clearRetained(ServerCrypto.historySlotTopic(code, currentUser.id));
+    }
+
+    servers.removeWhere((s) => s.id == srv.id);
+    for (final canal in srv.channels) {
+      _messages.remove(canal.id);
+      _lastReadAt.remove(canal.id);
+    }
+    if (connectedVoiceChannelId != null && srv.channels.any((c) => c.id == connectedVoiceChannelId)) {
+      disconnectVoice();
+    }
+    _saveServers();
+    _saveChatHistory();
+    _saveReadMarks();
 
     if (servers.isEmpty) {
       activeServerId = '';
       activeChannelId = '';
       isHomePageActive = true;
-    } else if (activeServerId == serverId) {
+    } else if (activeServerId == srv.id) {
       selectServer(servers.first.id);
     }
+    _subscribeToOwnServers();
     _sendPresence();
     notifyListeners();
-    return true;
   }
 
   Future<bool> joinServerByInvite(String inviteCode) async {

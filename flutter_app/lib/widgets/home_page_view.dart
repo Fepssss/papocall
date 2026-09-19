@@ -1326,7 +1326,7 @@ class _HomePageViewState extends State<HomePageView> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Templates rápidos para squad e voz',
+                  'Estrutura padrão com canais, cargos e voz',
                   style: TextStyle(color: HudTheme.textMuted, fontSize: 11),
                 ),
               ],
