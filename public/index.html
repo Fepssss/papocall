@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PapoCall - Comunicação Tática em Tempo Real para Windows</title>
-  <meta name="description" content="PapoCall é um aplicativo desktop nativo de voz e chat em tempo real com estética HUD militar, ultra-baixa latência e economia inteligente de GPU para Windows.">
+  <meta name="description" content="PapoCall é um aplicativo desktop nativo de voz e chat em tempo real com estética HUD tática, ultra-baixa latência e economia inteligente de GPU para Windows.">
   <meta property="og:title" content="PapoCall - Comunicação Tática em Tempo Real">
-  <meta property="og:description" content="Voz em alta fidelidade via LiveKit RTC, mensageria MQTT resiliente, nova Central de Comando e criação de servidores.">
+  <meta property="og:description" content="Voz em alta fidelidade via LiveKit RTC, mensageria cifrada E2EE AES-256-GCM, nova Central de Comando e HUD de configurações com abas.">
   <meta property="og:image" content="/logo.png">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-base: #0B0E14;
@@ -20,9 +20,12 @@
       --bg-card: #161C2A;
       --bg-hover: #1E273A;
       --border-subtle: #222C3E;
+      --border-highlight: rgba(34, 197, 94, 0.4);
       --green-neon: #22C55E;
-      --green-glow: rgba(34, 197, 94, 0.4);
+      --green-glow: rgba(34, 197, 94, 0.35);
       --accent-blue: #38BDF8;
+      --accent-purple: #A855F7;
+      --accent-orange: #FB923C;
       --text-header: #F8FAFC;
       --text-body: #94A3B8;
       --text-muted: #64748B;
@@ -34,6 +37,10 @@
       box-sizing: border-box;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       background-color: var(--bg-base);
       color: var(--text-body);
@@ -42,8 +49,8 @@
       overflow-x: hidden;
       line-height: 1.6;
       background-image: 
-        radial-gradient(circle at 15% 20%, rgba(34, 197, 94, 0.07) 0%, transparent 40%),
-        radial-gradient(circle at 85% 75%, rgba(56, 189, 248, 0.05) 0%, transparent 40%);
+        radial-gradient(circle at 15% 15%, rgba(34, 197, 94, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 85% 75%, rgba(56, 189, 248, 0.06) 0%, transparent 45%);
     }
 
     /* Container */
@@ -58,15 +65,15 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(11, 14, 20, 0.85);
-      backdrop-filter: blur(14px);
+      background: rgba(11, 14, 20, 0.88);
+      backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-subtle);
     }
     .nav-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 72px;
+      height: 74px;
     }
     .brand {
       display: flex;
@@ -76,12 +83,13 @@
       color: var(--text-header);
     }
     .brand img {
-      width: 36px;
-      height: 36px;
+      width: 38px;
+      height: 38px;
       border-radius: 10px;
+      box-shadow: 0 0 15px rgba(34, 197, 94, 0.25);
     }
     .brand-title {
-      font-size: 20px;
+      font-size: 21px;
       font-weight: 800;
       letter-spacing: -0.5px;
     }
@@ -91,11 +99,44 @@
       font-weight: 700;
       color: var(--green-neon);
       background: rgba(34, 197, 94, 0.12);
-      border: 1px solid rgba(34, 197, 94, 0.3);
+      border: 1px solid rgba(34, 197, 94, 0.35);
       padding: 3px 8px;
       border-radius: 6px;
       margin-left: 6px;
+      letter-spacing: 0.5px;
     }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .nav-link {
+      color: var(--text-body);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: color 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-link:hover {
+      color: var(--text-header);
+    }
+    .nav-link.active {
+      color: var(--green-neon);
+    }
+    .nav-link-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--green-neon);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      padding: 2px 6px;
+      border-radius: 999px;
+    }
+
     .nav-actions {
       display: flex;
       align-items: center;
@@ -108,21 +149,22 @@
       background: var(--green-neon);
       color: #0B0E14;
       font-weight: 700;
-      font-size: 14px;
-      padding: 10px 20px;
+      font-size: 13px;
+      padding: 10px 18px;
       border-radius: 8px;
       text-decoration: none;
       transition: all 0.2s ease;
+      box-shadow: 0 0 16px rgba(34, 197, 94, 0.25);
     }
     .btn-nav-download:hover {
       background: #4ADE80;
       transform: translateY(-1px);
-      box-shadow: 0 0 20px var(--green-glow);
+      box-shadow: 0 0 24px var(--green-glow);
     }
 
     /* Hero */
     .hero {
-      padding: 90px 0 60px;
+      padding: 80px 0 50px;
       text-align: center;
     }
     .badge-tactical {
@@ -145,13 +187,19 @@
       background: var(--green-neon);
       border-radius: 50%;
       box-shadow: 0 0 8px var(--green-neon);
+      animation: pulse-dot 2s infinite ease-in-out;
     }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
     .hero h1 {
-      font-size: 54px;
+      font-size: 52px;
       font-weight: 800;
       line-height: 1.15;
       color: var(--text-header);
-      max-width: 860px;
+      max-width: 880px;
       margin: 0 auto 20px;
       letter-spacing: -1.2px;
     }
@@ -162,7 +210,7 @@
     }
     .hero p {
       font-size: 18px;
-      max-width: 680px;
+      max-width: 720px;
       margin: 0 auto 36px;
       color: var(--text-body);
     }
@@ -170,7 +218,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
     .btn-primary-download {
       display: inline-flex;
@@ -179,9 +227,9 @@
       gap: 14px;
       background: var(--green-neon);
       color: #0B0E14;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
-      padding: 18px 44px;
+      padding: 16px 40px;
       border-radius: 12px;
       text-decoration: none;
       box-shadow: 0 0 32px var(--green-glow);
@@ -191,22 +239,25 @@
     .btn-primary-download:hover {
       background: #4ADE80;
       transform: translateY(-2px);
-      box-shadow: 0 0 50px rgba(34, 197, 94, 0.65);
+      box-shadow: 0 0 45px rgba(34, 197, 94, 0.6);
     }
     .btn-primary-download svg {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       stroke-width: 2.5;
     }
     .download-meta {
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     /* HUD Preview Showcase */
     .showcase {
-      margin: 40px auto 70px;
+      margin: 36px auto 60px;
       max-width: 980px;
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
@@ -252,7 +303,7 @@
       padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
     .srv-item {
       display: flex;
@@ -331,20 +382,65 @@
       color: var(--text-muted);
     }
 
-    /* Feature Cards */
-    .features-section {
-      padding: 40px 0 80px;
+    /* Specs Banner */
+    .specs-strip {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 22px 32px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      text-align: center;
+      margin-bottom: 70px;
     }
+    .spec-item h4 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--green-neon);
+      margin-bottom: 4px;
+    }
+    .spec-item p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Section Headers */
     .section-header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: 44px;
+    }
+    .section-badge {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green-neon);
+      background: rgba(34, 197, 94, 0.12);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
     }
     .section-header h2 {
-      font-size: 36px;
+      font-size: 34px;
       font-weight: 800;
       color: var(--text-header);
       letter-spacing: -0.8px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+    }
+    .section-header p {
+      font-size: 15px;
+      color: var(--text-body);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Features */
+    .features-section {
+      padding: 20px 0 70px;
     }
     .features-grid {
       display: grid;
@@ -355,7 +451,7 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 16px;
-      padding: 32px;
+      padding: 30px;
       transition: all 0.25s ease;
       position: relative;
     }
@@ -381,7 +477,7 @@
       height: 24px;
     }
     .feature-card h3 {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
       color: var(--text-header);
       margin-bottom: 12px;
@@ -392,49 +488,220 @@
       line-height: 1.6;
     }
 
-    /* Specs Banner */
-    .specs-strip {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 14px;
-      padding: 24px 32px;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      text-align: center;
-      margin-bottom: 80px;
+    /* ===================================================
+       CHANGELOG SECTION - TÁTICO COM ABAS INTERATIVAS
+       =================================================== */
+    .changelog-section {
+      padding: 50px 0 90px;
+      border-top: 1px solid var(--border-subtle);
     }
-    .spec-item h4 {
+
+    .changelog-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 36px;
+    }
+    .tab-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab-btn:hover {
+      color: var(--text-header);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .tab-btn.active {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: var(--green-neon);
+      color: var(--green-neon);
+      box-shadow: 0 0 16px rgba(34, 197, 94, 0.2);
+    }
+    .tab-btn .badge-current {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--green-neon);
+      color: #0B0E14;
+      font-weight: 800;
+    }
+
+    .changelog-container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .release-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 28px 32px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .release-card:hover {
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+    .release-card.latest {
+      border-color: rgba(34, 197, 94, 0.45);
+      background: linear-gradient(180deg, rgba(34, 197, 94, 0.04) 0%, var(--bg-surface) 100%);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 30px rgba(34, 197, 94, 0.05);
+    }
+
+    .release-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      margin-bottom: 20px;
+    }
+    .release-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .release-version {
       font-family: 'JetBrains Mono', monospace;
       font-size: 20px;
-      font-weight: 700;
-      color: var(--green-neon);
-      margin-bottom: 4px;
+      font-weight: 800;
+      color: var(--text-header);
     }
-    .spec-item p {
+    .release-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-live {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid var(--green-neon);
+      color: var(--green-neon);
+    }
+    .badge-stable {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent-blue);
+      color: var(--accent-blue);
+    }
+    .badge-security {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid var(--accent-purple);
+      color: var(--accent-purple);
+    }
+
+    .release-date {
+      font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       color: var(--text-muted);
+    }
+
+    .release-summary {
+      font-size: 15px;
+      color: var(--text-header);
+      margin-bottom: 18px;
+      font-weight: 500;
+    }
+
+    .changelog-items {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .changelog-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text-body);
+    }
+
+    .tag-type {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .tag-novo {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green-neon);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .tag-melhoria {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .tag-seguranca {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+    }
+    .tag-correcao {
+      background: rgba(251, 146, 60, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid rgba(251, 146, 60, 0.35);
     }
 
     /* Footer */
     footer {
       border-top: 1px solid var(--border-subtle);
-      padding: 36px 0;
+      padding: 40px 0;
       text-align: center;
       font-size: 13px;
       color: var(--text-muted);
+      background: #080A0F;
     }
     footer a {
       color: var(--green-neon);
       text-decoration: none;
+      transition: color 0.2s;
+    }
+    footer a:hover {
+      color: #4ADE80;
+      text-decoration: underline;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
     }
 
     /* Responsividade */
     @media (max-width: 860px) {
-      .hero h1 { font-size: 38px; }
+      .hero h1 { font-size: 36px; }
       .features-grid { grid-template-columns: 1fr; }
       .specs-strip { grid-template-columns: 1fr 1fr; }
       .showcase-body { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .release-card { padding: 20px; }
     }
   </style>
 </head>
@@ -443,11 +710,22 @@
   <!-- Top Navbar -->
   <header>
     <div class="container nav-inner">
-      <a href="/" class="brand">
+      <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0e</span>
+        <span class="version-tag">v1.0.0k</span>
       </a>
+
+      <nav class="nav-links">
+        <a href="#hero" class="nav-link">Início</a>
+        <a href="#features" class="nav-link">Recursos</a>
+        <a href="#specs" class="nav-link">Especificações</a>
+        <a href="#changelog" class="nav-link active">
+          Changelog
+          <span class="nav-link-badge">Novo</span>
+        </a>
+      </nav>
+
       <div class="nav-actions">
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe" class="btn-nav-download">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -455,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar Agora
+          Baixar v1.0.0k
         </a>
       </div>
     </div>
@@ -463,13 +741,13 @@
 
   <main class="container">
     <!-- Hero Section -->
-    <section class="hero">
+    <section class="hero" id="hero">
       <div class="badge-tactical">
         <span></span> SISTEMA OPERACIONAL NATIVO // WINDOWS 64-BIT
       </div>
       <h1>Comunicação de Alta Fidelidade <span>para o seu Squad.</span></h1>
       <p>
-        O PapoCall entrega voz com ultra-baixa latência via WebRTC LiveKit, mensageria resiliente EMQX, sistema de amizades via @tag, convites de servidor e Central de Comando tática.
+        O PapoCall entrega conferências de voz com ultra-baixa latência via WebRTC LiveKit, mensageria cifrada E2EE AES-256-GCM, novo HUD de configurações em abas e Central de Comando operacional.
       </p>
       <div class="hero-ctas">
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe" class="btn-primary-download" id="download-btn-hero">
@@ -480,7 +758,9 @@
           </svg>
           Baixar PapoCall para Windows
         </a>
-        <span class="download-meta">Versão 1.0.0e • Instalador Nativo (~17.7 MB) • Windows 10 e 11</span>
+        <span class="download-meta">
+          Versão Oficial 1.0.0k • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+        </span>
       </div>
     </section>
 
@@ -490,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0e - Central de Comando Operacional</span>
+        <span class="showcase-title">PapoCall v1.0.0k - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -511,7 +791,7 @@
           <div class="hud-hero-mini">
             <div>
               <div class="hud-hero-title">Central de Comando Tática Ativa</div>
-              <div class="hud-hero-desc">Motor LiveKit RTC Pronto • Latência estimada &lt; 35ms</div>
+              <div class="hud-hero-desc">Motor LiveKit RTC Pronto • Criptografia E2EE AES-256-GCM</div>
             </div>
             <span class="version-tag" style="margin:0;">ONLINE</span>
           </div>
@@ -521,8 +801,8 @@
               <div class="mini-card-sub">Opus 48kHz HD • Baixa Latência</div>
             </div>
             <div class="mini-card">
-              <div class="mini-card-title">⚡ Modo Eco Ativo</div>
-              <div class="mini-card-sub">Economia inteligente de GPU para streamers</div>
+              <div class="mini-card-title">🛡️ HUD de Abas &amp; Modo Eco</div>
+              <div class="mini-card-sub">Conta, Notificações, Voz e Zero GPU</div>
             </div>
           </div>
         </div>
@@ -530,7 +810,7 @@
     </div>
 
     <!-- Specs Strip -->
-    <div class="specs-strip">
+    <div class="specs-strip" id="specs">
       <div class="spec-item">
         <h4>&lt; 35ms</h4>
         <p>Latência de Áudio RTC</p>
@@ -540,44 +820,42 @@
         <p>Codec Opus Cristalino</p>
       </div>
       <div class="spec-item">
-        <h4>Zero WebView</h4>
-        <p>100% Nativo Flutter Windows</p>
+        <h4>E2EE AES-256</h4>
+        <p>Criptografia Ponta a Ponta</p>
       </div>
       <div class="spec-item">
-        <h4>Dual-Transport</h4>
-        <p>TCP 1883 + Fallback WSS 8084</p>
+        <h4>TLS 8883 / WSS</h4>
+        <p>Transporte Estritamente Cifrado</p>
       </div>
     </div>
 
     <!-- Features Section -->
-    <section class="features-section">
+    <section class="features-section" id="features">
       <div class="section-header">
+        <span class="section-badge">ARQUITETURA TÁTICA</span>
         <h2>Construído para Desempenho Implacável</h2>
-        <p>Desenvolvido com arquitetura dedicada para gamers, equipes táticas e squads modernos.</p>
+        <p>Desenvolvido exclusivamente com tecnologia nativa para quem exige comunicação estável sem quedas de FPS.</p>
       </div>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </div>
-          <h3>Nova Central de Comando</h3>
-          <p>Visualização em tela cheia com acesso de 1 clique às suas salas de voz, radar de amigos conectados e métricas em tempo real.</p>
+          <h3>HUD de Configurações em Abas</h3>
+          <p>Organização limpa com seções verticais para Conta, Dados &amp; Privacidade, Permissões de Mensagens, Notificações com teste sonoro e controles de áudio.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-              <line x1="6" y1="6" x2="6.01" y2="6"></line>
-              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
             </svg>
           </div>
-          <h3>Criação de Servidores</h3>
-          <p>Crie e gerencie seus próprios servidores com templates prontos para Squad, Comunidade ou Estudo, com códigos de convite rápidos e persistência em disco.</p>
+          <h3>Criptografia E2EE Ponta a Ponta</h3>
+          <p>Toda a mensageria é blindada com AES-256-GCM. As chaves são derivadas por PBKDF2 (210.000 iterações) e trafegam apenas por canais seguros TLS 8883.</p>
         </div>
 
         <div class="feature-card">
@@ -586,9 +864,214 @@
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
           </div>
-          <h3>Modo Eco para Lives</h3>
-          <p>Otimização de hardware que suspende a renderização local da própria live ao minimizar o app, liberando sua GPU para o jogo enquanto os espectadores assistem fluidamente.</p>
+          <h3>Modo Eco para Streamers</h3>
+          <p>Otimização de hardware que suspende a renderização local da própria live ao minimizar o app, liberando sua GPU para o jogo sem afetar os espectadores.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- ===================================================
+         CHANGELOG / NOTAS DE ATUALIZAÇÃO
+         =================================================== -->
+    <section class="changelog-section" id="changelog">
+      <div class="section-header">
+        <span class="section-badge">HISTÓRICO DE ATUALIZAÇÕES</span>
+        <h2>Notas de Atualização do PapoCall</h2>
+        <p>Acompanhe a evolução contínua, melhorias de desempenho e correções táticas implementadas em cada versão.</p>
+      </div>
+
+      <!-- Abas de Versão -->
+      <div class="changelog-nav">
+        <button class="tab-btn active" onclick="filterChangelog('all', this)">
+          Todas as Versões
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0k', this)">
+          v1.0.0k <span class="badge-current">ATUAL</span>
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0j', this)">
+          v1.0.0j
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0i', this)">
+          v1.0.0i
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0h', this)">
+          v1.0.0h
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0g', this)">
+          v1.0.0g
+        </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0f', this)">
+          v1.0.0f
+        </button>
+      </div>
+
+      <!-- Cartões de Releases -->
+      <div class="changelog-container">
+
+        <!-- v1.0.0k -->
+        <article class="release-card latest" data-version="v1.0.0k">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0k</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Central de Atualizações oficial integrada ao portal público e sincronização geral de versões.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span>Aba interativa de <strong>Changelog / Notas de Atualização</strong> implementada no site oficial, com histórico completo e filtros rápidos por versão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span>Atualização das especificações táticas no portal (indicação de Criptografia Ponta a Ponta E2EE AES-256-GCM e transporte TLS 8883).</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span>Sincronização estrita de todos os manifestos de versão do instalador Windows e do aplicativo desktop nativo.</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.0.0j -->
+        <article class="release-card" data-version="v1.0.0j">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0j</span>
+              <span class="release-badge badge-stable">Estável</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Novo HUD de configurações com navegação em abas verticais e estabilização definitiva da conexão de voz.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>HUD de Configurações em Abas Verticais</strong>: Reformulação completa com painéis para Conta, Dados &amp; Privacidade, Permissões de Mensagens, Notificações, Voz &amp; Áudio, Aparência e botão de Logout seguro.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Conexão de Voz LiveKit RTC</strong>: Implementado auto-refresh silencioso de token e auto-invalidação limpa em caso de credenciais expiradas, eliminando o problema onde as salas de voz paravam de conectar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span>Edição de <strong>@username único</strong> e Nome de Exibição diretamente nas preferências da conta.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span>Botão interativo de teste sonoro para notificação de entrada em sala de áudio.</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.0.0i -->
+        <article class="release-card" data-version="v1.0.0i">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0i</span>
+              <span class="release-badge badge-security">Segurança &amp; Infra</span>
+            </div>
+            <span class="release-date">Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Migração do backend para PostgreSQL Neon e desativação de bloqueios rígidos de verificação de e-mail.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span>Infraestrutura de autenticação migrada para <strong>PostgreSQL Neon</strong> com pool de conexões otimizado e auto-reconexão no Render.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span>Higienização rigorosa: tokens de voz do LiveKit agora são assinados estritamente pelo backend, sem expor segredos no cliente desktop.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span>Acesso instantâneo: remoção da trava de e-mail verificado para criação imediata de canais e início de chamadas.</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.0.0h -->
+        <article class="release-card" data-version="v1.0.0h">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0h</span>
+              <span class="release-badge badge-security">Criptografia E2EE</span>
+            </div>
+            <span class="release-date">Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Implementação de criptografia de ponta a ponta E2EE em todos os tópicos de mensagens do MQTT.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>E2EE AES-256-GCM</strong>: Chaves derivadas por PBKDF2 (210.000 iterações) a partir do código de convite do servidor. O broker nunca tem acesso ao texto claro.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span>Tópicos opacos com hash criptográfico, impedindo escuta não autorizada ou assinaturas globais com curingas.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span>Desativação total de canais em texto puro (porta 1883). Transporte agora opera exclusivamente via TLS seguro (8883) e WSS (8084).</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.0.0g -->
+        <article class="release-card" data-version="v1.0.0g">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0g</span>
+              <span class="release-badge badge-stable">Desempenho</span>
+            </div>
+            <span class="release-date">Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Economia inteligente de GPU e otimizações de memória para transmissões e jogos pesados.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Modo Eco para Streamers</strong>: Suspensão inteligente da renderização local da própria tela ao minimizar ou perder o foco da janela.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span>Redução de até 85% do uso de GPU em segundo plano, mantendo o stream em 60 FPS impecável para os espectadores.</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.0.0f -->
+        <article class="release-card" data-version="v1.0.0f">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0f</span>
+              <span class="release-badge badge-stable">Interface</span>
+            </div>
+            <span class="release-date">Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Central de Comando Tática (HomePageView) com radar de conexões e amigos.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span>Visualização de tela cheia acessível pelo topo da barra de servidores com radar de amigos online e entrada de 1 clique.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span>Painel de diagnósticos ao vivo reportando latência RTC, telemetria LiveKit e estado do broker MQTT.</span>
+            </li>
+          </ul>
+        </article>
+
       </div>
     </section>
   </main>
@@ -596,10 +1079,36 @@
   <!-- Footer -->
   <footer>
     <div class="container">
+      <div class="footer-links">
+        <a href="#hero">Início</a>
+        <a href="#features">Recursos</a>
+        <a href="#changelog">Changelog</a>
+        <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
+      </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Desenvolvido com Flutter &amp; LiveKit Cloud • <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Direto</a></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0k</strong></p>
     </div>
   </footer>
+
+  <!-- Script Interativo do Changelog -->
+  <script>
+    function filterChangelog(version, btnElement) {
+      // Atualiza botões
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      btnElement.classList.add('active');
+
+      // Filtra cartões
+      const cards = document.querySelectorAll('.release-card');
+      cards.forEach(card => {
+        if (version === 'all' || card.getAttribute('data-version') === version) {
+          card.style.display = 'block';
+          card.style.animation = 'fadeInUp 0.3s ease forwards';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
 
 </body>
 </html>
