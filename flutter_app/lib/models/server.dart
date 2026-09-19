@@ -12,6 +12,20 @@ class Server {
   final List<String> memberIds;
   final List<Channel> channels;
 
+  /// Revisão da estrutura (nome, cor, canais), incrementada a cada alteração.
+  ///
+  /// Serve para ordenar atualizações concorrentes vindas de membros diferentes:
+  /// só uma revisão maior substitui a estrutura local.
+  int revision;
+
+  /// Indica se esta estrutura é a real do servidor ou apenas um esqueleto
+  /// provisório criado ao entrar por convite, enquanto a estrutura verdadeira
+  /// não chega pela rede. Um esqueleto nunca é propagado aos outros membros —
+  /// era exatamente isso que fazia cada participante acabar com um conjunto de
+  /// canais diferente e, como o nome da sala de voz é o ID do canal, entrar em
+  /// salas do LiveKit distintas dentro do "mesmo" servidor.
+  bool isSynced;
+
   Server({
     required this.id,
     required this.name,
@@ -23,6 +37,8 @@ class Server {
     this.isCustom = false,
     List<String>? memberIds,
     required this.channels,
+    this.revision = 1,
+    this.isSynced = true,
   }) : memberIds = memberIds ?? [];
 
   factory Server.fromJson(Map<String, dynamic> json) {
@@ -39,6 +55,11 @@ class Server {
       isCustom: json['isCustom'] as bool? ?? false,
       memberIds: rawMembers,
       channels: rawChannels.map((c) => Channel.fromJson(c as Map<String, dynamic>)).toList(),
+      revision: json['revision'] as int? ?? 1,
+      // Servidores gravados por versões anteriores não tinham o conceito de
+      // sincronização; tratá-los como sincronizados manteria os canais
+      // inventados pelo convite. Eles são remarcados para sincronizar de novo.
+      isSynced: json['isSynced'] as bool? ?? false,
     );
   }
 
@@ -54,6 +75,27 @@ class Server {
       'isCustom': isCustom,
       'memberIds': memberIds,
       'channels': channels.map((c) => c.toJson()).toList(),
+      'revision': revision,
+      'isSynced': isSynced,
     };
+  }
+
+  /// Substitui a estrutura local pela recebida da rede, preservando o que é
+  /// estritamente local (código de convite e lista de membros já conhecidos).
+  void adoptStructure({
+    required String newName,
+    required String newDescription,
+    required String newColorHex,
+    required List<Channel> newChannels,
+    required int newRevision,
+  }) {
+    name = newName;
+    description = newDescription;
+    colorHex = newColorHex;
+    channels
+      ..clear()
+      ..addAll(newChannels);
+    revision = newRevision;
+    isSynced = true;
   }
 }

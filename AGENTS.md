@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento**:
-   - Versão atual do projeto: **`1.0.0m`**.
+   - Versão atual do projeto: **`1.0.0n`**.
    - **Pequenas atualizações / fixes**: Incrementar a letra final sequencialmente (`1.0.0d`, `1.0.0e`, ..., até `1.0.0z`).
    - **Ao esgotar o alfabeto ('z')**: Avançar o patch com 'a' (`1.0.1a`, ..., `1.0.1z`, depois `1.0.2a`...).
    - **Grandes atualizações estruturais (Big Update)**: Avançar para a próxima versão maior (`2.0.0a`).
@@ -54,8 +54,12 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
      - Utiliza broker público EMQX (`broker.emqx.io`), tratado como **transporte hostil**.
      - **Transporte cifrado**: TLS na porta 8883, com fallback para WebSocket seguro (`wss://broker.emqx.io/mqtt:8084`). **Não existe fallback em texto puro (1883)**.
      - **Criptografia ponta a ponta (`server_crypto.dart`)**: o payload é cifrado com AES-256-GCM usando chave derivada do código de convite do servidor via PBKDF2 (210k iterações). O broker nunca vê conteúdo legível.
-     - **Tópicos opacos**: `papocall/v2/r/<hash-do-convite>/{chat,presence}`. Proibido usar curinga (`+`) na subscrição — o app assina apenas os servidores que o usuário integra.
-     - Auto-reconexão e restauração automática de subscrições em tópicos.
+     - **Tópicos opacos**: `papocall/v2/r/<hash-do-convite>/{chat,presence,info}`, mais um compartimento retido por membro em `presence/<hash-do-membro>` e a caixa de entrada pessoal em `papocall/v2/u/<hash-do-usuário>/inbox/<hash-do-remetente>`.
+     - **Curinga proibido na posição do identificador de servidor ou de usuário** — é ali que fica a fronteira de autorização, e foi essa a falha da v1.0.0f (`srv/+/chat`). O app assina apenas os servidores que o usuário integra, sempre pelo nome exato. Existe **um único** curinga em todo o app, inteiramente abaixo da fronteira: `papocall/v2/u/<hash-do-usuário>/inbox/#`, que percorre só os compartimentos de remetentes dentro da caixa do próprio usuário. Sem ele não há como receber uma solicitação de amizade de alguém ainda desconhecido enviada enquanto o destinatário estava offline. A presença não usa curinga algum.
+     - **Estrutura do servidor replicada** (`action: server_info`, retida): só o dono publica. Quem entra por convite adota nome, cor e — principalmente — os IDs de canal reais. Como o nome da sala do LiveKit é o ID do canal, inventar canais localmente colocava cada membro numa sala de voz diferente. O payload carrega também o roster (`memberIds`), única forma de um recém-chegado saber de quem assinar presença e histórico.
+     - **Histórico compartilhado** (`action: history_snapshot`, retido): cada membro publica no seu próprio compartimento um retrato das mensagens recentes que conhece (60 por canal, teto de 300 e de 160 KB); quem chega intercala os retratos de todos por `id` e ordena por `sentAt`. Um tópico único e compartilhado não serviria — o broker guarda só a última mensagem retida de cada tópico, então o último a publicar apagaria o histórico dos demais.
+     - **Marcações** (`flutter_app/lib/utils/mentions.dart`): o `@fulano` vive no texto da mensagem, não numa lista paralela no envelope, para continuar funcionando no histórico alheio e em mensagens de versões anteriores. A regex exige fronteira dos dois lados — sem a da direita, um @ longo demais casaria pelos 20 primeiros caracteres e marcaria outra pessoa.
+     - Auto-reconexão com backoff, restauração automática de subscrições e reconciliação de estado a cada reconexão (reassinar, reanunciar presença, reenviar a fila de saída).
      - `clientId` aleatório por sessão (não deriva do `userId`, que era rastreável no broker público).
    - **Voz e Streaming RTC (`flutter_app/lib/services/voice_service.dart`)**:
      - Motor WebRTC via **LiveKit Cloud**.

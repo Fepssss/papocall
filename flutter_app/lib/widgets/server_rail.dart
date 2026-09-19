@@ -51,6 +51,7 @@ class ServerRail extends StatelessWidget {
                     initials: srv.name.length >= 2 ? srv.name.substring(0, 2).toUpperCase() : srv.name.toUpperCase(),
                     assetLogo: (index == 0 && !srv.isCustom) ? 'assets/logo.png' : null,
                     customColor: srvColor,
+                    mentionCount: state.mentionCountForServer(srv.id),
                     onTap: () => state.selectServer(srv.id),
                   ),
                 );
@@ -90,6 +91,7 @@ class ServerRail extends StatelessWidget {
     String? assetLogo,
     IconData? iconData,
     Color? customColor,
+    int mentionCount = 0,
   }) {
     return _ServerRailItem(
       isActive: isActive,
@@ -99,6 +101,7 @@ class ServerRail extends StatelessWidget {
       assetLogo: assetLogo,
       iconData: iconData,
       customColor: customColor,
+      mentionCount: mentionCount,
     );
   }
 }
@@ -111,6 +114,7 @@ class _ServerRailItem extends StatefulWidget {
   final String? assetLogo;
   final IconData? iconData;
   final Color? customColor;
+  final int mentionCount;
 
   const _ServerRailItem({
     required this.isActive,
@@ -120,6 +124,7 @@ class _ServerRailItem extends StatefulWidget {
     this.assetLogo,
     this.iconData,
     this.customColor,
+    this.mentionCount = 0,
   });
 
   @override
@@ -166,7 +171,10 @@ class _ServerRailItemState extends State<_ServerRailItem> {
             // Server Icon
             GestureDetector(
               onTap: widget.onTap,
-              child: AnimatedContainer(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOut,
                 width: 48,
@@ -200,6 +208,34 @@ class _ServerRailItemState extends State<_ServerRailItem> {
                               fontSize: 16,
                             ),
                           )),
+                  ),
+
+                  // Marcações não lidas do servidor inteiro, para o usuário
+                  // notar que foi citado num canal que não está aberto.
+                  if (widget.mentionCount > 0)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        decoration: BoxDecoration(
+                          color: HudTheme.green,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: HudTheme.bgServerRail, width: 2),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          widget.mentionCount > 99 ? '99+' : '${widget.mentionCount}',
+                          style: const TextStyle(
+                            color: Color(0xFF0B0E14),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ],

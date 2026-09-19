@@ -6,7 +6,20 @@ class ChatMessage {
   final String authorUsername;
   final String authorAvatar;
   final String text;
+
+  /// Rótulo pronto para exibição (ex.: 'Hoje às 14:32').
   final String timestamp;
+
+  /// Momento do envio em milissegundos desde a época.
+  ///
+  /// [timestamp] é texto formatado e não serve para ordenar nem para comparar:
+  /// é este campo que permite intercalar o histórico recebido de outros membros
+  /// com o que já está em disco, e saber o que chegou depois da última leitura.
+  /// Mensagens gravadas antes da v1.0.0n não o têm e chegam como 0 — são
+  /// renumeradas na carga, de modo que permanecem na ordem original e antes de
+  /// qualquer mensagem com data real.
+  int sentAt;
+
   final String? gifUrl;
   final String? replyToAuthor;
   final String? replyToText;
@@ -21,11 +34,13 @@ class ChatMessage {
     this.authorAvatar = '',
     required this.text,
     required this.timestamp,
+    int? sentAt,
     this.gifUrl,
     this.replyToAuthor,
     this.replyToText,
     this.isSystem = false,
-  })  : authorDisplayName = (authorDisplayName != null && authorDisplayName.trim().isNotEmpty)
+  })  : sentAt = sentAt ?? DateTime.now().millisecondsSinceEpoch,
+        authorDisplayName = (authorDisplayName != null && authorDisplayName.trim().isNotEmpty)
             ? authorDisplayName.trim()
             : author,
         authorUsername = (authorUsername != null && authorUsername.trim().isNotEmpty)
@@ -43,6 +58,10 @@ class ChatMessage {
       authorAvatar: json['authorAvatar'] as String? ?? '',
       text: json['text'] as String? ?? '',
       timestamp: json['timestamp'] as String? ?? '',
+      // 0 marca "sem data conhecida" (mensagem anterior à v1.0.0n). Usar a hora
+      // atual aqui jogaria toda mensagem antiga para o fim da conversa a cada
+      // carregamento.
+      sentAt: json['sentAt'] as int? ?? 0,
       gifUrl: json['gifUrl'] as String?,
       replyToAuthor: json['replyToAuthor'] as String?,
       replyToText: json['replyToText'] as String?,
@@ -60,6 +79,7 @@ class ChatMessage {
       'authorAvatar': authorAvatar,
       'text': text,
       'timestamp': timestamp,
+      'sentAt': sentAt,
       'gifUrl': gifUrl,
       'replyToAuthor': replyToAuthor,
       'replyToText': replyToText,

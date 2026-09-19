@@ -166,7 +166,12 @@ O QUE NÃO FAZER
   aceite login sem o backend.
 - Não voltar a assinar token do LiveKit no cliente.
 - Não embutir segredo algum no binário Flutter.
-- Não publicar nada em texto puro no MQTT nem assinar tópico com curinga.
+- Não publicar nada em texto puro no MQTT. Não assinar tópico com curinga na
+  posição do identificador de servidor ou de usuário (foi a falha da v1.0.0f).
+  O único curinga permitido é `papocall/v2/u/<hash-do-usuário>/inbox/#`, que
+  fica inteiramente abaixo da fronteira de autorização e é o que entrega
+  solicitação de amizade a quem estava offline. Ver a regra 4 em
+  `SECURITY_UPDATE_v1.0.0g.md`.
 - Não gravar token ou senha em texto puro no disco.
 - Não mover o backend para função serverless (o rate limiter e o Argon2id
   dependem de processo persistente e instância única).

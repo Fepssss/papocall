@@ -72,8 +72,76 @@ class ServerCrypto {
   static String presenceTopic(String inviteCode) =>
       'papocall/v2/r/${topicIdFor(inviteCode)}/presence';
 
+  /// Compartimento de presença retido, um por membro.
+  ///
+  /// Todos os membros publicavam presença no mesmo tópico; retê-la ali faria
+  /// cada um sobrescrever o anterior. Com um compartimento por usuário, quem
+  /// abre o app recebe de imediato a última presença conhecida de cada membro,
+  /// em vez de esperar até 10s pelo próximo heartbeat de cada um.
+  ///
+  /// Cada compartimento é assinado pelo nome exato, um por membro conhecido —
+  /// sem curinga. Membros ainda desconhecidos são descobertos pelo heartbeat
+  /// publicado em [presenceTopic], e só então o compartimento deles é assinado.
+  static String presenceSlotTopic(String inviteCode, String userId) =>
+      '${presenceTopic(inviteCode)}/${topicIdFor("presenceslot:$userId")}';
+
+
+  /// Tópico onde os membros publicam (retido) a estrutura real do servidor.
+  ///
+  /// Sem isto, quem entra por convite não tem como saber o nome do servidor nem
+  /// quais canais existem, e acabava inventando uma estrutura local própria —
+  /// com IDs de canal diferentes dos de quem criou o servidor. Como o nome da
+  /// sala do LiveKit é o ID do canal, os dois lados entravam em salas de voz
+  /// distintas e nunca se ouviam.
+  static String serverInfoTopic(String inviteCode) =>
+      'papocall/v2/r/${topicIdFor(inviteCode)}/info';
+
+  static String historyTopic(String inviteCode) =>
+      'papocall/v2/r/${topicIdFor(inviteCode)}/history';
+
+  /// Compartimento de histórico retido, um por membro.
+  ///
+  /// Cada membro publica ali sua própria visão das mensagens recentes, e quem
+  /// chega depois intercala o que recebeu de todos. Um tópico único e
+  /// compartilhado não serviria: o broker guarda só a última mensagem retida de
+  /// cada tópico, então o último a publicar apagaria o histórico dos demais.
+  ///
+  /// Assinado pelo nome exato, um por membro conhecido — sem curinga. O roster
+  /// chega junto com a estrutura do servidor ([serverInfoTopic]), que é retida
+  /// pelo dono, então até quem acabou de entrar sabe de quem cobrar histórico.
+  static String historySlotTopic(String inviteCode, String userId) =>
+      '${historyTopic(inviteCode)}/${topicIdFor("historyslot:$userId")}';
+
   static String userInboxTopic(String username) =>
       'papocall/v2/u/${topicIdFor("inbox:${username.trim().toLowerCase()}")}/inbox';
+
+  /// Caixa de entrada com um compartimento retido por remetente.
+  ///
+  /// Uma mensagem retida por tópico só guarda a última: se todos os remetentes
+  /// publicassem no mesmo tópico, a segunda solicitação apagaria a primeira.
+  /// Com um compartimento por remetente, cada pedido sobrevive até o próprio
+  /// remetente limpá-lo (cancelamento) ou o destinatário respondê-lo.
+  static String userInboxSlotTopic(String recipientUsername, String senderUsername) =>
+      '${userInboxTopic(recipientUsername)}/${topicIdFor("inboxslot:${senderUsername.trim().toLowerCase()}")}';
+
+  /// Assinatura única que cobre o tópico legado e todos os compartimentos.
+  ///
+  /// Pelo padrão MQTT, 'a/b/#' também casa com o próprio 'a/b', então esta
+  /// assinatura continua entregando o que versões antigas do app publicam
+  /// direto em [userInboxTopic].
+  ///
+  /// ÚNICO CURINGA DO APLICATIVO, e ele fica inteiramente **abaixo** da
+  /// fronteira de autorização: o prefixo é o hash da caixa de entrada deste
+  /// usuário, e o '#' só percorre os compartimentos dos remetentes dentro dela.
+  /// Não alcança a caixa de outro usuário nem qualquer servidor. Isso é o
+  /// oposto da falha corrigida na v1.0.0g, em que o curinga ficava no lugar do
+  /// identificador do servidor ('papocall/v1/srv/+/chat') e dava a todo cliente
+  /// o chat de servidores dos quais ele nunca participou.
+  ///
+  /// É o curinga que torna possível receber uma solicitação de amizade enviada
+  /// enquanto este usuário estava offline: não há como assinar previamente o
+  /// compartimento de um remetente que ainda não se conhece.
+  static String userInboxWildcard(String username) => '${userInboxTopic(username)}/#';
 
   static String userPresenceTopic(String username) =>
       'papocall/v2/u/${topicIdFor("presence:${username.trim().toLowerCase()}")}/presence';

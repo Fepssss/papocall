@@ -52,6 +52,33 @@ class ChannelsSidebar extends StatelessWidget {
             ),
           ),
 
+          // Enquanto a estrutura real do servidor não chega pela rede, os canais
+          // mostrados são um esqueleto provisório. Entrar numa sala de voz
+          // agora significa entrar sozinho numa sala que os outros membros não
+          // enxergam, então o usuário precisa saber que ainda falta sincronizar.
+          if (srv != null && !srv.isSynced)
+            Container(
+              width: double.infinity,
+              color: HudTheme.bgSidebar,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(strokeWidth: 1.8, color: HudTheme.textMuted),
+                  ),
+                  SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Sincronizando canais com os outros membros...',
+                      style: TextStyle(color: HudTheme.textMuted, fontSize: 11.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Channels List
           Expanded(
             child: ListView(
@@ -115,6 +142,7 @@ class ChannelsSidebar extends StatelessWidget {
             isText: isText,
             isSelected: isSelected,
             isConnected: isConnected,
+            mentionCount: isText ? state.mentionCountFor(channel.id) : 0,
             onTap: () {
               state.selectChannel(channel.id);
               if (!isText) {
@@ -145,6 +173,7 @@ class _ChannelRow extends StatefulWidget {
   final bool isText;
   final bool isSelected;
   final bool isConnected;
+  final int mentionCount;
   final VoidCallback onTap;
 
   const _ChannelRow({
@@ -152,6 +181,7 @@ class _ChannelRow extends StatefulWidget {
     required this.isText,
     required this.isSelected,
     required this.isConnected,
+    required this.mentionCount,
     required this.onTap,
   });
 
@@ -201,13 +231,34 @@ class _ChannelRowState extends State<_ChannelRow> {
                 child: Text(
                   widget.channel.name,
                   style: TextStyle(
-                    color: textColor,
-                    fontWeight: (widget.isSelected || widget.isConnected) ? FontWeight.bold : FontWeight.w500,
+                    color: widget.mentionCount > 0 ? HudTheme.textHeader : textColor,
+                    fontWeight: (widget.isSelected || widget.isConnected || widget.mentionCount > 0)
+                        ? FontWeight.bold
+                        : FontWeight.w500,
                     fontSize: 14,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // Quantas mensagens ainda não lidas deste canal marcam o usuário.
+              if (widget.mentionCount > 0) ...[
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: HudTheme.green,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    widget.mentionCount > 99 ? '99+' : '${widget.mentionCount}',
+                    style: const TextStyle(
+                      color: Color(0xFF0B0E14),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
               if (!widget.isText && widget.isConnected)
                 Container(
                   width: 8,

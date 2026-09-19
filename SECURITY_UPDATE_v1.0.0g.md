@@ -204,7 +204,28 @@ no login, e gitleaks no pre-commit e na CI.
 3. **Nada trafega em claro pelo MQTT.** Todo `publish` passa por
    `ServerCrypto.encryptPayload`; todo recebimento passa por `decryptPayload` e
    descarta o que falhar.
-4. **Nunca assinar tópico MQTT com curinga (`+` ou `#`).**
+4. **Nunca assinar tópico MQTT com curinga na posição do identificador de
+   servidor ou de usuário.** Foi essa a falha da v1.0.0f: `papocall/v1/srv/+/chat`
+   punha o curinga exatamente onde fica a fronteira de autorização, e todo
+   cliente recebia o chat de servidores dos quais nunca participou.
+
+   Um curinga **inteiramente abaixo** dessa fronteira é permitido, porque não
+   amplia o alcance de ninguém: o prefixo já é um segredo que só quem está
+   autorizado consegue montar. Existe exatamente um no aplicativo, introduzido
+   na v1.0.0n:
+
+   `papocall/v2/u/<hash-da-caixa-do-usuário>/inbox/#`
+
+   O prefixo é derivado do @ do próprio usuário; o `#` só percorre os
+   compartimentos dos remetentes dentro da caixa dele, e não alcança a caixa de
+   outro usuário nem nenhum servidor. Ele é necessário porque não há como
+   assinar previamente o compartimento de um remetente ainda desconhecido — e é
+   o que faz uma solicitação de amizade enviada com o destinatário offline estar
+   esperando por ele quando o app abrir.
+
+   A presença **não** usa curinga: o tópico compartilhado do servidor é assinado
+   pelo nome exato (heartbeats ao vivo, que revelam membros novos) e o
+   compartimento retido de cada membro já conhecido é assinado individualmente.
 5. **Nunca gravar token ou senha em texto puro no disco.** Usar `SecureStorage`.
    Se a criptografia falhar, não persistir — não cair para texto puro.
 6. **Nenhum fallback de autenticação local.** Sem backend, o login falha; é o

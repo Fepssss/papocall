@@ -336,6 +336,56 @@ class AuthService {
     return UsernameAvailabilityResult(available: false, username: '@$clean');
   }
 
+  /// Verifica se uma conta com este @username realmente existe.
+  ///
+  /// Reaproveita o endpoint de disponibilidade: um username indisponível é,
+  /// por definição, um username já registrado. Sem esta checagem era possível
+  /// "enviar" solicitação de amizade para qualquer texto digitado — o app
+  /// confirmava o envio e a solicitação simplesmente ia para um tópico que
+  /// nenhuma conta escuta.
+  ///
+  /// Retorna null quando o backend não responde: nesse caso a checagem é
+  /// inconclusiva e não deve bloquear o usuário.
+  static Future<bool?> userExists(String rawUsername) async {
+    final clean = rawUsername.replaceAll('@', '').trim().toLowerCase();
+    if (clean.isEmpty) return false;
+
+    final uri = Uri.parse(
+      '$apiBaseUrl/auth/username-available?username=${Uri.encodeQueryComponent(clean)}',
+    );
+
+    // Três tentativas: o backend roda em plano gratuito e hiberna após alguns
+    // minutos ociosos. O cold start medido fica em torno de 25s, e uma única
+    // tentativa expiraria justamente quando o serviço está acordando — o que
+    // faria o app dizer "não foi possível confirmar" para uma tag que existe.
+    for (var tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        final res = await http.get(uri).timeout(const Duration(seconds: 12));
+
+        if (res.statusCode == 200) {
+          final body = jsonDecode(res.body) as Map<String, dynamic>;
+          final data = body['data'] as Map<String, dynamic>?;
+          if (data == null) return null;
+          final available = data['available'];
+          if (available is! bool) return null;
+          return !available;
+        }
+
+        // 400 é a resposta de validação do backend: a tag está num formato que
+        // nenhuma conta pode ter. Outros erros (429 de limite de consultas,
+        // 5xx) não dizem nada sobre a existência da conta e ficam inconclusivos.
+        if (res.statusCode == 400) return false;
+      } catch (_) {
+        // Tenta de novo antes de desistir.
+      }
+      if (tentativa < 2) {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+
+    return null;
+  }
+
   /// 4. Renovação de Sessão via Refresh Token (Silenciosa)
   static Future<AuthSession?> refreshSession(AuthSession session) async {
     if (session.refreshToken.isEmpty) return null;

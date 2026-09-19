@@ -14,6 +14,7 @@ enum SoundType {
   screenShareStop,
   screenWatchStart,
   screenWatchStop,
+  mention,
 }
 
 class SoundService {
@@ -47,6 +48,9 @@ class SoundService {
       _prepareSound(baseDir, SoundType.screenShareStop, 'share_stop.wav', () => _generateSweep(880.0, 440.0, 190));
       _prepareSound(baseDir, SoundType.screenWatchStart, 'watch_start.wav', () => _generateChord([540.0, 800.0], [45, 80]));
       _prepareSound(baseDir, SoundType.screenWatchStop, 'watch_stop.wav', () => _generateChord([800.0, 540.0], [45, 80]));
+      // Marcação: dois toques curtos e agudos, distintos do entrar/sair de
+      // chamada, para não confundir com alguém entrando na sala.
+      _prepareSound(baseDir, SoundType.mention, 'mention.wav', () => _generateChord([880.0, 1174.66], [70, 130]));
     } catch (e) {
       debugPrint('Aviso ao inicializar SoundService: $e');
     }
@@ -95,6 +99,7 @@ class SoundService {
   static void playScreenShareStop() => play(SoundType.screenShareStop);
   static void playScreenWatchStart() => play(SoundType.screenWatchStart);
   static void playScreenWatchStop() => play(SoundType.screenWatchStop);
+  static void playMention() => play(SoundType.mention);
 
   static Uint8List _generateChord(List<double> freqs, List<int> durationsMs) {
     const sampleRate = 44100;

@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0m
+          Baixar v1.0.0n
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0m • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0n • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0n', this)">
+          v1.0.0n <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0m', this)">
-          v1.0.0m <span class="badge-current">ATUAL</span>
+          v1.0.0m
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0l', this)">
           v1.0.0l
@@ -914,12 +917,52 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0n -->
+        <article class="release-card latest" data-version="v1.0.0n">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0n</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Correção completa da sincronização entre usuários: canais e salas de voz agora coincidem para todos os membros, solicitações de amizade chegam a quem está offline, histórico de conversa aparece para quem entra depois e o chat ganha marcações com @.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Canais e Salas de Voz Unificados</strong>: Quem entrava por convite montava uma estrutura própria de canais, o que colocava cada membro numa sala de voz diferente dentro do mesmo servidor. A estrutura real agora é replicada de forma cifrada e adotada por todos, mesmo com o criador offline.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Solicitações de Amizade Entregues de Verdade</strong>: O pedido agora espera pelo destinatário no servidor de mensagens e chega mesmo que ele estivesse offline no envio. Tags de usuário inexistentes passam a ser recusadas na hora, em vez de confirmar um envio que nunca chegaria a ninguém.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Membros Online Visíveis</strong>: A presença de cada membro passou a ter espaço próprio, então a lista de conectados aparece por inteiro assim que o servidor é aberto, em vez de mostrar uma pessoa só ou ficar vazia.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Histórico de Conversa Compartilhado</strong>: Quem entra num servidor recebe as mensagens recentes dos canais de forma cifrada, reconstruídas a partir do que cada membro conhece — inclusive com todos os outros offline.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Marcações no Chat com @</strong>: Digite @ para marcar alguém, com sugestão automática de membros e amigos. Ser marcado destaca a mensagem, toca um aviso sonoro próprio e mostra contador no canal e no servidor.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Reconexão Automática e Aviso de Rede</strong>: Uma falha de conexão deixava o aplicativo silenciosamente isolado, com aparência de normalidade. Agora ele reconecta sozinho, reconcilia o estado ao voltar e avisa na tela enquanto estiver fora do ar.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0m -->
-        <article class="release-card latest" data-version="v1.0.0m">
+        <article class="release-card" data-version="v1.0.0m">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0m</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1152,7 +1195,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0m</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0n</strong></p>
     </div>
   </footer>
 
