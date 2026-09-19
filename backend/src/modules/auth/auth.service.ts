@@ -110,12 +110,10 @@ export class AuthService {
       },
     });
 
-    // A conta já foi criada; uma falha no envio não deve derrubar o registro.
-    try {
-      await emailService.sendVerificationEmail(user.email, user.username, verificationToken);
-    } catch (error) {
-      console.error('[EMAIL] Falha ao enviar e-mail de verificação:', error);
-    }
+    // A conta já foi criada; o envio de e-mail é despachado de forma resiliente sem bloquear o tempo de resposta do cliente.
+    emailService.sendVerificationEmail(user.email, user.username, verificationToken).catch((error) => {
+      console.error('[EMAIL] Falha ao enviar e-mail de verificação em background:', error);
+    });
 
     // Cria a sessão inicial do usuário
     const session = await this.createSession(user, ip);

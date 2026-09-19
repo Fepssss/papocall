@@ -36,6 +36,9 @@ class SmtpEmailService implements EmailService {
       auth: env.SMTP_USER && env.SMTP_PASS
         ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
         : undefined,
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      socketTimeout: 10000,
     });
 
     return this.transporter;
