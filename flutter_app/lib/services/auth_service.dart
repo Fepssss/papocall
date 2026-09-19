@@ -186,6 +186,29 @@ class AuthService {
     }
   }
 
+  /// Aquece o backend em cold start (ex.: Render free) consultando /health até responder 200
+  /// ou esgotar o tempo limite de espera (padrão: 60 segundos com tentativas a cada 3 segundos).
+  static Future<bool> warmUpBackend({
+    Duration totalTimeout = const Duration(seconds: 60),
+    Duration retryInterval = const Duration(seconds: 3),
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    while (stopwatch.elapsed < totalTimeout) {
+      try {
+        final res = await http.get(Uri.parse('$apiBaseUrl/health')).timeout(
+          const Duration(seconds: 4),
+        );
+        if (res.statusCode == 200) {
+          return true;
+        }
+      } catch (_) {
+        // Servidor ainda acordando / conectando
+      }
+      await Future.delayed(retryInterval);
+    }
+    return false;
+  }
+
   /// 1. Registro de Usuário
   static Future<AuthSession> register({
     required String email,

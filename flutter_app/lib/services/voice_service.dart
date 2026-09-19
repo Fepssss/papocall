@@ -41,6 +41,24 @@ class VoiceService {
 
   VoidCallback? onDisconnected;
 
+  void _safeAddScreenShareTrack(VideoTrack? track) {
+    if (!_screenShareTrackController.isClosed) {
+      _screenShareTrackController.add(track);
+    }
+  }
+
+  void _safeAddActiveSpeakers(Set<String> speakers) {
+    if (!_activeSpeakersController.isClosed) {
+      _activeSpeakersController.add(speakers);
+    }
+  }
+
+  void _safeAddParticipants(List<Participant> participants) {
+    if (!_participantsController.isClosed) {
+      _participantsController.add(participants);
+    }
+  }
+
   void _log(String message) {
     debugPrint('[VoiceService] $message');
     try {
@@ -141,7 +159,7 @@ class VoiceService {
         current.remove(event.participant.identity);
       }
       _lastActiveSpeakers = current;
-      _activeSpeakersController.add(current);
+      _safeAddActiveSpeakers(current);
     });
   }
 
@@ -157,7 +175,7 @@ class VoiceService {
       _screenShareTrack = await LocalVideoTrack.createScreenShareTrack(options);
       _screenSharePublication = await _room!.localParticipant?.publishVideoTrack(_screenShareTrack!);
       _log('Tela publicada com sucesso: ${_screenSharePublication?.sid}');
-      _screenShareTrackController.add(_screenShareTrack);
+      _safeAddScreenShareTrack(_screenShareTrack);
       return true;
     } catch (e, stack) {
       _log('Erro ao iniciar compartilhamento de tela: $e\n$stack');
@@ -179,7 +197,7 @@ class VoiceService {
     } finally {
       _screenShareTrack = null;
       _screenSharePublication = null;
-      _screenShareTrackController.add(_remoteScreenShareTrack);
+      _safeAddScreenShareTrack(_remoteScreenShareTrack);
     }
   }
 
@@ -187,7 +205,7 @@ class VoiceService {
     _listener?.on<ActiveSpeakersChangedEvent>((event) {
       final speakerIdentities = event.speakers.map((s) => s.identity).toSet();
       _lastActiveSpeakers = speakerIdentities;
-      _activeSpeakersController.add(speakerIdentities);
+      _safeAddActiveSpeakers(speakerIdentities);
     });
 
     _listener?.on<ParticipantConnectedEvent>((event) {
@@ -210,7 +228,7 @@ class VoiceService {
             ? event.participant.name
             : event.participant.identity;
         SoundService.playScreenShareStart();
-        _screenShareTrackController.add(activeScreenShareTrack);
+        _safeAddScreenShareTrack(activeScreenShareTrack);
       }
     });
 
@@ -221,7 +239,7 @@ class VoiceService {
           _remoteScreenShareTrack = null;
           _remoteScreenSharePresenter = null;
           SoundService.playScreenShareStop();
-          _screenShareTrackController.add(activeScreenShareTrack);
+          _safeAddScreenShareTrack(activeScreenShareTrack);
         }
       }
     });
@@ -232,7 +250,7 @@ class VoiceService {
           _remoteScreenShareTrack = null;
           _remoteScreenSharePresenter = null;
           SoundService.playScreenShareStop();
-          _screenShareTrackController.add(activeScreenShareTrack);
+          _safeAddScreenShareTrack(activeScreenShareTrack);
         }
       }
     });
@@ -251,7 +269,7 @@ class VoiceService {
       all.add(_room!.localParticipant!);
     }
     all.addAll(_room!.remoteParticipants.values);
-    _participantsController.add(all);
+    _safeAddParticipants(all);
   }
 
   Future<void> setMuted(bool muted) async {
@@ -278,7 +296,7 @@ class VoiceService {
     _screenSharePublication = null;
     _remoteScreenShareTrack = null;
     _remoteScreenSharePresenter = null;
-    _screenShareTrackController.add(null);
+    _safeAddScreenShareTrack(null);
 
     try {
       _localParticipantListener?.dispose();
@@ -297,14 +315,17 @@ class VoiceService {
       _listener = null;
       _localParticipantListener = null;
       _lastActiveSpeakers.clear();
-      _activeSpeakersController.add(<String>{});
-      _participantsController.add(<Participant>[]);
+      _safeAddActiveSpeakers(<String>{});
+      _safeAddParticipants(<Participant>[]);
       _log('Desconectado e limpo com sucesso.');
     }
   }
 
   void dispose() {
     _localParticipantListener?.dispose();
+    _localParticipantListener = null;
+    _listener?.dispose();
+    _listener = null;
     leaveVoice();
     _screenShareTrackController.close();
     _activeSpeakersController.close();

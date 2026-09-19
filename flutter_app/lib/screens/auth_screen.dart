@@ -12,8 +12,19 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
+enum BackendStatus {
+  connecting,
+  ready,
+  offline,
+}
+
 class _AuthScreenState extends State<AuthScreen> {
   bool _isLoginTab = true;
+
+  // Estado de conexão do backend (Cold Start)
+  BackendStatus _backendStatus = BackendStatus.connecting;
+  int _warmUpElapsedSeconds = 0;
+  Timer? _warmUpTimer;
 
   // Controladores de Login
   final _loginIdentifierController = TextEditingController();
@@ -38,7 +49,42 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _startBackendWarmUp();
+  }
+
+  void _startBackendWarmUp() {
+    _warmUpTimer?.cancel();
+    setState(() {
+      _backendStatus = BackendStatus.connecting;
+      _warmUpElapsedSeconds = 0;
+      _errorMessage = null;
+    });
+
+    _warmUpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _warmUpElapsedSeconds++);
+    });
+
+    AuthService.warmUpBackend(
+      totalTimeout: const Duration(seconds: 60),
+      retryInterval: const Duration(seconds: 3),
+    ).then((isReady) {
+      if (!mounted) return;
+      _warmUpTimer?.cancel();
+      setState(() {
+        _backendStatus = isReady ? BackendStatus.ready : BackendStatus.offline;
+      });
+    });
+  }
+
+  @override
   void dispose() {
+    _warmUpTimer?.cancel();
     _debounceTimer?.cancel();
     _loginIdentifierController.dispose();
     _loginPasswordController.dispose();
@@ -258,6 +304,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // Banner de Status do Servidor (Cold Start)
+                _buildBackendStatusBanner(),
+
                 // Error Banner
                 if (_errorMessage != null) ...[
                   Container(
@@ -348,20 +397,29 @@ class _AuthScreenState extends State<AuthScreen> {
 
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: HudTheme.blurple,
+            backgroundColor: _backendStatus == BackendStatus.ready
+                ? HudTheme.blurple
+                : HudTheme.bgCard,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 2,
           ),
-          onPressed: _isLoading ? null : _handleLogin,
+          onPressed: (_isLoading || _backendStatus != BackendStatus.ready) ? null : _handleLogin,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                 )
-              : const Text('Entrar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              : Text(
+                  _backendStatus == BackendStatus.connecting
+                      ? 'Aguardando Servidor...'
+                      : (_backendStatus == BackendStatus.offline
+                          ? 'Servidor Indisponível'
+                          : 'Entrar'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
         ),
       ],
     );
@@ -486,20 +544,29 @@ class _AuthScreenState extends State<AuthScreen> {
         // Register Button
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: HudTheme.green,
+            backgroundColor: _backendStatus == BackendStatus.ready
+                ? HudTheme.green
+                : HudTheme.bgCard,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 2,
           ),
-          onPressed: _isLoading ? null : _handleRegister,
+          onPressed: (_isLoading || _backendStatus != BackendStatus.ready) ? null : _handleRegister,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                 )
-              : const Text('Criar Conta no PapoCall', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              : Text(
+                  _backendStatus == BackendStatus.connecting
+                      ? 'Aguardando Servidor...'
+                      : (_backendStatus == BackendStatus.offline
+                          ? 'Servidor Indisponível'
+                          : 'Criar Conta no PapoCall'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
         ),
       ],
     );
@@ -554,6 +621,98 @@ class _AuthScreenState extends State<AuthScreen> {
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBackendStatusBanner() {
+    if (_backendStatus == BackendStatus.ready) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: HudTheme.green.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: HudTheme.green.withValues(alpha: 0.3)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, color: HudTheme.green, size: 15),
+            SizedBox(width: 8),
+            Text(
+              'Servidor online e pronto',
+              style: TextStyle(color: HudTheme.green, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_backendStatus == BackendStatus.connecting) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: HudTheme.yellow.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: HudTheme.yellow.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: HudTheme.yellow),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Conectando ao servidor... Aguarde (${_warmUpElapsedSeconds}s)',
+                style: const TextStyle(color: HudTheme.yellow, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // BackendStatus.offline
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: HudTheme.red.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HudTheme.red.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off, color: HudTheme.red, size: 18),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Servidor indisponível.',
+              style: TextStyle(color: HudTheme.red, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+          InkWell(
+            onTap: _startBackendWarmUp,
+            borderRadius: BorderRadius.circular(4),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(
+                'Reconectar',
+                style: TextStyle(
+                  color: HudTheme.accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -21,3 +21,7 @@ description: Regras obrigatórias de desenvolvimento e versionamento do PapoCall
    - Ao final de cada atualização, sem exceção:
      - Executar `installer/build_installer.ps1` para gerar o novo `PapoCall-Setup.exe`.
      - Fazer commit e push na branch `main` com autor `Feps <fepsmiotti@gmail.com>` para atualizar o instalador no site e na Vercel (`https://papocall.vercel.app`).
+7. **Divisão de Responsabilidades (Dois Agentes)**:
+   - **Agente Principal**: Foco no código principal, novas funcionalidades, interface Flutter e regras de negócio.
+   - **Agente de Segurança**: Foco exclusivo em segurança, auditoria e prevenção de vulnerabilidades.
+   - **Atuação Sequencial**: Atuam de forma alternada, nunca simultaneamente.
