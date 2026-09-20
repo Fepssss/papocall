@@ -143,6 +143,17 @@ class ServerCrypto {
   /// compartimento de um remetente que ainda não se conhece.
   static String userInboxWildcard(String username) => '${userInboxTopic(username)}/#';
 
+  /// Ramal da caixa de entrada reservado às conversas privadas, um por
+  /// remetente.
+  ///
+  /// Fica sob o mesmo wildcard da caixa do destinatário — nenhuma assinatura nova
+  /// — mas em ramal separado dos compartimentos de amizade de propósito: aqueles
+  /// são retidos, e publicar chat neles apagaria o pedido de amizade pendente
+  /// que o broker guarda ali.
+  static String userInboxDmTopic(String recipientUsername, String senderUsername) =>
+      '${userInboxTopic(recipientUsername)}/dm/'
+      '${topicIdFor("dmslot:${senderUsername.trim().toLowerCase()}")}';
+
   static String userPresenceTopic(String username) =>
       'papocall/v2/u/${topicIdFor("presence:${username.trim().toLowerCase()}")}/presence';
 

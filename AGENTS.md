@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento (SemVer puro, adotado na v1.1.0)**:
-   - Versão atual do projeto: **`1.1.3`**.
+   - Versão atual do projeto: **`1.2.0`**.
    - Formato `MAJOR.MINOR.PATCH`: três números, sem letra e sem sufixo. As
      versões de letra (`1.0.0s`, `1.0.0r`) continuam no histórico e no
      changelog do site, mas não são mais produzidas.

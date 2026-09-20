@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
+import 'channel_context_menu.dart';
 
 class ChannelsSidebar extends StatelessWidget {
   const ChannelsSidebar({super.key});
@@ -176,8 +177,12 @@ class ChannelsSidebar extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: HudTheme.divider),
         ),
-        title: Text('Apagar #${channel.name}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(
+          channel.type == ChannelType.text
+              ? 'Apagar #${channel.name}'
+              : 'Apagar "${channel.name}"',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: const Text(
           'O canal some para todos os membros do servidor. As mensagens que ele guarda '
           'continuam no computador de cada um até serem sincronizadas de novo.',
@@ -314,6 +319,13 @@ class _ChannelRowState extends State<_ChannelRow> {
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
+        onSecondaryTapDown: (down) => ChannelContextMenu.show(
+          context,
+          channel: widget.channel,
+          globalPosition: down.globalPosition,
+          canDelete: widget.canDelete,
+          onDelete: widget.onDelete,
+        ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -370,9 +382,10 @@ class _ChannelRowState extends State<_ChannelRow> {
                     shape: BoxShape.circle,
                   ),
                 ),
-              // Lixeira no lugar da engrenagem: apagar é a única ação de
-              // administração que a lista de canais oferece.
-              if (widget.canDelete && _isHovered)
+              // Lixeira no hover só dos canais de texto. Numa sala de voz o
+              // clique serve para entrar, e o ícone vermelho ficava no meio do
+              // caminho; apagar sala de voz continua possível pelo botão direito.
+              if (widget.canDelete && widget.isText && _isHovered)
                 Padding(
                   padding: const EdgeInsets.only(left: 6),
                   child: GestureDetector(

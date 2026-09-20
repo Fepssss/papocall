@@ -10,6 +10,7 @@ import '../utils/voice_feedback.dart';
 import 'modals/create_server_dialog.dart';
 import 'modals/add_friend_dialog.dart';
 import 'modals/server_invite_dialog.dart';
+import 'direct_chat_view.dart';
 
 class HomePageView extends StatefulWidget {
   const HomePageView({super.key});
@@ -18,7 +19,7 @@ class HomePageView extends StatefulWidget {
   State<HomePageView> createState() => _HomePageViewState();
 }
 
-enum FriendViewTab { online, all, pending, offline }
+enum FriendViewTab { online, all, direct, pending, offline }
 
 class _HomePageViewState extends State<HomePageView> {
   FriendViewTab _selectedTab = FriendViewTab.online;
@@ -50,6 +51,9 @@ class _HomePageViewState extends State<HomePageView> {
       case FriendViewTab.all:
         currentList = allFriends;
         break;
+      case FriendViewTab.direct:
+        currentList = [];
+        break;
       case FriendViewTab.pending:
         currentList = [];
         break;
@@ -80,6 +84,7 @@ class _HomePageViewState extends State<HomePageView> {
             allFriends.length,
             pendingReceived.length,
             offlineFriends.length,
+            _contaNaoLidasDiretas(state),
           ),
 
           // Painel de Rolagem Principal
@@ -99,13 +104,14 @@ class _HomePageViewState extends State<HomePageView> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Barra de Busca Rápida de Amigos (apenas se não estiver na aba de solicitações)
-                  if (_selectedTab != FriendViewTab.pending) ...[
+                  // Barra de Busca Rápida de Amigos (apenas nas abas de amigos)
+                  if (_selectedTab != FriendViewTab.pending &&
+                      _selectedTab != FriendViewTab.direct) ...[
                     _buildSearchBar(),
                     const SizedBox(height: 18),
                   ],
 
-                  // Seção Principal: Central de Amigos ou Solicitações
+                  // Seção Principal: Central de Amigos, Solicitações ou Conversas
                   if (_selectedTab == FriendViewTab.pending)
                     _buildPendingRequestsSection(
                       context,
@@ -113,6 +119,8 @@ class _HomePageViewState extends State<HomePageView> {
                       pendingReceived,
                       pendingSent,
                     )
+                  else if (_selectedTab == FriendViewTab.direct)
+                    _buildDirectSection(context, state)
                   else
                     _buildFriendsListSection(
                       context,
@@ -149,6 +157,7 @@ class _HomePageViewState extends State<HomePageView> {
     int allCount,
     int pendingCount,
     int offlineCount,
+    int directUnread,
   ) {
     return Container(
       height: 56,
@@ -186,6 +195,13 @@ class _HomePageViewState extends State<HomePageView> {
           _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
           const SizedBox(width: 6),
           _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
+          const SizedBox(width: 6),
+          _buildFilterTab(
+            FriendViewTab.direct,
+            'Conversas',
+            directUnread,
+            isAlert: directUnread > 0,
+          ),
           const SizedBox(width: 6),
           _buildFilterTab(
             FriendViewTab.pending,
@@ -261,6 +277,58 @@ class _HomePageViewState extends State<HomePageView> {
               onPressed: state.closeHomePage,
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  int _contaNaoLidasDiretas(AppState state) {
+    var total = 0;
+    for (final conversa in state.directConversations) {
+      total += conversa.naoLidas;
+    }
+    return total;
+  }
+
+  // --- SEÇÃO DE CONVERSAS PRIVADAS ---
+  Widget _buildDirectSection(BuildContext context, AppState state) {
+    final total = state.directConversations.length;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: HudTheme.bgSidebar,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.forum_outlined, color: HudTheme.green, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'CONVERSAS PRIVADAS ($total)',
+                    style: const TextStyle(
+                      color: HudTheme.textHeader,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Cifradas entre os dois aparelhos',
+                style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const DirectChatSection(),
         ],
       ),
     );
@@ -634,6 +702,9 @@ class _HomePageViewState extends State<HomePageView> {
       case FriendViewTab.all:
         tabTitle = 'TODOS OS AMIGOS';
         break;
+      case FriendViewTab.direct:
+        tabTitle = 'CONVERSAS PRIVADAS';
+        break;
       case FriendViewTab.pending:
         tabTitle = 'SOLICITAÇÕES';
         break;
@@ -855,6 +926,20 @@ class _HomePageViewState extends State<HomePageView> {
                           ),
                         const SizedBox(width: 6),
                         IconButton(
+                          icon: const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 18,
+                            color: HudTheme.textMuted,
+                          ),
+                          tooltip: 'Mensagem privada',
+                          splashRadius: 18,
+                          onPressed: () {
+                            state.openDirectChat(friend.id);
+                            setState(() => _selectedTab = FriendViewTab.direct);
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
                           icon: const Icon(Icons.person_remove_rounded, size: 18, color: HudTheme.textMuted),
                           tooltip: 'Remover dos Amigos',
                           splashRadius: 18,
@@ -958,7 +1043,7 @@ class _HomePageViewState extends State<HomePageView> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Comunicação militar tática de alta fidelidade: voz de baixa latência, salas de squad e streaming otimizado.',
+                  'Voz de baixa latência, chat e tela compartilhada com o seu time — dentro e fora dos servidores.',
                   style: TextStyle(color: HudTheme.textMuted, fontSize: 13, height: 1.4),
                 ),
                 const SizedBox(height: 14),

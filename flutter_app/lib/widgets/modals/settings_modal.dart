@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../providers/app_state.dart';
 import '../../services/sound_service.dart';
 import '../../theme/hud_theme.dart';
+import 'audio_devices_panel.dart';
 
 enum SettingsTab {
   account,
@@ -42,7 +43,6 @@ class _SettingsModalState extends State<SettingsModal> {
 
   double _outputVolume = 0.85;
   double _micSensitivity = 0.75;
-  bool _noiseSuppression = true;
 
   @override
   void initState() {
@@ -962,6 +962,8 @@ class _SettingsModalState extends State<SettingsModal> {
           ),
         ),
         const SizedBox(height: 24),
+        const AudioDevicesPanel(),
+        const SizedBox(height: 6),
         _buildSectionHeader('VOLUME DE SAÍDA', 'Ajuste o volume geral da chamada de áudio.'),
         const SizedBox(height: 8),
         Row(
@@ -1017,8 +1019,13 @@ class _SettingsModalState extends State<SettingsModal> {
         _buildSwitchTile(
           title: 'Supressão Tática de Ruído de Fundo',
           subtitle: 'Filtra cliques mecânicos do teclado, ruídos de vento e estática do microfone.',
-          value: _noiseSuppression,
-          onChanged: (val) => setState(() => _noiseSuppression = val),
+          value: state.noiseSuppression,
+          // Não é enfeite: vai como noiseSuppression na captura do microfone,
+          // e o VoiceService republica a faixa quando isto muda na call.
+          onChanged: (val) async {
+            await state.definirSupressaoDeRuido(val);
+            await state.voiceService.aplicarDispositivosEscolhidos();
+          },
         ),
       ],
     );

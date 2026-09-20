@@ -6,11 +6,13 @@ import 'package:uuid/uuid.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
 import '../models/channel.dart';
 import '../models/chat_message.dart';
+import '../models/direct_conversation.dart';
 import '../models/friend_request.dart';
 import '../models/role.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
+import '../services/direct_crypto.dart';
 import '../services/server_crypto.dart';
 import '../services/voice_service.dart';
 import '../services/sound_service.dart';
@@ -44,6 +46,45 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool isWatchingScreenShare = true;
   bool get isScreenSharing => _voiceService.isScreenSharing;
 
+  // Configurações de Voz e Áudio, persistidas em settings.json. O VoiceService
+  // é quem aplica no motor WebRTC; aqui vive apenas a escolha da pessoa.
+  String? audioInputId;
+  String? audioOutputId;
+  bool noiseSuppression = true;
+
+  /// Troca o microfone. `null` devolve a escolha ao padrão do Windows.
+  ///
+  /// Aqui só guarda e espelha no serviço: quem aplica no motor WebRTC é a
+  /// própria tela de configurações, que já está com a enumeração de
+  /// dispositivos na mão. Manter isso separado deixa a escolha testável sem
+  /// depender do plugin nativo de áudio.
+  Future<void> definirMicrofone(String? id) async {
+    audioInputId = id;
+    _espelharConfigDeAudio();
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> definirSaidaDeAudio(String? id) async {
+    audioOutputId = id;
+    _espelharConfigDeAudio();
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> definirSupressaoDeRuido(bool valor) async {
+    noiseSuppression = valor;
+    _espelharConfigDeAudio();
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  void _espelharConfigDeAudio() {
+    _voiceService.entradaDeAudioId = audioInputId;
+    _voiceService.saidaDeAudioId = audioOutputId;
+    _voiceService.supressaoDeRuido = noiseSuppression;
+  }
+
   // Gerenciamento de Foco e Otimização de Renderização de Live
   bool isWindowFocused = true;
   bool forceRenderOwnStream = false;
@@ -57,6 +98,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final Map<String, int> _lastSeen = {};
   List<UserModel> friends = [];
   List<FriendRequest> friendRequests = [];
+
+  // --- Conversas diretas -----------------------------------------------------
+  // As mensagens de uma conversa privada vivem em [_messages] com a chave
+  // 'dm:<id do contato>', no mesmo arquivo do histórico dos canais. O que mora
+  // aqui é só a escolha da conversa aberta e a chave X25519 de cada contato.
+  String? activeDirectPeerId;
+  final Map<String, String> _chavesDosPares = {};
+
+  /// Nossa própria chave pública, lida uma vez e repetida em cada presença.
+  String? _publicaParaAnunciar;
   Timer? _heartbeatTimer;
   Timer? _presenceSweepTimer;
   StreamSubscription? _mqttSubscription;
@@ -332,6 +383,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   File _getFriendRequestsFile() => _getAppFile('friend_requests.json');
   File _getReadMarksFile() => _getAppFile('read_marks.json');
   File _getDeletedMessagesFile() => _getAppFile('deleted_messages.json');
+  File _getDirectKeysFile() => _getAppFile('dm_keys.json');
 
   Future<void> _saveReadMarks() async {
     try {
@@ -510,6 +562,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'username': currentUser.username.replaceAll('@', '').trim(),
         'displayName': currentUser.displayName,
         'mutedServers': _mutedServerIds.toList(),
+        'audioInputId': audioInputId,
+        'audioOutputId': audioOutputId,
+        'noiseSuppression': noiseSuppression,
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -686,6 +741,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         if (muted is List) {
           _mutedServerIds.addAll(muted.whereType<String>());
         }
+        audioInputId = data['audioInputId'] as String?;
+        audioOutputId = data['audioOutputId'] as String?;
+        noiseSuppression = data['noiseSuppression'] as bool? ?? true;
+        _espelharConfigDeAudio();
       }
     } catch (e) {
       debugPrint('Erro ao carregar configurações: $e');
@@ -701,6 +760,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _loadKnownUsers();
     await _loadFriendRequests();
     await _loadReadMarks();
+    await _loadDirectKeys();
 
     // Garante que currentUser faça parte dos servidores carregados
     for (final srv in servers) {
@@ -869,6 +929,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await AuthService.clearSession(motivo: motivo);
     _stopNetwork();
     currentSession = null;
+    // As chaves dos contatos são informação desta conta: não têm o que ficar
+    // na memória depois de sair. O arquivo continua no disco para o próximo
+    // login, e o par privado desta instalação jamais sai dele.
+    activeDirectPeerId = null;
+    _chavesDosPares.clear();
+    _publicaParaAnunciar = null;
     currentUser = UserModel(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
       username: 'Usuário',
@@ -1020,6 +1086,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // 2. Presença no canal pessoal para amigos
     final myUser = currentUser.username.trim().toLowerCase();
     if (myUser.isNotEmpty) {
+      try {
+        _publicaParaAnunciar ??= await DirectCrypto.chavePublicaAtual();
+      } catch (e) {
+        AppLog.write('Direct', 'sem identidade própria para anunciar: $e');
+      }
+
       final personalPresence = {
         'action': 'user_presence',
         'userId': currentUser.id,
@@ -1033,6 +1105,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'voiceChannelId': connectedVoiceChannelId,
         'voiceServerId': activeServerId,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
+        // A chave de conversa direta vai junto na presença: é por ela que cada
+        // amigo consegue cifrar um papo privado sem pedir licença a servidor
+        // nenhum. Não é segredo — o segredo é o par privado, que nunca sai
+        // desta máquina.
+        if (_publicaParaAnunciar != null) 'dmPub': _publicaParaAnunciar,
       };
 
       try {
@@ -1302,7 +1379,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (myUser.isNotEmpty && envelope.topic.startsWith(ServerCrypto.userInboxTopic(myUser))) {
       final data = await ServerCrypto.decryptInboxPayload(myUser, envelope.payload);
       if (data != null) {
-        _processInboxPayload(data);
+        await _processInboxPayload(data);
       }
       return;
     }
@@ -1337,9 +1414,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _processNetworkPayload(data, origin);
   }
 
-  /// Processa eventos do inbox pessoal (amizades em tempo real)
-  void _processInboxPayload(Map<String, dynamic> data) {
+  /// Processa eventos da caixa de entrada pessoal: amizades e conversa direta.
+  Future<void> _processInboxPayload(Map<String, dynamic> data) async {
     final action = data['action'] as String?;
+    if (action == 'dm') {
+      await _processDirectMessage(data);
+      return;
+    }
     if (action == 'friend_request') {
       final reqMap = data['request'] as Map<String, dynamic>?;
       if (reqMap != null) {
@@ -1469,6 +1550,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (friendIndex != -1) {
         friends[friendIndex] = user;
       }
+
+      // A chave da conversa direta chega junto da presença, e só depois do
+      // cadastro atualizado: é o ID do amigo na nossa lista que nomeia a
+      // conversa, então registrar a chave por outro ID deixaria a conversa sem
+      // chave justamente para quem a abriu.
+      final publicaDoAmigo = data['dmPub'] as String?;
+      if (publicaDoAmigo != null && publicaDoAmigo.isNotEmpty && friendIndex != -1) {
+        _registrarChaveDoPar(user, publicaDoAmigo);
+      }
+
       notifyListeners();
     }
   }
@@ -1599,6 +1690,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   @visibleForTesting
   void processNetworkPayload(Map<String, dynamic> data, Server origin) =>
       _processNetworkPayload(data, origin);
+
+  /// Porta de entrada da caixa de entrada pessoal, para exercê-la sem broker.
+  @visibleForTesting
+  Future<void> processInboxPayload(Map<String, dynamic> data) =>
+      _processInboxPayload(data);
+
+  /// Porta de entrada da presença de amigo, que é de onde vem a chave da
+  /// conversa privada.
+  @visibleForTesting
+  void processFriendPresencePayload(Map<String, dynamic> data) =>
+      _processFriendPresencePayload(data);
 
   void _processNetworkPayload(Map<String, dynamic> data, Server origin) {
     final action = data['action'] as String?;
@@ -2622,6 +2724,311 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }).toList();
   }
 
+  // ===========================================================================
+  // CONVERSAS DIRETAS — papo privado entre duas pessoas, sem servidor no meio
+  // ===========================================================================
+
+  /// Onde uma conversa privada mora dentro do histórico. O prefixo 'dm:' nunca
+  /// colide com um ID de canal, então a mesma lista de arquivos serve os dois.
+  static String directKey(String peerId) => 'dm:$peerId';
+
+  List<ChatMessage> directMessages(String peerId) =>
+      List.unmodifiable(_messages[directKey(peerId)] ?? const []);
+
+  /// A conversa aberta neste momento, ou null quando a pessoa está vendo a lista.
+  UserModel? get activeDirectPeer => _amigoPorId(activeDirectPeerId);
+
+  void openDirectChat(String peerId) {
+    if (_amigoPorId(peerId) == null) return;
+    activeDirectPeerId = peerId;
+    markChannelRead(directKey(peerId));
+    notifyListeners();
+  }
+
+  void closeDirectChat() {
+    if (activeDirectPeerId == null) return;
+    activeDirectPeerId = null;
+    notifyListeners();
+  }
+
+  /// Mensagens recebidas desta conversa que a pessoa ainda não abriu.
+  int unreadDirectFor(String peerId) {
+    final mensagens = _messages[directKey(peerId)];
+    if (mensagens == null || mensagens.isEmpty) return 0;
+    final desde = _lastReadAt[directKey(peerId)] ?? 0;
+    var total = 0;
+    for (final m in mensagens) {
+      if (m.sentAt > desde && m.authorId != currentUser.id && !m.isSystem) total++;
+    }
+    return total;
+  }
+
+  /// Amigos com conversa em andamento, da mais recente para a mais antiga.
+  List<ConversaDireta> get directConversations {
+    final conversas = <ConversaDireta>[];
+    for (final f in friends) {
+      final mensagens = _messages[directKey(f.id)];
+      if (mensagens == null || mensagens.isEmpty) continue;
+      conversas.add(ConversaDireta(
+        peer: f,
+        ultima: mensagens.last,
+        naoLidas: unreadDirectFor(f.id),
+      ));
+    }
+    conversas.sort((a, b) => b.ultima.sentAt.compareTo(a.ultima.sentAt));
+    return conversas;
+  }
+
+  /// Chave pública X25519 do contato, tal como ele mesmo a anunciou.
+  String? chavePublicaDoPar(String peerId) => _chavesDosPares[peerId];
+
+  /// Impressão digital da chave do contato, para conferir por outro canal.
+  String? impressaoDoPar(String peerId) {
+    final chave = _chavesDosPares[peerId];
+    return chave == null ? null : DirectCrypto.impressao(chave);
+  }
+
+  /// Por que a conversa não pode enviar agora, ou null se pode.
+  ///
+  /// Existe porque a mensagem privada não fica guardada em lugar nenhum: não há
+  /// servidor de mensagens diretas, o broker só repete o que publicar agora.
+  /// Prometer entrega para um contato offline seria mentira.
+  String? bloqueioDeEnvioDireto(String peerId) {
+    if (!isNetworkOnline) return 'Sem conexão com a malha. Aguarde a reconexão para enviar.';
+    final amigo = _amigoPorId(peerId);
+    if (amigo == null) return 'Este contato não está mais na sua lista de amigos.';
+    if (_chavesDosPares[peerId] == null) {
+      return 'Aguarde ${amigo.displayNameOrUsername} abrir o PapoCall: é na presença dele que a chave da conversa chega.';
+    }
+    final aoVivo = _onlineUsers[peerId];
+    if (aoVivo == null || aoVivo.status == UserStatus.offline) {
+      return '${amigo.displayNameOrUsername} está offline. A conversa privada acontece com os dois on-line, como o chat dos servidores.';
+    }
+    return null;
+  }
+
+  /// Envia uma mensagem privada. Devolve o motivo quando não foi possível, ou
+  /// null quando a mensagem saiu.
+  Future<String?> sendDirectMessage(String peerId, String text) async {
+    final conteudo = text.trim();
+    if (conteudo.isEmpty) return null;
+
+    final bloqueio = bloqueioDeEnvioDireto(peerId);
+    if (bloqueio != null) return bloqueio;
+
+    final amigo = _amigoPorId(peerId)!;
+    final agora = DateTime.now();
+    final mensagem = ChatMessage(
+      id: _uuid.v4(),
+      authorId: currentUser.id,
+      author: currentUser.displayNameOrUsername,
+      authorDisplayName: currentUser.displayName,
+      authorUsername: currentUser.username,
+      authorAvatar: currentUser.avatar,
+      text: conteudo,
+      timestamp: 'Hoje às ${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}',
+    );
+
+    final chave = directKey(peerId);
+    _messages.putIfAbsent(chave, () => []).add(mensagem);
+    markChannelRead(chave);
+    await _saveChatHistory();
+    notifyListeners();
+
+    if (!await _publicarMensagemDireta(amigo, mensagem)) {
+      // Não saiu, então não aparece. Numa conversa privada, deixar o balão na
+      // tela fingindo que o amigo leu é pior do que recusar o envio.
+      _messages[chave]?.removeWhere((m) => m.id == mensagem.id);
+      await _saveChatHistory();
+      notifyListeners();
+      return 'A malha caiu neste instante. A mensagem não saiu; tente de novo.';
+    }
+    return null;
+  }
+
+  Future<bool> _publicarMensagemDireta(UserModel amigo, ChatMessage mensagem) async {
+    final publicaDoPar = _chavesDosPares[amigo.id];
+    if (publicaDoPar == null) return false;
+    try {
+      final minha = await DirectCrypto.identidade();
+      final envelope = await DirectCrypto.cifrar(
+        minha: minha,
+        de: currentUser.username,
+        para: amigo.username,
+        publicaDoParB64: publicaDoPar,
+        conteudo: {
+          'id': mensagem.id,
+          'texto': mensagem.text,
+          'enviadoEm': mensagem.sentAt,
+        },
+      );
+
+      // Duas camadas, cada uma com um trabalho: o envelope acima só o par abre;
+      // o transporte abaixo é o que faz a mensagem caber na caixa de entrada
+      // cifrada pelo nome de usuário, onde ela já é esperada.
+      final transporte = await ServerCrypto.encryptInboxPayload(amigo.username, {
+        'action': 'dm',
+        'envelope': envelope,
+        'timestamp': mensagem.sentAt,
+      });
+      return _mqtt.publishEncrypted(
+        ServerCrypto.userInboxDmTopic(amigo.username, currentUser.username),
+        transporte,
+      );
+    } catch (e) {
+      AppLog.write('Direct', 'falha ao publicar mensagem direta: $e');
+      return false;
+    }
+  }
+
+  /// Abre um envelope de conversa direta recém-chegado.
+  Future<void> _processDirectMessage(Map<String, dynamic> data) async {
+    final bruto = data['envelope'] as String?;
+    if (bruto == null) return;
+
+    final aberto = await DirectCrypto.decifrar(
+      minha: await DirectCrypto.identidade(),
+      meuUsuario: currentUser.username,
+      envelope: bruto,
+    );
+    if (aberto == null) return;
+
+    // Só um amigo tem a chave desta conversa; se ele não está mais na lista, a
+    // conversa acabou e o que chega daqui pra frente é lixo.
+    final amigo = _amigoPorUsuario(aberto.de);
+    if (amigo == null) {
+      AppLog.write('Direct', 'mensagem descartada: remetente não é amigo (${aberto.de})');
+      return;
+    }
+
+    final chave = directKey(amigo.id);
+    final destino = _messages.putIfAbsent(chave, () => []);
+
+    final id = aberto.conteudo['id'] as String? ?? '';
+    if (id.isEmpty || destino.any((m) => m.id == id)) return;
+    if (_deletedMessageIds.contains(id)) return;
+
+    _registrarChaveDoPar(amigo, aberto.publicaDoEnvelope);
+
+    // O carimbo vem do relógio de quem enviou. Adiantado, ele deixaria a
+    // conversa marcada como não lida para sempre; atrasado, enterraria a
+    // mensagem no meio do histórico antigo. Vale o menor dos dois.
+    final enviadoEm = aberto.conteudo['enviadoEm'] as int? ?? 0;
+    final agora = DateTime.now().millisecondsSinceEpoch;
+
+    final mensagem = ChatMessage(
+      id: id,
+      authorId: amigo.id,
+      author: amigo.displayNameOrUsername,
+      authorDisplayName: amigo.displayName,
+      authorUsername: amigo.username,
+      authorAvatar: amigo.avatar,
+      text: (aberto.conteudo['texto'] as String? ?? '').trim(),
+      timestamp: 'Hoje às ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+      sentAt: (enviadoEm <= 0 || enviadoEm > agora) ? agora : enviadoEm,
+    );
+
+    destino.add(mensagem);
+    if (destino.length > _channelMessageCap) {
+      destino.removeRange(0, destino.length - _channelMessageCap);
+    }
+    await _saveChatHistory();
+
+    if (activeDirectPeerId == amigo.id && isWindowFocused && isHomePageActive) {
+      markChannelRead(chave);
+    } else {
+      SoundService.playMention();
+    }
+    notifyListeners();
+  }
+
+  /// Registra a chave pública que o contato anuncia — na presença dele, ou
+  /// dentro do envelope que ele acabou de mandar.
+  ///
+  /// Trocar de chave no meio de uma conversa é exatamente o que um atacante
+  /// enfiado no meio faria, então a troca ganha uma linha na conversa em vez de
+  /// passar em branco. A troca legítima também existe: é o que acontece quando o
+  /// amigo reinstala o aplicativo e o par X25519 dele nasce de novo.
+  void _registrarChaveDoPar(UserModel amigo, String publicaB64) {
+    if (!_ehChaveX25519(publicaB64)) {
+      AppLog.write('Direct', 'chave anunciada por ${amigo.username} descartada: não é X25519');
+      return;
+    }
+    final anterior = _chavesDosPares[amigo.id];
+    if (anterior == publicaB64) return;
+    _chavesDosPares[amigo.id] = publicaB64;
+    _saveDirectKeys();
+    if (anterior == null) return;
+
+    final destino = _messages[directKey(amigo.id)];
+    if (destino == null || destino.isEmpty) return;
+    destino.add(ChatMessage(
+      id: 'chave-mudou-${amigo.id}-${DateTime.now().millisecondsSinceEpoch}',
+      authorId: '',
+      author: 'PapoCall',
+      text: 'A chave deste contato mudou. Impressão agora: '
+          '${DirectCrypto.impressao(publicaB64)} — confira com ele por outro canal.',
+      timestamp: destino.last.timestamp,
+      isSystem: true,
+    ));
+    _saveChatHistory();
+  }
+
+  /// Uma chave pública X25519 tem exatamente 32 bytes.
+  ///
+  /// A presença de onde ela vem é texto que qualquer um pode publicar num broker
+  /// público. Guardar qualquer string dali é levar lixo para a cifragem e para a
+  /// tela, onde `impressao()` arrebentaria.
+  bool _ehChaveX25519(String publicaB64) {
+    try {
+      return base64Decode(publicaB64).length == 32;
+    } on FormatException {
+      return false;
+    }
+  }
+
+  UserModel? _amigoPorId(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final f in friends) {
+      if (f.id == id) return f;
+    }
+    return null;
+  }
+
+  UserModel? _amigoPorUsuario(String usuario) {
+    final alvo = usuario.trim().toLowerCase();
+    if (alvo.isEmpty) return null;
+    for (final f in friends) {
+      if (f.username.trim().toLowerCase() == alvo) return f;
+    }
+    return null;
+  }
+
+  Future<void> _saveDirectKeys() async {
+    try {
+      await _getDirectKeysFile().writeAsString(jsonEncode(_chavesDosPares));
+    } catch (e) {
+      debugPrint('Erro ao salvar chaves de conversa: $e');
+    }
+  }
+
+  Future<void> _loadDirectKeys() async {
+    try {
+      final file = _getDirectKeysFile();
+      if (!file.existsSync()) return;
+      final content = await file.readAsString();
+      if (content.isEmpty) return;
+      final raw = jsonDecode(content);
+      if (raw is! Map) return;
+      _chavesDosPares.clear();
+      raw.forEach((k, v) {
+        if (k is String && v is String && _ehChaveX25519(v)) _chavesDosPares[k] = v;
+      });
+    } catch (e) {
+      debugPrint('Erro ao carregar chaves de conversa: $e');
+    }
+  }
+
   static final RegExp _handlePattern = RegExp(r'^[a-z0-9_]+$');
 
   Future<String?> sendFriendRequest(String rawHandle) async {
@@ -2829,6 +3236,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> removeFriend(String friendId) async {
     final removed = friends.where((f) => f.id == friendId).toList();
     friends.removeWhere((f) => f.id == friendId);
+    // A conversa privada morre junto com a amizade: sem o outro lado na lista
+    // não há para quem cifrar, e manter a conversa aqui seria esconder do dono
+    // um papo que ele não pode mais continuar.
+    if (activeDirectPeerId == friendId) activeDirectPeerId = null;
+    if (_chavesDosPares.remove(friendId) != null) _saveDirectKeys();
+    _messages.remove(directKey(friendId));
+    _lastReadAt.remove(directKey(friendId));
+    await _saveChatHistory();
     await _saveFriends();
     for (final f in removed) {
       final handle = f.username.trim().toLowerCase();

@@ -48,6 +48,71 @@ class VoiceService {
 
   VoidCallback? onDisconnected;
 
+  /// Escolhas feitas em Configurações > Voz e Áudio. `null` deixa o Windows
+  /// decidir. O [AppState] é dono desses valores e os persiste; o serviço só
+  /// sabe aplicá-los.
+  String? entradaDeAudioId;
+  String? saidaDeAudioId;
+  bool supressaoDeRuido = true;
+
+  AudioCaptureOptions get _opcoesDeCaptura => AudioCaptureOptions(
+        deviceId: entradaDeAudioId,
+        noiseSuppression: supressaoDeRuido,
+      );
+
+  /// Enumeração dos dispositivos. São funções, não métodos, porque em teste de
+  /// unidade não existe plugin de áudio: tocar em `Hardware.instance` ali abrir
+  /// uma chamada de método sem dono. Quem testa troca as funções.
+  static Future<List<MediaDevice>> Function() listarEntradasDeAudio =
+      () => Hardware.instance.audioInputs();
+
+  static Future<List<MediaDevice>> Function() listarSaidasDeAudio =
+      () => Hardware.instance.audioOutputs();
+
+  /// Devolve o dispositivo com aquele id, ou null se ele não está plugado
+  /// agora (fone desconectado, microfone USB arrancado no meio do dia).
+  static MediaDevice? _porId(List<MediaDevice> dispositivos, String? id) {
+    if (id == null) return null;
+    for (final d in dispositivos) {
+      if (d.deviceId == id) return d;
+    }
+    return null;
+  }
+
+  /// Aplica a escolha atual sem esperar pela próxima entrada em call.
+  ///
+  /// A saída é uma configuração global do motor WebRTC no Windows, então ela
+  /// pega na hora. A entrada não: o microfone já publicado continua preso ao
+  /// dispositivo antigo, então ele é publicado de novo quando está no ar.
+  Future<void> aplicarDispositivosEscolhidos() async {
+    try {
+      final saida = _porId(await listarSaidasDeAudio(), saidaDeAudioId);
+      if (saida != null) {
+        await Hardware.instance.selectAudioOutput(saida);
+        _log('Saída de áudio aplicada: ${saida.label}');
+      }
+
+      final entrada = _porId(await listarEntradasDeAudio(), entradaDeAudioId);
+      final local = _room?.localParticipant;
+
+      if (local != null && isConnected && local.isMicrophoneEnabled()) {
+        final estavaMuda = local.isMuted;
+        if (entrada != null) await _room!.setAudioInputDevice(entrada);
+        await local.setMicrophoneEnabled(false);
+        await local.setMicrophoneEnabled(true, audioCaptureOptions: _opcoesDeCaptura);
+        // Republicar acorda o microfone: devolve o estado de mudo em que a
+        // pessoa estava, senão o botão de mudo mente para ela.
+        if (estavaMuda) await local.setMicrophoneEnabled(false);
+        _log('Microfone republicado com as configurações atuais');
+      } else if (entrada != null) {
+        await Hardware.instance.selectAudioInput(entrada);
+        _log('Entrada de áudio guardada para a próxima call: ${entrada.label}');
+      }
+    } catch (e) {
+      _log('Aviso ao aplicar dispositivos de áudio: $e');
+    }
+  }
+
   void _safeAddScreenShareTrack(VideoTrack? track) {
     if (!_screenShareTrackController.isClosed) {
       _screenShareTrackController.add(track);
@@ -140,9 +205,12 @@ class VoiceService {
     Future.delayed(const Duration(milliseconds: 300), () async {
       if (_room == null || !isConnected) return;
       try {
+        // Recomeçar uma call volta a usar o que a pessoa escolheu nas
+        // configurações, não o padrão que o Windows impõe.
+        await aplicarDispositivosEscolhidos();
         _log('Ativando microfone local...');
         final pub = await _room!.localParticipant
-            ?.setMicrophoneEnabled(true)
+            ?.setMicrophoneEnabled(true, audioCaptureOptions: _opcoesDeCaptura)
             .timeout(const Duration(seconds: 4));
         _log('Microfone local ativado com sucesso: ${pub?.sid}');
         _setupLocalParticipantListener();
