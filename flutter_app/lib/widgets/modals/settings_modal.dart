@@ -230,12 +230,15 @@ class _SettingsModalState extends State<SettingsModal> {
                           children: [
                             Icon(Icons.logout_rounded, size: 17, color: Colors.redAccent),
                             SizedBox(width: 10),
-                            Text(
-                              'Sair da Conta',
-                              style: TextStyle(
-                                color: Colors.redAccent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            Flexible(
+                              child: Text(
+                                'Sair da Conta',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
