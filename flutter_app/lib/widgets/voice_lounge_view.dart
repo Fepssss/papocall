@@ -4,6 +4,7 @@ import 'package:livekit_client/livekit_client.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import '../utils/voice_feedback.dart';
 import 'screen_share_dialog.dart';
 
 class VoiceLoungeView extends StatelessWidget {
@@ -37,7 +38,7 @@ class VoiceLoungeView extends StatelessWidget {
                           ? _buildScreenShareStage(context, state, channelMembers)
                           : _buildParticipantsGrid(state, channelMembers, hasMinimizedStream: true))
                       : _buildParticipantsGrid(state, channelMembers))
-                  : _buildDisconnectedPrompt(state, channel?.id),
+                  : _buildDisconnectedPrompt(context, state, channel?.id),
             ),
 
             // Modern Centered Floating Call Dock (When Connected)
@@ -668,7 +669,7 @@ class VoiceLoungeView extends StatelessWidget {
     }
   }
 
-  Widget _buildDisconnectedPrompt(AppState state, String? channelId) {
+  Widget _buildDisconnectedPrompt(BuildContext context, AppState state, String? channelId) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -720,10 +721,10 @@ class VoiceLoungeView extends StatelessWidget {
             ),
             icon: const Icon(Icons.volume_up, size: 20),
             label: const Text('Entrar na Chamada de Voz', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            onPressed: () {
-              if (channelId != null && !state.isConnectingVoice) {
-                state.connectVoice(channelId);
-              }
+            onPressed: () async {
+              if (channelId == null || state.isConnectingVoice) return;
+              final messenger = ScaffoldMessenger.of(context);
+              reportVoiceJoinError(messenger, await state.connectVoice(channelId));
             },
           ),
       ],

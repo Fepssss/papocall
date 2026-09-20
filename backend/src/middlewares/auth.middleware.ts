@@ -64,19 +64,3 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
     next(error);
   }
 }
-
-/**
- * Middleware opcional para rotas que exigem e-mail expressamente verificado (ex: ingressar em calls de voz).
- */
-export function requireVerifiedEmail(req: Request, _res: Response, next: NextFunction): void {
-  if (!req.user?.emailVerified) {
-    return next(
-      new AppError(
-        'Você precisa confirmar seu endereço de e-mail antes de acessar este recurso.',
-        403,
-        'EMAIL_NOT_VERIFIED'
-      )
-    );
-  }
-  next();
-}

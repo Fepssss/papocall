@@ -5,6 +5,7 @@ import '../models/role.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import '../utils/voice_feedback.dart';
 
 class ChannelsSidebar extends StatelessWidget {
   const ChannelsSidebar({super.key});
@@ -241,13 +242,12 @@ class ChannelsSidebar extends StatelessWidget {
             canDelete: canManage,
             mentionCount: isText ? state.mentionCountFor(channel.id) : 0,
             onDelete: () => _confirmDelete(context, state, state.activeServerId, channel),
-            onTap: () {
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
               state.selectChannel(channel.id);
-              if (!isText) {
-                if (state.connectedVoiceChannelId != channel.id && !state.isConnectingVoice) {
-                  state.connectVoice(channel.id);
-                }
-              }
+              if (isText) return;
+              if (state.connectedVoiceChannelId == channel.id || state.isConnectingVoice) return;
+              reportVoiceJoinError(messenger, await state.connectVoice(channel.id));
             },
           ),
 

@@ -2842,9 +2842,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   String? voiceErrorMessage;
 
-  Future<void> connectVoice(String channelId) async {
-    if (isConnectingVoice) return;
-    if (connectedVoiceChannelId == channelId) return;
+  /// Entra num canal de voz e devolve o motivo quando não conseguiu, para o
+  /// chamador mostrar na tela. Sem isso a falha era silenciosa: o ícone
+  /// simplesmente voltava para o estado desconectado.
+  Future<String?> connectVoice(String channelId) async {
+    if (isConnectingVoice) return null;
+    if (connectedVoiceChannelId == channelId) return null;
 
     isConnectingVoice = true;
     voiceErrorMessage = null;
@@ -2886,6 +2889,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _sendPresence();
       notifyListeners();
     }
+    return voiceErrorMessage;
   }
 
   void setWatchingScreenShare(bool watching) {

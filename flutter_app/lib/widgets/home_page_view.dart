@@ -6,6 +6,7 @@ import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import '../utils/voice_feedback.dart';
 import 'modals/create_server_dialog.dart';
 import 'modals/add_friend_dialog.dart';
 import 'modals/server_invite_dialog.dart';
@@ -844,10 +845,12 @@ class _HomePageViewState extends State<HomePageView> {
                               'Entrar na Call',
                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                             ),
-                            onPressed: () {
-                              state.connectVoice(friend.currentVoiceChannelId!);
-                              state.selectChannel(friend.currentVoiceChannelId!);
+                            onPressed: () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final canal = friend.currentVoiceChannelId!;
+                              state.selectChannel(canal);
                               state.closeHomePage();
+                              reportVoiceJoinError(messenger, await state.connectVoice(canal));
                             },
                           ),
                         const SizedBox(width: 6),
@@ -1442,13 +1445,15 @@ class _HomePageViewState extends State<HomePageView> {
                         minimumSize: const Size(64, 30),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         state.selectServer(srv.id);
                         state.selectChannel(ch.id);
-                        if (!isConnected) {
-                          state.connectVoice(ch.id);
-                        }
+                        final conectar = !isConnected;
                         state.closeHomePage();
+                        if (conectar) {
+                          reportVoiceJoinError(messenger, await state.connectVoice(ch.id));
+                        }
                       },
                       child: Text(
                         isConnected ? 'Conectado' : 'Entrar',

@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento**:
-   - Versão atual do projeto: **`1.0.0q`**.
+   - Versão atual do projeto: **`1.0.0r`**.
    - **Pequenas atualizações / fixes**: Incrementar a letra final sequencialmente (`1.0.0d`, `1.0.0e`, ..., até `1.0.0z`).
    - **Ao esgotar o alfabeto ('z')**: Avançar o patch com 'a' (`1.0.1a`, ..., `1.0.1z`, depois `1.0.2a`...).
    - **Grandes atualizações estruturais (Big Update)**: Avançar para a próxima versão maior (`2.0.0a`).
@@ -28,6 +28,12 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
      (`LIVEKIT_API_SECRET`, chaves JWT, SMTP) vive apenas no backend.
    - O `installer/build_installer.ps1` aborta o build se encontrar arquivo de
      credencial dentro do pacote. Não remova essa trava.
+   - **Testes nunca apagam dados reais.** `npm test` no backend usa o mesmo
+     `DATABASE_URL` do serviço no ar, e até a `1.0.0q` a limpeza da suíte era um
+     `deleteMany()` sem filtro: rodar os testes registrava todas as contas como
+     inexistentes e o usuário perdia o login. A limpeza é restrita ao domínio de
+     fixture `@papocall.test` e a suíte falha se qualquer conta real mudar.
+     Prefira `TEST_DATABASE_URL` apontando para um banco descartável.
    - O e-mail do autor dos commits Git DEVE ser sempre `fepsmiotti@gmail.com` e o nome `Feps` (para coincidir com o proprietário do plano Vercel e não travar deploys com `seatBlock: COMMIT_AUTHOR_REQUIRED`).
 5. **Atualização do Instalador e do Site a Cada Atualização (Mandatório)**:
    - No final de toda e qualquer alteração ou atualização de código:

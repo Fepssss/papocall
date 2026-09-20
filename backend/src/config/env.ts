@@ -13,6 +13,9 @@ const envSchema = z.object({
   PORT: z.string().default('3333').transform((v) => parseInt(v, 10)),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL é obrigatória'),
+  // Banco exclusivo para a suíte de testes. Quando ausente, os testes rodam
+  // contra DATABASE_URL e ficam restritos ao domínio de fixture reservado.
+  TEST_DATABASE_URL: z.string().optional(),
   // Lista de origens CORS separadas por vírgula para controle rigoroso
   CORS_ORIGINS: z.string().default('http://localhost:3000,https://papocall.vercel.app'),
   // Chaves RSA para assinatura RS256

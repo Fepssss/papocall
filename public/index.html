@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0q</span>
+        <span class="version-tag">v1.0.0r</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0q
+          Baixar v1.0.0r
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0q • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0r • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0q - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.0.0r - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0r', this)">
+          v1.0.0r <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0q', this)">
-          v1.0.0q <span class="badge-current">ATUAL</span>
+          v1.0.0q
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0p', this)">
           v1.0.0p
@@ -926,12 +929,47 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0r -->
+        <article class="release-card latest" data-version="v1.0.0r">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0r</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A conta para de sumir ao sair do aplicativo, a chamada de voz volta a aceitar quem está autenticado e a recusa de entrada agora diz o motivo na tela.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Rodar os testes do backend apagava todas as contas</strong>: A suíte de autenticação limpava as tabelas inteiras antes e depois de executar, e o banco que ela usa é o mesmo do serviço no ar. Na prática, cada execução dos testes registrava todas as contas como inexistentes — sair da conta virava perder a conta, e a única volta era se cadastrar de novo. A limpeza agora só alcança contas de teste criadas pela própria suíte, num domínio reservado que nenhuma conta real pode ocupar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Os testes provam que não tocam em contas reais</strong>: A suíte conta quantas contas fora do domínio de teste existem antes de começar e falha alto se esse número mudar até o fim. Não é mais confiança em convenção: repetir o acidente quebrou o build.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Banco de testes separado</strong>: Com <em>TEST_DATABASE_URL</em> definida, a suíte roda contra esse banco e não contra o operacional. É a configuração recomendada, e sem ela os testes continuam seguros pelo filtro acima.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Entrada na chamada de voz</strong>: O token de voz voltou a ser emitido para qualquer conta autenticada. Exigir e-mail confirmado travava a voz de quem nunca recebeu o e-mail — o envio é feito em segundo plano e não existe reenvio dentro do aplicativo, então a pessoa ficava sem chamada e sem nenhum caminho de recuperação. O limite de vinte tokens por minuto por conta continua no lugar para proteger o custo da conferência.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>A recusa agora aparece na tela</strong>: Entrar num canal de voz e não conseguir não mostrava nada — o painel de voz só existe enquanto há conexão, então o ícone simplesmente voltava a ficar cinza. Agora o motivo real da recusa aparece na hora, no canal em que você clicou, inclusive ao aceitar um convite de call de um amigo.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0q -->
-        <article class="release-card latest" data-version="v1.0.0q">
+        <article class="release-card" data-version="v1.0.0q">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0q</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1332,7 +1370,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0q</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0r</strong></p>
     </div>
   </footer>
 

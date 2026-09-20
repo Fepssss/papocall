@@ -7,18 +7,36 @@ import { prisma } from '../src/db/prisma';
 
 let server: http.Server;
 let baseUrl: string;
+let contasReaisAntes = 0;
 
-// Helper para fazer requisições HTTP JSON de forma limpa nos testes
 /**
- * Marca o e-mail como verificado direto no banco.
- * A rota de voz agora exige e-mail confirmado, e o token real de verificação
- * só existe dentro do e-mail enviado.
+ * Namespace reservado dos fixtures desta suíte.
+ *
+ * O TLD `.test` é reservado pela RFC 2606 e nunca recebe e-mail real, então
+ * nenhuma conta de verdade pode existir fora deste domínio. A limpeza abaixo só
+ * apaga linhas que casam com ele.
+ *
+ * HISTÓRICO: até a v1.0.0q o `before`/`after` faziam `user.deleteMany()` sem
+ * filtro contra o Neon de produção. Rodar `npm test` apagava todas as contas
+ * cadastradas, e o usuário perdia o login como se a conta tivesse deixado de
+ * existir. Filtrar por este domínio é o que impede a repetição do acidente.
  */
-async function verifyEmailFor(email: string): Promise<void> {
-  await prisma.user.update({
-    where: { email },
-    data: { email_verified: true },
+const FIXTURE_DOMAIN = '@papocall.test';
+
+/** Apaga apenas as contas criadas por esta suíte; contas reais ficam intactas. */
+async function limparFixtures(): Promise<void> {
+  const fixtures = await prisma.user.findMany({
+    where: { email: { endsWith: FIXTURE_DOMAIN } },
+    select: { id: true },
   });
+
+  // Os tokens pendem por `onDelete: Cascade` na relação com User.
+  await prisma.user.deleteMany({ where: { id: { in: fixtures.map((u) => u.id) } } });
+}
+
+/** Quantas contas reais existem no banco alvo — elas nunca são tocadas. */
+async function contarContasReais(): Promise<number> {
+  return prisma.user.count({ where: { NOT: { email: { endsWith: FIXTURE_DOMAIN } } } });
 }
 
 async function apiRequest(
@@ -52,21 +70,25 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
     const address = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${address.port}`;
 
-    // Limpa tabelas de teste antes de iniciar
-    await prisma.refreshToken.deleteMany();
-    await prisma.emailVerificationToken.deleteMany();
-    await prisma.passwordResetToken.deleteMany();
-    await prisma.user.deleteMany();
+    contasReaisAntes = await contarContasReais();
+    await limparFixtures();
   });
 
   after(async () => {
-    // Limpeza após os testes e encerramento do servidor
-    await prisma.refreshToken.deleteMany();
-    await prisma.emailVerificationToken.deleteMany();
-    await prisma.passwordResetToken.deleteMany();
-    await prisma.user.deleteMany();
+    // Prova de que a suíte não repete o acidente da v1.0.0q, quando o `after`
+    // apagava a tabela inteira de usuários do banco de produção.
+    const contasReaisDepois = await contarContasReais();
     await prisma.$disconnect();
     server.close();
+    if (contasReaisDepois !== contasReaisAntes) {
+      throw new Error(
+        `Esta suíte alterou contas reais (${contasReaisAntes} -> ${contasReaisDepois}). ` +
+          'Nada aqui pode apagar linhas fora do domínio de fixture.'
+      );
+    }
+
+    // Limpa só o que esta suíte criou.
+    await limparFixtures();
   });
 
   // ===========================================================================
@@ -75,7 +97,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
   describe('1. Registro de Usuário e Regras de Username', () => {
     it('deve registrar um novo usuário com sucesso e retornar tokens', async () => {
       const res = await apiRequest('POST', '/auth/register', {
-        email: 'joao.silva@teste.com',
+        email: 'joao.silva@papocall.test',
         username: '@joaosilva',
         displayName: 'João Silva',
         password: 'Password123!',
@@ -83,7 +105,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
       assert.equal(res.status, 201);
       assert.equal(res.body.success, true);
-      assert.equal(res.body.data.user.email, 'joao.silva@teste.com');
+      assert.equal(res.body.data.user.email, 'joao.silva@papocall.test');
       assert.equal(res.body.data.user.username, '@joaosilva');
       assert.equal(res.body.data.user.rawUsername, 'joaosilva');
       assert.equal(res.body.data.user.displayName, 'João Silva');
@@ -92,7 +114,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
       // Garante que o banco salvou SEM o '@' e em lowercase
       const dbUser = await prisma.user.findUnique({
-        where: { email: 'joao.silva@teste.com' },
+        where: { email: 'joao.silva@papocall.test' },
       });
       assert.ok(dbUser);
       assert.equal(dbUser?.username, 'joaosilva');
@@ -100,7 +122,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     it('deve rejeitar registro com e-mail duplicado', async () => {
       const res = await apiRequest('POST', '/auth/register', {
-        email: 'joao.silva@teste.com',
+        email: 'joao.silva@papocall.test',
         username: '@outro_user',
         displayName: 'Outro Nome',
         password: 'Password123!',
@@ -114,7 +136,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
     it('deve rejeitar username duplicado de forma case-insensitive e sugerir variações', async () => {
       // Tenta cadastrar '@JoaoSilva' (maiúsculas) quando 'joaosilva' já existe
       const res = await apiRequest('POST', '/auth/register', {
-        email: 'joao2@teste.com',
+        email: 'joao2@papocall.test',
         username: '@JoaoSilva',
         displayName: 'João Segundo',
         password: 'Password123!',
@@ -129,7 +151,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     it('deve rejeitar username com caracteres especiais ou espaços', async () => {
       const res = await apiRequest('POST', '/auth/register', {
-        email: 'invalido@teste.com',
+        email: 'invalido@papocall.test',
         username: '@joao silva!',
         displayName: 'Nome',
         password: 'Password123!',
@@ -142,7 +164,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     it('deve rejeitar senha fraca sem número ou maiúscula', async () => {
       const res = await apiRequest('POST', '/auth/register', {
-        email: 'fraca@teste.com',
+        email: 'fraca@papocall.test',
         username: '@userfraco',
         displayName: 'Nome',
         password: 'senhafracasemnumero',
@@ -184,7 +206,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
   describe('3. Login por E-mail OU @Username', () => {
     it('deve fazer login com sucesso usando E-MAIL e senha', async () => {
       const res = await apiRequest('POST', '/auth/login', {
-        identifier: 'joao.silva@teste.com',
+        identifier: 'joao.silva@papocall.test',
         password: 'Password123!',
       });
 
@@ -276,9 +298,6 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
     let userAccessToken: string;
 
     before(async () => {
-      // A rota de voz exige e-mail confirmado, então o login precisa acontecer
-      // depois da verificação para que o access token saia com a claim correta.
-      await verifyEmailFor('joao.silva@teste.com');
       const loginRes = await apiRequest('POST', '/auth/login', {
         identifier: '@joaosilva',
         password: 'Password123!',
@@ -286,9 +305,12 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
       userAccessToken = loginRes.body.data.accessToken;
     });
 
-    it('POST /livekit/token deve recusar usuário autenticado sem e-mail confirmado', async () => {
+    it('POST /livekit/token deve autorizar conta autenticada sem e-mail confirmado', async () => {
+      // A voz não depende da confirmação do e-mail: o envio é feito em
+      // background e não há reenvio no app, então exigir a confirmação deixaria
+      // o usuário sem chamada e sem caminho de recuperação.
       await prisma.user.update({
-        where: { email: 'joao.silva@teste.com' },
+        where: { email: 'joao.silva@papocall.test' },
         data: { email_verified: false },
       });
       const unverified = await apiRequest('POST', '/auth/login', {
@@ -302,10 +324,8 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
         unverified.body.data.accessToken
       );
 
-      assert.equal(res.status, 403);
-      assert.equal(res.body.error.code, 'EMAIL_NOT_VERIFIED');
-
-      await verifyEmailFor('joao.silva@teste.com');
+      assert.equal(res.status, 200);
+      assert.ok(res.body.data.token);
     });
 
     it('POST /livekit/token deve autorizar usuário autenticado e emitir token válido', async () => {
@@ -327,13 +347,6 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
     });
 
     it('POST /livekit/token deve recusar identificador de sala malformado', async () => {
-      await verifyEmailFor('joao.silva@teste.com');
-      const verified = await apiRequest('POST', '/auth/login', {
-        identifier: '@joaosilva',
-        password: 'Password123!',
-      });
-      userAccessToken = verified.body.data.accessToken;
-
       const res = await apiRequest(
         'POST',
         '/livekit/token',
@@ -357,7 +370,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
       assert.equal(res.status, 200);
       assert.equal(res.body.success, true);
       assert.equal(res.body.data.user.username, '@joaosilva');
-      assert.equal(res.body.data.user.email, 'joao.silva@teste.com');
+      assert.equal(res.body.data.user.email, 'joao.silva@papocall.test');
     });
 
     it('POST /livekit/token deve gerar token com identity estritamente travada no @username', async () => {
@@ -389,7 +402,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     before(async () => {
       const reg = await apiRequest('POST', '/auth/register', {
-        email: 'recupera@teste.com',
+        email: 'recupera@papocall.test',
         username: '@recupera_user',
         displayName: 'Recupera Nome',
         password: 'Password123!',
@@ -399,7 +412,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     it('deve confirmar e-mail com token válido', async () => {
       const dbUser = await prisma.user.findUnique({
-        where: { email: 'recupera@teste.com' },
+        where: { email: 'recupera@papocall.test' },
         include: { email_verification_tokens: true },
       });
 
@@ -417,7 +430,7 @@ describe('🧪 Suíte de Testes Automatizados - Sistema de Autenticação PapoCa
 
     it('deve processar solicitação de recuperação de senha (forgot-password)', async () => {
       const res = await apiRequest('POST', '/auth/forgot-password', {
-        email: 'recupera@teste.com',
+        email: 'recupera@papocall.test',
       });
 
       assert.equal(res.status, 200);
