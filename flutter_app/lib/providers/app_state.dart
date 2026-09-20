@@ -15,6 +15,8 @@ import '../services/server_crypto.dart';
 import '../services/voice_service.dart';
 import '../services/sound_service.dart';
 import '../services/auth_service.dart';
+import '../utils/app_log.dart';
+import '../utils/app_paths.dart';
 import '../utils/mentions.dart';
 
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
@@ -288,21 +290,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Raiz dos dados locais. Os testes apontam isto para um diretório
   /// temporário: sem isso, criar um servidor de teste sobrescreveria o
-  /// `servers.json` real desta máquina.
+  /// `servers.json` real desta máquina. É a mesma chave usada por todo o app,
+  /// inclusive a sessão gravada e o log de diagnóstico.
   @visibleForTesting
-  static String? dataRootOverride;
+  static String? get dataRootOverride => AppPaths.rootOverride;
 
-  File _getAppFile(String fileName) {
-    final appData = dataRootOverride ??
-        Platform.environment['APPDATA'] ??
-        Platform.environment['USERPROFILE'] ??
-        '.';
-    final dir = Directory('$appData/PapoCall');
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
-    return File('${dir.path}/$fileName');
-  }
+  @visibleForTesting
+  static set dataRootOverride(String? valor) => AppPaths.rootOverride = valor;
+
+  File _getAppFile(String fileName) => AppPaths.file(fileName);
 
   File _getSettingsFile() => _getAppFile('settings.json');
   File _getServersFile() => _getAppFile('servers.json');
@@ -636,6 +632,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         currentSession = savedSession;
         currentUser = savedSession.user.toUserModel();
         isAuthenticated = true;
+        // O access token dura 15 minutos: ao abrir o app ele quase sempre já
+        // venceu. Renovar aqui evita que a primeira coisa que o usuário tente
+        // fazer depois de abrir o aplicativo falhe por token velho.
+        if (!AuthService.accessTokenValid(savedSession.accessToken)) {
+          unawaited(renewSession());
+        }
       } else {
         isAuthenticated = false;
       }
@@ -830,13 +832,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> logout() async {
+  Future<void> logout({String motivo = 'logout do usuário'}) async {
     if (connectedVoiceChannelId != null) {
       await disconnectVoice();
     }
     // Anuncia status offline antes de desconectar
     await _sendPresence(isOffline: true);
-    await AuthService.clearSession();
+    await AuthService.clearSession(motivo: motivo);
     _stopNetwork();
     currentSession = null;
     currentUser = UserModel(
@@ -2842,6 +2844,52 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   String? voiceErrorMessage;
 
+  Future<AuthSession?>? _renovacaoEmAndamento;
+
+  /// Renova o access token da sessão HTTP, no máximo uma renovação por vez.
+  ///
+  /// O backend rotaciona o refresh token a cada uso e, se receber um token já
+  /// consumido, revoga TODAS as sessões da conta (TOKEN_REUSE_DETECTED). Duas
+  /// renovações paralelas deslogavam o usuário por completo — era o efeito
+  /// "minha conta sumiu".
+  Future<AuthSession?> renewSession() {
+    final emAndamento = _renovacaoEmAndamento;
+    if (emAndamento != null) return emAndamento;
+    final futura = _renewSessionOnce();
+    _renovacaoEmAndamento = futura;
+    futura.whenComplete(() {
+      if (identical(_renovacaoEmAndamento, futura)) _renovacaoEmAndamento = null;
+    });
+    return futura;
+  }
+
+  Future<AuthSession?> _renewSessionOnce() async {
+    final antiga = currentSession;
+    if (antiga == null) return null;
+
+    final resultado = await AuthService.refreshSession(antiga);
+    switch (resultado.outcome) {
+      case RefreshOutcome.renewed:
+        final renovada = resultado.session!;
+        currentSession = AuthSession(
+          accessToken: renovada.accessToken,
+          refreshToken: renovada.refreshToken,
+          user: currentSession?.user ?? renovada.user,
+        );
+        return currentSession;
+      case RefreshOutcome.rejected:
+        AppLog.write('Auth', 'login encerrado pelo servidor: ${resultado.reason}');
+        unawaited(logout(
+          motivo: 'o servidor recusou o token de renovação (${resultado.reason})',
+        ));
+        return null;
+      case RefreshOutcome.transientFailure:
+        // Sem resposta útil: a sessão continua válida e o próximo pedido tenta
+        // de novo. Derrubar o login aqui era perder a conta por um capricho da rede.
+        return null;
+    }
+  }
+
   /// Entra num canal de voz e devolve o motivo quando não conseguiu, para o
   /// chamador mostrar na tela. Sem isso a falha era silenciosa: o ícone
   /// simplesmente voltava para o estado desconectado.
@@ -2856,9 +2904,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       // A identity do LiveKit passa a ser definida pelo backend a partir do JWT,
       // e não mais montada aqui, para impedir personificação de outro usuário.
+      // O access token dura 15 minutos: renovar antes de pedir a autorização é
+      // o que evita o "sessão expirou" no meio de uma tentativa de entrar.
+      AuthSession? sessao = currentSession;
+      if (sessao != null &&
+          !AuthService.accessTokenValid(sessao.accessToken)) {
+        sessao = await renewSession() ?? sessao;
+      }
+
       final success = await _voiceService.joinVoice(
         roomName: channelId,
-        accessToken: currentSession?.accessToken ?? '',
+        accessToken: sessao?.accessToken ?? '',
+        renewSession: renewSession,
       );
 
       if (success) {
@@ -2869,10 +2926,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         connectedVoiceChannelId = null;
         currentUser.currentVoiceChannelId = null;
-        voiceErrorMessage = _voiceService.lastErrorMessage ?? 'Falha ao conectar à chamada de voz.';
-        final lower = voiceErrorMessage!.toLowerCase();
-        if (lower.contains('sessão expirou') || lower.contains('faça login') || lower.contains('não autorizado')) {
-          Future.microtask(() => logout());
+        voiceErrorMessage = _voiceService.lastErrorMessage;
+        if (voiceErrorMessage == null || voiceErrorMessage!.isEmpty) {
+          voiceErrorMessage = 'Falha ao conectar à chamada de voz.';
         }
       }
     } catch (e) {
@@ -2880,10 +2936,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       connectedVoiceChannelId = null;
       currentUser.currentVoiceChannelId = null;
       voiceErrorMessage = e.toString().replaceFirst('Exception: ', '');
-      final lower = voiceErrorMessage!.toLowerCase();
-      if (lower.contains('sessão expirou') || lower.contains('faça login') || lower.contains('não autorizado')) {
-        Future.microtask(() => logout());
-      }
     } finally {
       isConnectingVoice = false;
       _sendPresence();

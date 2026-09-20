@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
+import '../utils/app_log.dart';
 import 'auth_service.dart';
 import 'livekit_token_service.dart';
 import 'sound_service.dart';
@@ -68,13 +68,7 @@ class VoiceService {
 
   void _log(String message) {
     debugPrint('[VoiceService] $message');
-    try {
-      final appData = Platform.environment['APPDATA'] ?? Platform.environment['USERPROFILE'] ?? '.';
-      final dir = Directory('$appData/PapoCall');
-      if (!dir.existsSync()) dir.createSync(recursive: true);
-      final file = File('${dir.path}/papocall.log');
-      file.writeAsStringSync('[${DateTime.now().toIso8601String()}] [Voice] $message\n', mode: FileMode.append);
-    } catch (_) {}
+    AppLog.write('Voice', message);
   }
 
   String? lastErrorMessage;
@@ -82,6 +76,7 @@ class VoiceService {
   Future<bool> joinVoice({
     required String roomName,
     required String accessToken,
+    required Future<AuthSession?> Function() renewSession,
   }) async {
     lastErrorMessage = null;
     _log('Iniciando conexão com a sala: $roomName');
@@ -93,6 +88,7 @@ class VoiceService {
       final grant = await LiveKitTokenService.requestGrant(
         roomName: roomName,
         accessToken: accessToken,
+        renewSession: renewSession,
       );
       _log('Token recebido do backend para a sala $roomName');
 

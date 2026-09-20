@@ -39,53 +39,46 @@ class LiveKitTokenService {
   /// [accessToken] é o JWT de sessão do usuário autenticado. A identity usada
   /// no LiveKit é derivada desse JWT pelo servidor e nunca enviada pelo cliente,
   /// o que impede personificação de outro usuário.
+  ///
+  /// [renewSession] renova a sessão por quem a possui em memória (AppState) e
+  /// devolve a sessão renovada. Não se renova por conta própria lendo o disco:
+  /// o refresh roda no servidor e consome o token antigo, então uma renovação
+  /// paralela deixaria o chamador com um refresh token já queimado — o que o
+  /// backend pune revogando todas as sessões da conta.
   static Future<LiveKitGrant> requestGrant({
     required String roomName,
     required String accessToken,
+    required Future<AuthSession?> Function() renewSession,
   }) async {
     if (accessToken.isEmpty) {
       throw Exception('Sessão inválida. Faça login novamente para entrar na chamada.');
     }
 
     final uri = Uri.parse('$apiBaseUrl/livekit/token');
-    http.Response response = await http
+    Future<http.Response> chamar(String token) => http
         .post(
           uri,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer $accessToken',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode({'room': roomName}),
         )
         .timeout(const Duration(seconds: 12));
 
-    // Se o access token tiver expirado (401), tenta renovar silenciosamente via refresh token
+    var response = await chamar(accessToken);
+
+    // Access token expirado (15 min): renova uma vez e repete a chamada.
     if (response.statusCode == 401) {
-      final session = await AuthService.loadSession();
-      if (session != null) {
-        final renewed = await AuthService.refreshSession(session);
-        if (renewed != null && renewed.accessToken.isNotEmpty) {
-          response = await http
-              .post(
-                uri,
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': 'Bearer ${renewed.accessToken}',
-                },
-                body: jsonEncode({'room': roomName}),
-              )
-              .timeout(const Duration(seconds: 12));
-        }
+      final renewed = await renewSession();
+      if (renewed != null && renewed.accessToken.isNotEmpty) {
+        response = await chamar(renewed.accessToken);
       }
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 
     if (response.statusCode != 200 || body['success'] != true) {
-      if (response.statusCode == 401) {
-        // Sessão não pôde ser renovada no servidor; limpa o arquivo local
-        await AuthService.clearSession();
-      }
       final message = body['error']?['message'] as String? ??
           'Não foi possível obter autorização para entrar na sala de voz.';
       throw Exception(message);

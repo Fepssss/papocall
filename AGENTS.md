@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento**:
-   - Versão atual do projeto: **`1.0.0r`**.
+   - Versão atual do projeto: **`1.0.0s`**.
    - **Pequenas atualizações / fixes**: Incrementar a letra final sequencialmente (`1.0.0d`, `1.0.0e`, ..., até `1.0.0z`).
    - **Ao esgotar o alfabeto ('z')**: Avançar o patch com 'a' (`1.0.1a`, ..., `1.0.1z`, depois `1.0.2a`...).
    - **Grandes atualizações estruturais (Big Update)**: Avançar para a próxima versão maior (`2.0.0a`).
@@ -72,6 +72,13 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
      - **O token é emitido pelo backend**, nunca assinado no cliente. `livekit_token_service.dart` apenas faz `POST /livekit/token` com o access token da sessão; a `identity` é derivada do JWT no servidor, impedindo personificação.
      - Evita desconexões acidentais por `DUPLICATE_IDENTITY` adicionando sufixo exclusivo à identidade da chamada.
      - **Otimização de Transmissão**: Ao minimizar ou tirar o foco da janela do aplicativo, o streamer tem a renderização local da própria live pausada (redução drástica de consumo de GPU/CPU), enquanto os espectadores continuam recebendo a transmissão normalmente.
+   - **Sessão de login (`auth_service.dart` + `app_state.dart`) — invariante desde a v1.0.0s**:
+     - Só o `AppState` renova o access token, por `renewSession()`, que é **single-flight**: no máximo uma renovação em andamento. O backend rotaciona o refresh token a cada uso e, se receber um token já consumido, trata como roubo e revoga **todas** as sessões da conta (`TOKEN_REUSE_DETECTED`). Duas renovações paralelas — inclusive duas janelas do app abertas na mesma máquina, que leem o mesmo `session.dat` — deslogam a conta inteira.
+     - Nunca renovar por fora lendo o disco. `AuthService.loadSession()` é só para a inicialização; quem renova precisa atualizar `currentSession` em memória, senão disco e memória divergem e o próximo uso queima um token já consumido.
+     - `clearSession()` só é chamado pelo `logout()`. Uma renovação pode apagar a sessão **somente** quando o backend responde `INVALID_REFRESH_TOKEN`, `TOKEN_REUSE_DETECTED` ou `REFRESH_TOKEN_EXPIRED` (4xx com `error.code` em JSON). Rede, timeout, cold start do Render, 5xx, 429 e corpo sem JSON são `transientFailure`: a sessão continua válida. A v1.0.0r e anteriores derrubavam o login nesses casos, e era isso que fazia a conta parecer sumir depois de sair e tentar entrar de novo.
+     - O access token dura 15 min e o refresh 7 dias. Renova-se ao abrir o app e antes de entrar na call quando falta menos de 2 min (`AuthService.accessTokenValid`), sempre por `exp` do JWT (claim em **segundos**), sem decodificar nada — o payload do JWT é público por construção.
+     - Diagnóstico: `AppLog.write(tag, msg)` anexa em `%APPDATA%\PapoCall\papocall.log` e **nunca** recebe token, senha ou chave; logar códigos HTTP, `error.code` e a hora de expiração é o que permitiu achar o defeito acima. `flutter test` define `FLUTTER_TEST`, e o AppLog se cala: teste não escreve no log da instalação real.
+     - Toda escrita local passa por `AppPaths` (`lib/utils/app_paths.dart`). `AppState.dataRootOverride` é um alias de `AppPaths.rootOverride`: apontar a raiz para um diretório temporário no `setUp` é o que isola teste de dado real — ver a regra "Testes nunca apagam dados reais".
    - **Página Inicial do App (`flutter_app/lib/widgets/home_page_view.dart`)**:
      - Visualização em tela cheia acionada pelo botão no canto superior esquerdo da barra de servidores (`ServerRail`).
      - Oferece acesso rápido de 1 clique a canais de voz/chat, lista de amigos online com atalho para entrar na sala do amigo, diagnósticos ao vivo (latência, motor LiveKit e MQTT) e controle de chamada ativa.

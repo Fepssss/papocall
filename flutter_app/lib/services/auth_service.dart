@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
+import '../utils/app_log.dart';
+import '../utils/app_paths.dart';
 import 'secure_storage.dart';
 
 class AuthUser {
@@ -86,6 +88,35 @@ class AuthSession {
   };
 }
 
+enum RefreshOutcome {
+  /// Servidor emitiu tokens novos; a sessão antiga foi substituída.
+  renewed,
+
+  /// Servidor recusou o refresh token de forma definitiva. Só nesse caso a
+  /// sessão local pode ser apagada e o login refeito.
+  rejected,
+
+  /// Rede, timeout, cold start do Render, 5xx ou resposta sem JSON.
+  /// A sessão continua válida: apagar por um erro momentâneo é o que fazia a
+  /// conta "desaparecer" para o usuário.
+  transientFailure,
+}
+
+class RefreshResult {
+  final RefreshOutcome outcome;
+  final AuthSession? session;
+  final String reason;
+
+  const RefreshResult._(this.outcome, this.session, this.reason);
+
+  factory RefreshResult.renewed(AuthSession session) =>
+      RefreshResult._(RefreshOutcome.renewed, session, '');
+  factory RefreshResult.rejected(String reason) =>
+      RefreshResult._(RefreshOutcome.rejected, null, reason);
+  factory RefreshResult.transient(String reason) =>
+      RefreshResult._(RefreshOutcome.transientFailure, null, reason);
+}
+
 class UsernameAvailabilityResult {
   final bool available;
   final String username;
@@ -110,16 +141,7 @@ class AuthService {
   static String get apiBaseUrl =>
       _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : _defaultApiUrl;
 
-  static Future<File> _getLastIdentifierFile() async {
-    final appData = Platform.environment['APPDATA'] ??
-        Platform.environment['USERPROFILE'] ??
-        Directory.current.path;
-    final dir = Directory('$appData\\PapoCall');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    return File('${dir.path}\\last_login.txt');
-  }
+  static Future<File> _getLastIdentifierFile() async => AppPaths.file('last_login.txt');
 
   static Future<void> saveLastIdentifier(String identifier) async {
     try {
@@ -138,16 +160,7 @@ class AuthService {
     return '';
   }
 
-  static Future<File> _getSessionFile() async {
-    final appData = Platform.environment['APPDATA'] ??
-        Platform.environment['USERPROFILE'] ??
-        Directory.current.path;
-    final dir = Directory('$appData\\PapoCall');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    return File('${dir.path}\\session.dat');
-  }
+  static Future<File> _getSessionFile() async => AppPaths.file('session.dat');
 
   /// Salva a sessão cifrada com a DPAPI do Windows.
   ///
@@ -158,10 +171,20 @@ class AuthService {
     try {
       final file = await _getSessionFile();
       final ok = await SecureStorage.writeEncrypted(file, jsonEncode(session.toJson()));
-      if (!ok && await file.exists()) {
-        await file.delete();
+      if (ok) {
+        AppLog.write('Auth',
+            'sessão gravada para @${session.user.rawUsername} (expira ${accessTokenExpiry(session.accessToken)?.toIso8601String() ?? '?'})');
+      } else {
+        if (await file.exists()) {
+          // O arquivo antigo guarda um refresh token já consumido: mantê-lo
+          // levaria a um TOKEN_REUSE_DETECTED na próxima abertura.
+          await file.delete();
+        }
+        AppLog.write('Auth', 'FALHA ao cifrar a sessão (DPAPI); arquivo removido');
       }
-    } catch (_) {}
+    } catch (e) {
+      AppLog.write('Auth', 'FALHA ao gravar a sessão: $e');
+    }
   }
 
   /// Carrega e decifra a sessão persistida.
@@ -169,23 +192,31 @@ class AuthService {
     try {
       final file = await _getSessionFile();
       final content = await SecureStorage.readEncrypted(file);
-      if (content != null && content.isNotEmpty) {
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        return AuthSession.fromJson(json);
+      if (content == null || content.isEmpty) {
+        if (!await file.exists()) {
+          AppLog.write('Auth', 'nenhum session.dat em disco');
+        } else {
+          AppLog.write('Auth', 'session.dat ilegível (DPAPI recusou o conteúdo)');
+        }
+        return null;
       }
-    } catch (_) {}
-    return null;
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      final session = AuthSession.fromJson(json);
+      AppLog.write('Auth',
+          'sessão lida de @${session.user.rawUsername}, access token expira ${accessTokenExpiry(session.accessToken)?.toIso8601String() ?? '?'}');
+      return session;
+    } catch (e) {
+      AppLog.write('Auth', 'FALHA ao ler a sessão: $e');
+      return null;
+    }
   }
 
   /// Apaga resquícios das versões anteriores, que gravavam tokens e hashes de
   /// senha em texto puro no disco.
   static Future<void> purgeLegacyInsecureFiles() async {
     try {
-      final appData = Platform.environment['APPDATA'] ??
-          Platform.environment['USERPROFILE'] ??
-          Directory.current.path;
       for (final name in ['session.json', 'users_vault.json', 'livekit.json']) {
-        final legacy = File('$appData\\PapoCall\\$name');
+        final legacy = AppPaths.file(name);
         if (await legacy.exists()) {
           await legacy.delete();
         }
@@ -194,13 +225,17 @@ class AuthService {
   }
 
   /// Remove a sessão (logout)
-  static Future<void> clearSession() async {
+  static Future<void> clearSession({String motivo = 'logout do usuário'}) async {
     try {
       final file = await _getSessionFile();
-      if (await file.exists()) {
+      final existia = await file.exists();
+      if (existia) {
         await file.delete();
       }
-    } catch (_) {}
+      AppLog.write('Auth', 'sessão apagada ($motivo); arquivo ${existia ? 'existia' : 'não existia'}');
+    } catch (e) {
+      AppLog.write('Auth', 'FALHA ao apagar a sessão: $e');
+    }
   }
 
   /// Verifica se o backend HTTP está ativo (usado apenas para diagnóstico na UI).
@@ -386,18 +421,34 @@ class AuthService {
     return null;
   }
 
-  /// 4. Renovação de Sessão via Refresh Token (Silenciosa)
-  static Future<AuthSession?> refreshSession(AuthSession session) async {
-    if (session.refreshToken.isEmpty) return null;
+  /// 4. Renovação de Sessão via Refresh Token
+  ///
+  /// Distingue recusa definitiva de erro momentâneo. O backend sempre responde
+  /// em JSON nos erros de autenticação; qualquer outra coisa (rede, timeout,
+  /// cold start do plano gratuito, 5xx, página de proxy) não apaga a sessão.
+  static Future<RefreshResult> refreshSession(AuthSession session) async {
+    if (session.refreshToken.isEmpty) {
+      AppLog.write('Auth', 'refresh abortado: sessão sem refresh token');
+      return RefreshResult.rejected('sem refresh token');
+    }
 
     try {
       final res = await http.post(
         Uri.parse('$apiBaseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': session.refreshToken}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
 
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      Map<String, dynamic>? decodificado;
+      try {
+        decodificado = jsonDecode(res.body) as Map<String, dynamic>;
+      } catch (_) {
+        AppLog.write(
+            'Auth', 'refresh sem resposta JSON (HTTP ${res.statusCode})');
+        return RefreshResult.transient('resposta inválida HTTP ${res.statusCode}');
+      }
+      final body = decodificado;
+
       if (res.statusCode == 200 && body['success'] == true) {
         final data = body['data'] as Map<String, dynamic>;
         final newSession = AuthSession(
@@ -406,10 +457,52 @@ class AuthService {
           user: session.user,
         );
         await saveSession(newSession);
-        return newSession;
+        AppLog.write('Auth',
+            'sessão renovada para @${session.user.rawUsername}, nova expiração ${accessTokenExpiry(newSession.accessToken)?.toIso8601String() ?? 'desconhecida'}');
+        return RefreshResult.renewed(newSession);
       }
-    } catch (_) {}
 
-    return null;
+      final code = (body['error']?['code'] as String?) ?? '';
+      final recusado = res.statusCode >= 400 &&
+          res.statusCode < 500 &&
+          res.statusCode != 429 &&
+          code.isNotEmpty;
+      AppLog.write('Auth',
+          'refresh HTTP ${res.statusCode} code=${code.isEmpty ? '-' : code}');
+      return recusado
+          ? RefreshResult.rejected(code)
+          : RefreshResult.transient('HTTP ${res.statusCode}');
+    } catch (e) {
+      AppLog.write('Auth', 'refresh falhou na rede: $e');
+      return RefreshResult.transient('erro de rede');
+    }
+  }
+
+  /// Instante em que o access token JWT expira, lido da claim `exp`.
+  ///
+  /// O payload é público (o JWT já viaja na autorização da requisição); nada é
+  /// decifrado aqui, apenas base64. Retorna null se o token não for um JWT
+  /// legível, caso em que o chamador deve apenas tentar a requisição.
+  static DateTime? accessTokenExpiry(String jwt) {
+    try {
+      final partes = jwt.split('.');
+      if (partes.length != 3) return null;
+      final payload = jsonDecode(
+              utf8.decode(base64Url.decode(base64Url.normalize(partes[1]))))
+          as Map<String, dynamic>;
+      final exp = payload['exp'] as int?;
+      if (exp == null) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// True quando o access token ainda tem mais de [margem] de vida.
+  static bool accessTokenValid(String jwt, {Duration margem = const Duration(minutes: 2)}) {
+    if (jwt.isEmpty) return false;
+    final exp = accessTokenExpiry(jwt);
+    if (exp == null) return true;
+    return exp.difference(DateTime.now()) > margem;
   }
 }

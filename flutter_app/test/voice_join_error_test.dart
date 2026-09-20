@@ -19,9 +19,9 @@ void main() {
     expect(erro, contains('login'));
     expect(state.connectedVoiceChannelId, isNull);
     expect(state.isConnectingVoice, isFalse);
-
-    // A falha encerra a sessão por microtask; descarrega antes de encerrar o teste.
-    await Future<void>.delayed(Duration.zero);
+    // Entrar na call sem sessão não derruba mais o login: era isto que apagava
+    // o session.dat e fazia a conta "desaparecer".
+    expect(state.isAuthenticated, isFalse);
   });
 
   test('entrar no canal de voz já conectado não gera nova tentativa', () async {

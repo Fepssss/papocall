@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0r</span>
+        <span class="version-tag">v1.0.0s</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0r
+          Baixar v1.0.0s
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0r • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.0.0s • Instalador Nativo (~17.7 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0r - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.0.0s - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -885,8 +885,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.0.0s', this)">
+          v1.0.0s <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0r', this)">
-          v1.0.0r <span class="badge-current">ATUAL</span>
+          v1.0.0r
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0q', this)">
           v1.0.0q
@@ -929,12 +932,52 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.0.0s -->
+        <article class="release-card latest" data-version="v1.0.0s">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.0.0s</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O login fica gravado de verdade: a sessão se renova sozinha antes de vencer, nenhuma falha momentânea de rede apaga sua conta do aplicativo, e a chamada de voz deixa de ser o gatilho que derrubava tudo.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>A chamada de voz derrubava o login</strong>: Esse era o efeito de a conta "deixar de existir". O token de acesso do aplicativo vale quinze minutos; ao entrar numa sala depois desse prazo o servidor respondia <em>sessão expirou</em>, e o aplicativo tratava essa resposta como conta perdida: apagava a sessão gravada no disco e devolvia a pessoa para a tela de entrada, sem o @ preenchido. Agora a renovação acontece antes do pedido de voz, e a mensagem de expiração virou apenas o que ela é: um token velho, não uma conta apagada.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>A sessão se renova sozinha</strong>: Ao abrir o aplicativo e antes de cada entrada em canal de voz, o token de acesso é trocado pelo próprio aplicativo quando está perto de vencer. Na prática, conversar por texto (que não usa esse token) e por voz passa a funcionar o tempo todo, sem a pessoa precisar se relogar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Uma renovação por vez</strong>: O servidor entrega um token de renovação novo a cada uso e, se receber um token já consumido, entende como roubo e revoga todas as sessões da conta. Duas janelas do mesmo login renovando ao mesmo tempo bastavam para isso acontecer. A renovação agora é única por aplicativo: quem chegar depois reusa o resultado de quem já estava renovando.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Falha momentânea não custa mais o login</strong>: Rede fora, servidor do plano gratuito acordando de cold start, resposta sem JSON ou erro do provedor devolviam, antes, um <em>apagar tudo</em>. Só uma recusa explícita do servidor ao token de renovação encerra a sessão — e nesse caso a tela avisa que é para entrar de novo com o mesmo @ e a mesma senha.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>O que aconteceu com o login fica registrado</strong>: Gravar, ler, renovar e apagar a sessão deixaram de ser silenciosos. Cada um desses passos escreve no arquivo de diagnóstico do aplicativo o código recebido e a hora em que o token vence, sem gravar token, senha ou chave alguma. Uma falha de login agora tem rastro.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Os testes não encostam na sua instalação</strong>: Toda a escrita local passou por um único caminho de dados, e uma suíte que redirecionasse a raiz mas esquecesse um serviço não volta mais a escrever na pasta real do usuário — foi assim que uma execução de testes sobrescreveu o log de diagnóstico desta máquina. O log também se cala durante os testes.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0r -->
-        <article class="release-card latest" data-version="v1.0.0r">
+        <article class="release-card" data-version="v1.0.0r">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0r</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1370,7 +1413,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0r</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0s</strong></p>
     </div>
   </footer>
 
