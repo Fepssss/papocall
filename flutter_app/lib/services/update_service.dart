@@ -233,20 +233,38 @@ class UpdateService {
         "-ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait; "
         "Start-Process -FilePath '${_emAspas(exeAtual)}'";
 
+    // O PowerShell 5.1 é um executável de console: entregue a ele em
+    // ProcessStartMode.detached (sem console nenhum), ele nasce e não executa
+    // nada — o app fechava e nada era instalado. `cmd /c start` aloca o
+    // console próprio e desanexa o processo da nossa árvore, que é o que
+    // permite sobreviver ao exit(0) logo abaixo.
+    final cmd = comandoDoHandoff(script);
     await Process.start(
-      'powershell.exe',
-      [
+      cmd.first,
+      cmd.sublist(1),
+      mode: ProcessStartMode.detached,
+    );
+    AppLog.write('Update', 'instalador destacado; o app vai fechar');
+  }
+
+  /// O comando que entrega o instalador fora da árvore de processos deste
+  /// aplicativo. Fixado em teste: sem o `cmd /c start`, o PowerShell chamado em
+  /// modo destacado nasce mas não chega a executar, e o app fecharia sem
+  /// instalar nada.
+  static List<String> comandoDoHandoff(String script) => [
+        'cmd.exe',
+        '/c',
+        'start',
+        '""',
+        '/b',
+        'powershell.exe',
         '-NoProfile',
         '-NonInteractive',
         '-ExecutionPolicy',
         'Bypass',
         '-Command',
         script,
-      ],
-      mode: ProcessStartMode.detached,
-    );
-    AppLog.write('Update', 'instalador destacado; o app vai fechar');
-  }
+      ];
 
   /// Um nome de usuário do Windows com apóstrofo (``O'Brien``) quebraria a
   /// string entre aspas do script; em PowerShell aspa simples se duplica.

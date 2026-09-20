@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -202,6 +203,34 @@ void main() {
         throwsA(isA<UpdateException>()),
       );
       expect(alvo.existsSync(), isFalse);
+    });
+  });
+
+  group('entrega do instalador', () {
+    test('anda por cmd /c start; PowerShell destacado sozinho não executa', () {
+      final cmd = UpdateService.comandoDoHandoff('Write-Output 1');
+
+      expect(cmd.take(5).toList(), ['cmd.exe', '/c', 'start', '""', '/b']);
+      expect(cmd, contains('powershell.exe'));
+      expect(cmd.last, 'Write-Output 1');
+    });
+
+    test('o script entregue roda de verdade', () async {
+      final marcador = File(
+        '${Directory.systemTemp.path}\\papocall_handoff_${DateTime.now().microsecondsSinceEpoch}.txt',
+      );
+      if (marcador.existsSync()) marcador.deleteSync();
+
+      final script = "Set-Content -Path '${marcador.path.replaceAll("'", "''")}' -Value 'ok'";
+      final cmd = UpdateService.comandoDoHandoff(script);
+      await Process.start(cmd.first, cmd.sublist(1), mode: ProcessStartMode.detached);
+
+      for (var i = 0; i < 30 && !marcador.existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      final rodou = marcador.existsSync();
+      if (marcador.existsSync()) marcador.deleteSync();
+      expect(rodou, isTrue, reason: 'o handoff destacado não chegou a executar o script');
     });
   });
 }

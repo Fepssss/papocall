@@ -1,8 +1,8 @@
 {
-    "version":  "1.1.1",
+    "version":  "1.1.2",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "d13362282d8ee2b28f92c300cd2c134f9bed8544a6ef879e899b49078f19a840",
-    "sizeBytes":  17917677,
-    "notes":  "• Quem não tem mais conta aparece na lista do servidor como \"Conta removida\" em vez de um código ilegível — e continua podendo ser expulso.\n• Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.\n• O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.\n• A chamada de voz renova o token sozinha em vez de derrubar o seu login no meio da conversa.",
-    "publishedAt":  "2026-09-20T02:28:50Z"
+    "sha256":  "7c24048392e54a9e7399eb8dd008f67a16bf2d01bff4670036c8f1297f9fb704",
+    "sizeBytes":  17916760,
+    "notes":  "• Corrigido o momento de instalar: o aplicativo baixava e conferia a nova versão, mas o instalador não chegava a ser executado — agora ele é entregue de um jeito que sobrevive ao fechamento do app.\n• Quem não tem mais conta aparece na lista do servidor como \"Conta removida\" em vez de um código ilegível — e continua podendo ser expulso.\n• Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.\n• O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.",
+    "publishedAt":  "2026-09-20T02:56:22Z"
 }
