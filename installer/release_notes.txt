@@ -1,4 +1,4 @@
+• Quem não tem mais conta aparece na lista do servidor como "Conta removida" em vez de um código ilegível — e continua podendo ser expulso.
 • Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.
 • O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.
 • A chamada de voz renova o token sozinha em vez de derrubar o seu login no meio da conversa.
-• Falhas de voz, de sessão e de atualização agora ficam registradas em papocall.log, na pasta de dados do aplicativo.

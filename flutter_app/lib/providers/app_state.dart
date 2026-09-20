@@ -2883,9 +2883,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           status: UserStatus.offline,
         ));
       } else {
+        // O servidor pode listar contas que já foram excluídas. Mostrar o ID
+        // cru na tela não ajuda o dono a decidir nada; o id continua no model
+        // para o "expulsar" funcionar.
         offline.add(UserModel(
           id: memberId,
-          username: memberId.replaceFirst('user-', 'membro_'),
+          username: 'conta-removida',
+          displayName: 'Conta removida',
           status: UserStatus.offline,
         ));
       }

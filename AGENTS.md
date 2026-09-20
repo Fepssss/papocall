@@ -9,7 +9,7 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
 3. **Padrão de Versionamento (SemVer puro, adotado na v1.1.0)**:
-   - Versão atual do projeto: **`1.1.0`**.
+   - Versão atual do projeto: **`1.1.1`**.
    - Formato `MAJOR.MINOR.PATCH`: três números, sem letra e sem sufixo. As
      versões de letra (`1.0.0s`, `1.0.0r`) continuam no histórico e no
      changelog do site, mas não são mais produzidas.
@@ -95,6 +95,7 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
      - O download é descartado se o hash não conferir, o `Setup.exe` roda `/VERYSILENT` destacado num PowerShell (sem UAC, porque `PrivilegesRequired=lowest`), e **o app se encerra antes da troca** — o executável em uso não é substituído por dentro. O `[Run]` do `setup.iss` tem `skipifsilent`: quem reabre o aplicativo no fluxo silencioso é o script, senão abririam duas janelas.
      - `baixarEInstalarAtualizacao()` **recusa rodar durante uma chamada de voz**: reiniciar no meio derruba a sala inteira, e essa escolha é de quem usa.
      - A checagem automática roda **uma vez**, 8 s depois da abertura, e nunca derruba a janela: falha de rede fica guardada em `erroAoVerificarAtualizacao`. "Não consegui conferir" e "está em dia" continuam sendo frases diferentes na tela — `UpdateCheckResult` separa os dois, e o UI não tem botão que minta.
+   - **Membro sem conta viva aparece como "Conta removida"** (`getServerMembersGrouped`, `app_state.dart`): o servidor guarda `memberIds` de contas que já foram excluídas, e o `UserModel` sintético para um id desconhecido usa rótulo fixo — nunca o UUID cru, que não diz nada a quem administra. O `id` real continua no model, porque é ele que o "expulsar membro" envia; trocar o rótulo sem manter o id quebra a ação. Já os nomes das mensagens não passam por aqui: cada `ChatMessage` carrega `author`/`authorDisplayName` gravados na hora em que foram escritas, então mensagens antigas continuam legíveis mesmo sem a conta.
    - **Página Inicial do App (`flutter_app/lib/widgets/home_page_view.dart`)**:
      - Visualização em tela cheia acionada pelo botão no canto superior esquerdo da barra de servidores (`ServerRail`).
      - Oferece acesso rápido de 1 clique a canais de voz/chat, lista de amigos online com atalho para entrar na sala do amigo, diagnósticos ao vivo (latência, motor LiveKit e MQTT) e controle de chamada ativa.

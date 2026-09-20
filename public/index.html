@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.1.0</span>
+        <span class="version-tag">v1.1.1</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.1.0
+          Baixar v1.1.1
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.1.0 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
+          Versão Oficial 1.1.1 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.1.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.1.1 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.1.1', this)">
+          v1.1.1 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.1.0', this)">
-          v1.1.0 <span class="badge-current">ATUAL</span>
+          v1.1.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0s', this)">
           v1.0.0s
@@ -947,12 +950,40 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.1.1 -->
+        <article class="release-card latest" data-version="v1.1.1">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.1.1</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A lista de membros para de mostrar código de computador: quem já não tem conta aparece identificado como &quot;Conta removida&quot;, e o seu PapoCall recebe esta correção sozinho, pelo atualizador da v1.1.0.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Membro sem conta deixa de ser um código ilegível</strong>: Servidores guardam a lista de quem entrou, e contas excluídas continuam lá. A lista passava então um identificador bruto — na barra lateral, no menu do membro, na tela de cargos. Agora aparece <em>Conta removida</em>. Se houver mais de uma, o dono expulsa uma por uma com o botão que sempre funcionou.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>A linha continua funcionando de verdade</strong>: Trocar o rótulo não tirou a ação — o identificador real segue junto da pessoa listada, então expulsar aquela linha expulsa exatamente aquela linha. Nada de rótulo bonito que quebra o botão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>O histórico das conversas não muda</strong>: Cada mensagem carrega o nome de quem a escreveu no momento em que foi escrita, então as mensagens antigas de uma conta removida seguem legíveis com o nome original. Só a lista de membros, que precisa de uma conta viva, é que passava o código.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.1.0 -->
-        <article class="release-card latest" data-version="v1.1.0">
+        <article class="release-card" data-version="v1.1.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.1.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1464,7 +1495,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.1.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.1.1</strong></p>
     </div>
   </footer>
 
