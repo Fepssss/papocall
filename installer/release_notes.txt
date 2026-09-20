@@ -1,4 +1,4 @@
-• Corrigido o momento de instalar: o aplicativo baixava e conferia a nova versão, mas o instalador não chegava a ser executado — agora ele é entregue de um jeito que sobrevive ao fechamento do app.
+• A atualização agora instala de verdade: nas versões 1.1.1 e 1.1.2 o instalador era baixado e conferido, mas o processo que o executava morria junto com o aplicativo.
 • Quem não tem mais conta aparece na lista do servidor como "Conta removida" em vez de um código ilegível — e continua podendo ser expulso.
 • Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.
 • O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.

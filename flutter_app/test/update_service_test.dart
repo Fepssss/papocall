@@ -207,10 +207,10 @@ void main() {
   });
 
   group('entrega do instalador', () {
-    test('anda por cmd /c start; PowerShell destacado sozinho não executa', () {
+    test('anda por cmd /c start com console próprio (/min); sem isso nada roda', () {
       final cmd = UpdateService.comandoDoHandoff('Write-Output 1');
 
-      expect(cmd.take(5).toList(), ['cmd.exe', '/c', 'start', '""', '/b']);
+      expect(cmd.take(5).toList(), ['cmd.exe', '/c', 'start', '""', '/min']);
       expect(cmd, contains('powershell.exe'));
       expect(cmd.last, 'Write-Output 1');
     });

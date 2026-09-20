@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.1.2</span>
+        <span class="version-tag">v1.1.3</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.1.2
+          Baixar v1.1.3
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.1.2 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
+          Versão Oficial 1.1.3 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.1.2 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.1.3 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.1.3', this)">
+          v1.1.3 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.1.2', this)">
-          v1.1.2 <span class="badge-current">ATUAL</span>
+          v1.1.2
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.1.1', this)">
           v1.1.1
@@ -953,26 +956,50 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
-        <!-- v1.1.2 -->
-        <article class="release-card latest" data-version="v1.1.2">
+        <!-- v1.1.3 -->
+        <article class="release-card latest" data-version="v1.1.3">
           <div class="release-header">
             <div class="release-title-wrap">
-              <span class="release-version">v1.1.2</span>
+              <span class="release-version">v1.1.3</span>
               <span class="release-badge badge-live">Versão Atual</span>
             </div>
-            <span class="release-date">19 de Setembro de 2026</span>
+            <span class="release-date">20 de Setembro de 2026</span>
           </div>
           <p class="release-summary">
-            O último passo da atualização — o que fecha o aplicativo para instalar a versão nova — foi corrigido: ele agora entrega o instalador de um jeito que sobrevive ao próprio fechamento.
+            A correção que faltava no atualizador: o instalador agora é entregue a um processo que sobrevive ao fechamento do aplicativo, e a versão nova é de fato instalada.
           </p>
           <ul class="changelog-items">
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>A nova versão passa a ser instalada de fato</strong>: Ao aceitar a atualização, o PapoCall baixava o instalador, conferia o SHA-256 byte por byte, entregava o serviço a um processo escondido e se fechava. O processo escondido nascia sem console, e o PowerShell do Windows não executa nada nessa condição: o aplicativo fechava e a versão na máquina continuava a mesma. A entrega agora passa por um processo que abre o próprio console e se desanexa do aplicativo — provado em teste, que falha se o mecanismo regredir.</span>
+              <span><strong>A 1.1.2 consertou metade</strong>: o PapoCall já baixava a versão nova e conferia o SHA-256 byte por byte, mas entregava a instalação a um processo escondido que morria junto com o aplicativo antes de trabalhar. A entrega agora vai por um processo com console próprio, que continua depois de o app fechar — a diferença foi medida nas mesmas condições da instalação real, sem console e com o aplicativo se encerrando em seguida.</span>
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem ficou no caminho não fica perdido</strong>: Nas versões 1.1.0 e 1.1.1, se você clicou em atualizar e o aplicativo reabriu na mesma versão, o instalador já estava baixado na pasta de dados do aplicativo. Basta baixá-lo de novo no site oficial — a partir desta versão, o botão resolve sozinho.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar esta uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador aqui e rode — a partir da 1.1.3, o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+            </li>
+          </ul>
+        </article>
+
+        <!-- v1.1.2 -->
+        <article class="release-card" data-version="v1.1.2">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.1.2</span>
+              <span class="release-badge badge-stable">Estável</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Meio caminho na correção do passo que fecha o aplicativo para instalar a versão nova: o instalador deixou de nascer sem console, mas o processo ainda morria junto com o aplicativo. Resolvido na v1.1.3.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Incompleta nesta versão, e dita como tal</strong>: Ao aceitar a atualização, o PapoCall baixava o instalador, conferia o SHA-256 byte por byte, entregava o serviço a um processo escondido e se fechava. O processo nascia sem console, e o PowerShell do Windows não executa nada nessa condição. Esta versão trocou a entrega por <code>cmd /c start</code>, o que bastava para o script rodar — mas não para sobreviver ao fechamento de um aplicativo que não tem console nenhum. A v1.1.3 fecha isso.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Quem ficou no caminho não fica perdido</strong>: Se você clicou em atualizar e o aplicativo reabriu na mesma versão, o instalador já estava baixado na pasta de dados do aplicativo — mas a solução honesta é baixar de novo no site oficial. A partir da v1.1.3 o botão do aplicativo resolve sozinho.</span>
             </li>
           </ul>
         </article>
@@ -987,7 +1014,7 @@
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
           <p class="release-summary">
-            A lista de membros para de mostrar código de computador: quem já não tem conta aparece identificado como &quot;Conta removida&quot;, e o seu PapoCall recebe esta correção sozinho, pelo atualizador da v1.1.0.
+            A lista de membros para de mostrar código de computador: quem já não tem conta aparece identificado como &quot;Conta removida&quot;. Nesta versão o recebimento automático ainda não funcionava — ver v1.1.3.
           </p>
           <ul class="changelog-items">
             <li class="changelog-item">
@@ -1020,7 +1047,7 @@
           <ul class="changelog-items">
             <li class="changelog-item">
               <span class="tag-type tag-novo">NOVO</span>
-              <span><strong>Atualização embutida no aplicativo</strong>: Oito segundos depois de abrir, o PapoCall consulta o servidor de atualizações. Existindo uma versão mais nova, aparece uma faixa na parte de cima da janela com o número da versão; ao clicar, ele mostra o que muda e baixa o instalador na frente de você, com barra de progresso. No fim, o aplicativo se fecha, instala a versão nova e reabre sozinho. Instalação por usuário: não pede senha de administrador nem levanta tela de UAC.</span>
+              <span><strong>Atualização embutida no aplicativo</strong>: Oito segundos depois de abrir, o PapoCall consulta o servidor de atualizações. Existindo uma versão mais nova, aparece uma faixa na parte de cima da janela com o número da versão; ao clicar, ele mostra o que muda e baixa o instalador na frente de você, com barra de progresso. No fim, o aplicativo se fecha, instala a versão nova e reabre sozinho. Instalação por usuário: não pede senha de administrador nem levanta tela de UAC. (Nesta versão o último passo ainda não fechava: o app baixava e conferia, mas não instalava — corrigido na v1.1.3.)</span>
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-novo">NOVO</span>
@@ -1522,7 +1549,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.1.2</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.1.3</strong></p>
     </div>
   </footer>
 

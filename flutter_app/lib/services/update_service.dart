@@ -233,11 +233,14 @@ class UpdateService {
         "-ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait; "
         "Start-Process -FilePath '${_emAspas(exeAtual)}'";
 
-    // O PowerShell 5.1 é um executável de console: entregue a ele em
-    // ProcessStartMode.detached (sem console nenhum), ele nasce e não executa
-    // nada — o app fechava e nada era instalado. `cmd /c start` aloca o
-    // console próprio e desanexa o processo da nossa árvore, que é o que
-    // permite sobreviver ao exit(0) logo abaixo.
+    // Dois detalhes importam aqui, e nenhum deles aparece em teste de unidade
+    // ingênuo. Primeiro: o PowerShell 5.1 é executável de console — entregue a
+    // ele em ProcessStartMode.detached, ele nasce e não roda uma linha, e o
+    // aplicativo se fechava sem instalar nada. Segundo: este app é GUI, não tem
+    // console nenhum para herdar, então `start /b` colocaria o PowerShell no
+    // console inexistente do próprio cmd e o processo morreria junto com o pai
+    // no exit(0) logo abaixo. `/min` dá console novo ao filho: é isso que
+    // permite ao instalador terminar o trabalho depois de o app fechar.
     final cmd = comandoDoHandoff(script);
     await Process.start(
       cmd.first,
@@ -248,15 +251,14 @@ class UpdateService {
   }
 
   /// O comando que entrega o instalador fora da árvore de processos deste
-  /// aplicativo. Fixado em teste: sem o `cmd /c start`, o PowerShell chamado em
-  /// modo destacado nasce mas não chega a executar, e o app fecharia sem
-  /// instalar nada.
+  /// aplicativo. Fixado em teste: sem console próprio (`/min`), o PowerShell
+  /// destacado não executa, e com `/b` ele morre junto com este app.
   static List<String> comandoDoHandoff(String script) => [
         'cmd.exe',
         '/c',
         'start',
         '""',
-        '/b',
+        '/min',
         'powershell.exe',
         '-NoProfile',
         '-NonInteractive',
