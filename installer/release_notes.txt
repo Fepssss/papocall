@@ -1,4 +1,5 @@
-• A atualização agora instala de verdade: nas versões 1.1.1 e 1.1.2 o instalador era baixado e conferido, mas o processo que o executava morria junto com o aplicativo.
-• Quem não tem mais conta aparece na lista do servidor como "Conta removida" em vez de um código ilegível — e continua podendo ser expulso.
-• Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.
-• O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.
+• Conversa privada entre duas pessoas, fora dos servidores: o que você escreve só existe nas duas máquinas, cifrado ponta a ponta com chave X25519 própria de cada conversa.
+• A chamada de voz mostra todo mundo que está dentro. Antes, com duas pessoas na sala, aparecia um só cartão.
+• Os travamentos acabaram: a chamada segurava memória e cada pacote de presença reconstruía a tela inteira. O HUD agora acompanha o tamanho da janela, de 1280px a 4K, sem cortar barra nem texto.
+• Escolha o microfone e a saída de áudio nas configurações e ligue ou desligue os bipes de entrada, saída e compartilhamento de tela. O que está desligado fica desligado depois de reiniciar.
+• Compartilhamento de tela agora obedece à resolução e aos quadros por segundo que você escolhe, e o cartão de status da página inicial mostra latência, conexão e foco reais em vez de texto decorativo.
