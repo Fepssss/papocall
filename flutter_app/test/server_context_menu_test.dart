@@ -59,7 +59,7 @@ void main() {
     expect(find.text('Silenciar'), findsOneWidget);
     expect(find.text('Cargos e permissões'), findsNothing);
     expect(find.text('Excluir servidor para todos'), findsNothing);
-    expect(find.text('Config. de notificação'), findsOneWidget);
+    expect(find.text('Config. de sons'), findsOneWidget);
     expect(find.text('Config. de privacidade'), findsOneWidget);
     // O dono vê "Remover servidor"; quem só participa vê "Sair do servidor".
     expect(find.text('Remover servidor'), findsNothing);
@@ -151,8 +151,16 @@ void main() {
     expect(state.servers.length, 1);
 
     await tester.enterText(find.byType(TextField), 'Servidor de Teste');
-    await tester.tap(find.text('Excluir definitivamente'));
-    await tester.pumpAndSettle();
+    // O túmulo é publicado antes de apagar daqui, e a chave dele sai de uma
+    // PBKDF2 que agora roda em isolato — a zona fake-async do teste não bombeia
+    // o evento real, então o toque e a espera precisam correr em runAsync.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Excluir definitivamente'));
+      for (var i = 0; i < 60 && state.servers.isNotEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await tester.pump();
+      }
+    });
 
     expect(state.servers, isEmpty);
     expect(tester.takeException(), isNull);

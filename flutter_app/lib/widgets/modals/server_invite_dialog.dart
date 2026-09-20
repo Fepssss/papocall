@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -87,7 +89,7 @@ class _ServerInviteDialogState extends State<ServerInviteDialog> {
       backgroundColor: HudTheme.bgSidebar,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 500,
+        width: min(500.0, MediaQuery.sizeOf(context).width - 64),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -30,8 +30,7 @@ class UserProfileBar extends StatelessWidget {
     }
 
     return Container(
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: const BoxDecoration(
         color: HudTheme.bgProfile,
         border: Border(
@@ -46,7 +45,11 @@ class UserProfileBar extends StatelessWidget {
           ),
 
           // Audio & Settings Controls
+          // Os botões têm de caber na altura do texto escalado; com o limite
+          // padrão de 48px eles é que determinavam a altura da barra.
           IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
             icon: Icon(
               user.isMuted ? Icons.mic_off : Icons.mic,
               size: 18,
@@ -57,6 +60,8 @@ class UserProfileBar extends StatelessWidget {
             splashRadius: 18,
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
             icon: Icon(
               user.isDeafened ? Icons.headset_off : Icons.headset,
               size: 18,
@@ -67,6 +72,8 @@ class UserProfileBar extends StatelessWidget {
             splashRadius: 18,
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
             icon: const Icon(Icons.settings, size: 18, color: HudTheme.textNormal),
             tooltip: 'Configurações de Usuário',
             onPressed: () => showDialog(

@@ -30,6 +30,10 @@ class MqttService {
 
   final Set<String> _subscribedTopics = {};
 
+  /// Assinatura do stream de mensagens do cliente atual. Precisa ser cancelada
+  /// quando o cliente morre, senão cada reconexão acumula um ouvinte órfão.
+  StreamSubscription<List<MqttReceivedMessage<MqttMessage>>>? _updatesSub;
+
   final StreamController<MqttEnvelope> _messagesController = StreamController.broadcast();
   Stream<MqttEnvelope> get messageStream => _messagesController.stream;
 
@@ -201,6 +205,8 @@ class MqttService {
       debugPrint('[MQTT] Callback: Desconectado.');
       if (!isCurrent()) return;
       _setConnected(false);
+      _updatesSub?.cancel();
+      _updatesSub = null;
       _client = null;
       // O autoReconnect do pacote está desligado de propósito (ele reinsiste com
       // o mesmo clientId e colide com a tentativa nova), então o backoff próprio
@@ -210,7 +216,12 @@ class MqttService {
   }
 
   void _setupMessageListener(MqttServerClient client) {
-    client.updates?.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
+    // Uma assinatura por cliente: sem cancelar a anterior, cada ciclo de
+    // reconexão deixava para trás um listener vivo, o stream controller dele e
+    // o socket do cliente morto. Numa rede instável isso cresce sem teto — foi
+    // o que o Windows apontou como vazamento de memória no processo.
+    _updatesSub?.cancel();
+    _updatesSub = client.updates?.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
       for (final msg in messages) {
         final recMess = msg.payload as MqttPublishMessage;
 
@@ -315,6 +326,8 @@ class MqttService {
   }
 
   void _teardownClient() {
+    _updatesSub?.cancel();
+    _updatesSub = null;
     try {
       _client?.disconnect();
     } catch (_) {}

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:papocall/providers/app_state.dart';
+import 'package:papocall/services/sound_service.dart';
 import 'package:papocall/services/voice_service.dart';
 import 'package:papocall/utils/app_paths.dart';
 
@@ -26,6 +27,10 @@ void main() {
   tearDown(() {
     VoiceService.listarEntradasDeAudio = entradasReais;
     VoiceService.listarSaidasDeAudio = saidasReais;
+    // O SoundService é estático: sem devolver os avisos ao ligado, um teste
+    // seguinte começaria calado por causa de um anterior.
+    SoundService.definirSons(SoundService.sonsDeChamada, ativos: true);
+    SoundService.definirSons(SoundService.sonsDeCompartilhamento, ativos: true);
   });
 
   Map<String, dynamic> configLida() =>
@@ -67,5 +72,29 @@ void main() {
 
     // Sem sala e sem o dispositivo na lista: nada é aplicado, nada estoura.
     await expectLater(state.voiceService.aplicarDispositivosEscolhidos(), completes);
+  });
+
+  test('a chave de som de chamada cala entrar e sair, e só isso', () async {
+    final state = AppState();
+
+    await state.definirSomDeChamada(false);
+    expect(SoundService.somAtivo(SoundType.joinCall), isFalse);
+    expect(SoundService.somAtivo(SoundType.leaveCall), isFalse);
+    // A marcação não obedece a esta chave: seria um desligamento escondido.
+    expect(SoundService.somAtivo(SoundType.mention), isTrue);
+
+    await state.definirSomDeChamada(true);
+    expect(SoundService.somAtivo(SoundType.joinCall), isTrue);
+  });
+
+  test('o compartilhamento de tela tem chave própria', () async {
+    final state = AppState();
+
+    await state.definirSomDeCompartilhamento(false);
+    expect(SoundService.somAtivo(SoundType.screenShareStart), isFalse);
+    expect(SoundService.somAtivo(SoundType.screenWatchStop), isFalse);
+    expect(SoundService.somAtivo(SoundType.joinCall), isTrue);
+
+    expect(configLida()['somDeCompartilhamento'], false);
   });
 }

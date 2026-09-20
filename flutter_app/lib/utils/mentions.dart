@@ -18,9 +18,17 @@ library;
 final RegExp mentionPattern =
     RegExp(r'(?<![A-Za-z0-9_@])@([A-Za-z0-9_]{3,20})(?![A-Za-z0-9_])');
 
+/// Os padrões ficam fora das funções: [mentionQueryAt] e [normalizeHandle]
+/// rodam a cada tecla digitada no campo de mensagem e cada varredura de não
+/// lidos, e compilar a expressão dentro do laço criava uma expressão nova por
+/// caractere percorrido.
+final RegExp arrobaInicial = RegExp(r'^@');
+final RegExp caractereDeHandle = RegExp('[A-Za-z0-9_]');
+final RegExp caractereAntesDeArroba = RegExp('[A-Za-z0-9_@]');
+
 /// Normaliza um @ para a forma usada em comparações: minúsculo e sem o arroba.
 String normalizeHandle(String raw) =>
-    raw.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    raw.trim().replaceFirst(arrobaInicial, '').toLowerCase();
 
 /// Extrai, em minúsculas e sem repetição, todos os @ citados em [text].
 Set<String> extractMentions(String text) {
@@ -104,13 +112,13 @@ MentionQuery? mentionQueryAt(String text, int cursor) {
   while (i >= 0) {
     final c = text[i];
     if (c == '@') break;
-    if (!RegExp(r'[A-Za-z0-9_]').hasMatch(c)) return null;
+    if (!caractereDeHandle.hasMatch(c)) return null;
     i--;
   }
   if (i < 0 || text[i] != '@') return null;
 
   // Evita disparar dentro de um e-mail ou de um @@.
-  if (i > 0 && RegExp(r'[A-Za-z0-9_@]').hasMatch(text[i - 1])) return null;
+  if (i > 0 && caractereAntesDeArroba.hasMatch(text[i - 1])) return null;
 
   final parcial = text.substring(i + 1, cursor);
   if (parcial.length > 20) return null;

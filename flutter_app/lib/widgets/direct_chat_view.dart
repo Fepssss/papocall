@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -228,7 +230,7 @@ class _DirectChatSectionState extends State<DirectChatSection> {
           style: TextStyle(color: HudTheme.textHeader, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         content: SizedBox(
-          width: 380,
+          width: min(380.0, MediaQuery.sizeOf(context).width - 96),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

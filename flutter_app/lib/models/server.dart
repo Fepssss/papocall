@@ -72,16 +72,6 @@ class Server {
     return roleOf(userId)?.has(permission) ?? false;
   }
 
-  /// Impede escalar privilégios: ninguém entrega a outro um cargo que tenha
-  /// uma permissão que o próprio usuário não tem.
-  bool canGrantRole(ServerRole role, String granterId) {
-    if (isOwnedBy(granterId)) return true;
-    for (final permission in role.permissions) {
-      if (!hasPermission(granterId, permission)) return false;
-    }
-    return true;
-  }
-
   factory Server.fromJson(Map<String, dynamic> json) {
     final rawChannels = json['channels'] as List<dynamic>? ?? [];
     final rawMembers = (json['memberIds'] as List<dynamic>?)?.map((m) => m.toString()).toList() ?? [];

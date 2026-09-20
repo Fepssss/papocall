@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -239,7 +241,7 @@ class _AuthScreenState extends State<AuthScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
           child: Container(
-            width: 460,
+            width: min(460.0, MediaQuery.sizeOf(context).width - 48),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: HudTheme.bgSidebar,

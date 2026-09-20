@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
@@ -9,10 +11,8 @@ import 'audio_devices_panel.dart';
 enum SettingsTab {
   account,
   privacy,
-  permissions,
   notifications,
   voiceAudio,
-  appearance,
   updates,
 }
 
@@ -32,17 +32,6 @@ class _SettingsModalState extends State<SettingsModal> {
 
   late TextEditingController _displayNameController;
   late TextEditingController _usernameController;
-
-  bool _allowDmsFromMembers = true;
-  bool _filterSuspiciousLinks = true;
-  bool _allowGlobalMentions = true;
-
-  bool _soundJoinLeave = true;
-  bool _soundScreenShare = true;
-  bool _desktopNotifications = true;
-
-  double _outputVolume = 0.85;
-  double _micSensitivity = 0.75;
 
   @override
   void initState() {
@@ -69,8 +58,8 @@ class _SettingsModalState extends State<SettingsModal> {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
-        width: 880,
-        height: 620,
+        width: min(880.0, MediaQuery.sizeOf(context).width - 64),
+        height: min(620.0, MediaQuery.sizeOf(context).height - 96),
         decoration: BoxDecoration(
           color: const Color(0xFF0D1017),
           borderRadius: BorderRadius.circular(12),
@@ -119,67 +108,68 @@ class _SettingsModalState extends State<SettingsModal> {
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildNavCategoryHeader('CONFIGURAÇÕES DE USUÁRIO'),
-                        const SizedBox(height: 4),
-                        _buildTabButton(
-                          tab: SettingsTab.account,
-                          icon: Icons.person_outline_rounded,
-                          label: 'Conta',
-                        ),
-                        _buildTabButton(
-                          tab: SettingsTab.privacy,
-                          icon: Icons.shield_outlined,
-                          label: 'Dados e privacidade',
-                        ),
-                        _buildTabButton(
-                          tab: SettingsTab.permissions,
-                          icon: Icons.verified_user_outlined,
-                          label: 'Permissões de mensagens',
-                        ),
-                        _buildTabButton(
-                          tab: SettingsTab.notifications,
-                          icon: Icons.notifications_none_outlined,
-                          label: 'Notificações',
-                        ),
-                      ],
+                  // A navegação é rolável de propósito: numa janela baixa os
+                  // botões não cabem em pé, e antes eles transbordavam para
+                  // fora do cartão em vez de ceder espaço.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildNavCategoryHeader('CONFIGURAÇÕES DE USUÁRIO'),
+                                const SizedBox(height: 4),
+                                _buildTabButton(
+                                  tab: SettingsTab.account,
+                                  icon: Icons.person_outline_rounded,
+                                  label: 'Conta',
+                                ),
+                                _buildTabButton(
+                                  tab: SettingsTab.privacy,
+                                  icon: Icons.shield_outlined,
+                                  label: 'Dados e privacidade',
+                                ),
+                                _buildTabButton(
+                                  tab: SettingsTab.notifications,
+                                  icon: Icons.volume_up_rounded,
+                                  label: 'Sons de aviso',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Divider(color: Color(0xFF1E2330), height: 1),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildNavCategoryHeader('CONFIGURAÇÕES DO APP'),
+                                const SizedBox(height: 4),
+                                _buildTabButton(
+                                  tab: SettingsTab.voiceAudio,
+                                  icon: Icons.mic_none_outlined,
+                                  label: 'Voz e Áudio',
+                                ),
+                                _buildTabButton(
+                                  tab: SettingsTab.updates,
+                                  icon: Icons.system_update_alt_rounded,
+                                  label: 'Atualizações',
+                                  badge: state.atualizacaoDisponivel != null,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Divider(color: Color(0xFF1E2330), height: 1),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildNavCategoryHeader('CONFIGURAÇÕES DO APP'),
-                        const SizedBox(height: 4),
-                        _buildTabButton(
-                          tab: SettingsTab.voiceAudio,
-                          icon: Icons.mic_none_outlined,
-                          label: 'Voz e Áudio',
-                        ),
-                        _buildTabButton(
-                          tab: SettingsTab.appearance,
-                          icon: Icons.palette_outlined,
-                          label: 'Aparência do HUD',
-                        ),
-                        _buildTabButton(
-                          tab: SettingsTab.updates,
-                          icon: Icons.system_update_alt_rounded,
-                          label: 'Atualizações',
-                          badge: state.atualizacaoDisponivel != null,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Divider(color: Color(0xFF1E2330), height: 1),
@@ -416,14 +406,10 @@ class _SettingsModalState extends State<SettingsModal> {
         return Icons.person_outline_rounded;
       case SettingsTab.privacy:
         return Icons.shield_outlined;
-      case SettingsTab.permissions:
-        return Icons.verified_user_outlined;
       case SettingsTab.notifications:
-        return Icons.notifications_none_outlined;
+        return Icons.volume_up_rounded;
       case SettingsTab.voiceAudio:
         return Icons.mic_none_outlined;
-      case SettingsTab.appearance:
-        return Icons.palette_outlined;
       case SettingsTab.updates:
         return Icons.system_update_alt_rounded;
     }
@@ -435,14 +421,10 @@ class _SettingsModalState extends State<SettingsModal> {
         return 'Minha Conta';
       case SettingsTab.privacy:
         return 'Dados e Privacidade';
-      case SettingsTab.permissions:
-        return 'Permissões de Mensagens';
       case SettingsTab.notifications:
-        return 'Notificações e Sons';
+        return 'Sons de aviso';
       case SettingsTab.voiceAudio:
         return 'Voz e Transmissão de Áudio';
-      case SettingsTab.appearance:
-        return 'Aparência e HUD Tático';
       case SettingsTab.updates:
         return 'Atualizações';
     }
@@ -454,14 +436,10 @@ class _SettingsModalState extends State<SettingsModal> {
         return _buildAccountTab(state);
       case SettingsTab.privacy:
         return _buildPrivacyTab();
-      case SettingsTab.permissions:
-        return _buildPermissionsTab();
       case SettingsTab.notifications:
-        return _buildNotificationsTab();
+        return _buildNotificationsTab(state);
       case SettingsTab.voiceAudio:
         return _buildVoiceAudioTab(state);
-      case SettingsTab.appearance:
-        return _buildAppearanceTab();
       case SettingsTab.updates:
         return _buildUpdatesTab(state);
     }
@@ -690,62 +668,32 @@ class _SettingsModalState extends State<SettingsModal> {
     );
   }
 
-  Widget _buildPermissionsTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSwitchTile(
-          title: 'Permitir Mensagens Diretas de Membros',
-          subtitle: 'Permite que amigos e membros dos mesmos servidores iniciem conversas privadas com você.',
-          value: _allowDmsFromMembers,
-          onChanged: (val) => setState(() => _allowDmsFromMembers = val),
-        ),
-        const SizedBox(height: 14),
-        _buildSwitchTile(
-          title: 'Filtro de Segurança para Links Externos',
-          subtitle: 'Exibe aviso preventivo ao clicar em URLs externas desconhecidas dentro das mensagens de chat.',
-          value: _filterSuspiciousLinks,
-          onChanged: (val) => setState(() => _filterSuspiciousLinks = val),
-        ),
-        const SizedBox(height: 14),
-        _buildSwitchTile(
-          title: 'Permitir Menções Globais (@todos e @sala)',
-          subtitle: 'Receber notificações destacadas quando alguém marcar o servidor inteiro no canal de texto.',
-          value: _allowGlobalMentions,
-          onChanged: (val) => setState(() => _allowGlobalMentions = val),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNotificationsTab() {
+  /// As duas chaves daqui controlam o `SoundService` de verdade, pelo
+  /// caminho [`AppState.definirSomDeChamada`] -> `SoundService.definirSons`,
+  /// e sobrevivem ao reiniciar porque vão no settings.json. O botão de teste
+  /// ignora a chave de propósito: ele existe para confirmar que o áudio sai
+  /// mesmo, inclusive com os avisos automáticos calados.
+  Widget _buildNotificationsTab(AppState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSwitchTile(
           title: 'Efeitos Sonoros de Entrada e Saída de Voz',
           subtitle: 'Reproduz bipes táticos HUD quando você ou um participante ingressa ou sai da sala.',
-          value: _soundJoinLeave,
-          onChanged: (val) => setState(() => _soundJoinLeave = val),
+          value: state.somDeChamada,
+          onChanged: (val) => state.definirSomDeChamada(val),
           action: IconButton(
             icon: const Icon(Icons.volume_up_rounded, color: HudTheme.green, size: 20),
             tooltip: 'Testar som de entrada',
-            onPressed: () => SoundService.playJoinCall(),
+            onPressed: () => SoundService.testar(SoundType.joinCall),
           ),
         ),
         const SizedBox(height: 14),
         _buildSwitchTile(
           title: 'Sons de Compartilhamento de Tela',
           subtitle: 'Alerta sonoro sutil quando uma transmissão de tela for iniciada ou encerrada na chamada.',
-          value: _soundScreenShare,
-          onChanged: (val) => setState(() => _soundScreenShare = val),
-        ),
-        const SizedBox(height: 14),
-        _buildSwitchTile(
-          title: 'Notificações na Área de Trabalho do Windows',
-          subtitle: 'Exibir avisos visuais na barra de tarefas ao receber mensagens importantes em segundo plano.',
-          value: _desktopNotifications,
-          onChanged: (val) => setState(() => _desktopNotifications = val),
+          value: state.somDeCompartilhamento,
+          onChanged: (val) => state.definirSomDeCompartilhamento(val),
         ),
       ],
     );
@@ -853,7 +801,11 @@ class _SettingsModalState extends State<SettingsModal> {
           ),
         ],
         const SizedBox(height: 18),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 10,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -866,7 +818,6 @@ class _SettingsModalState extends State<SettingsModal> {
               label: const Text('Verificar agora', style: TextStyle(fontSize: 12)),
               onPressed: ocupado ? null : () => state.verificarAtualizacao(),
             ),
-            const Spacer(),
             if (manifesto != null)
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
@@ -956,65 +907,13 @@ class _SettingsModalState extends State<SettingsModal> {
                 ),
                 icon: const Icon(Icons.volume_up, size: 16),
                 label: const Text('Testar Áudio'),
-                onPressed: () => SoundService.playJoinCall(),
+                onPressed: () => SoundService.testar(SoundType.joinCall),
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         const AudioDevicesPanel(),
-        const SizedBox(height: 6),
-        _buildSectionHeader('VOLUME DE SAÍDA', 'Ajuste o volume geral da chamada de áudio.'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(Icons.volume_down_rounded, color: HudTheme.textMuted, size: 18),
-            Expanded(
-              child: SliderTheme(
-                data: SliderThemeData(
-                  activeTrackColor: HudTheme.green,
-                  inactiveTrackColor: const Color(0xFF222A3A),
-                  thumbColor: HudTheme.green,
-                  overlayColor: HudTheme.green.withValues(alpha: 0.2),
-                ),
-                child: Slider(
-                  value: _outputVolume,
-                  onChanged: (v) => setState(() => _outputVolume = v),
-                ),
-              ),
-            ),
-            Text(
-              '${(_outputVolume * 100).round()}%',
-              style: const TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _buildSectionHeader('SENSIBILIDADE DE ENTRADA (MICROFONE)', 'Sensibilidade de ativação da sua voz na chamada.'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            const Icon(Icons.mic_none_rounded, color: HudTheme.textMuted, size: 18),
-            Expanded(
-              child: SliderTheme(
-                data: SliderThemeData(
-                  activeTrackColor: HudTheme.green,
-                  inactiveTrackColor: const Color(0xFF222A3A),
-                  thumbColor: HudTheme.green,
-                  overlayColor: HudTheme.green.withValues(alpha: 0.2),
-                ),
-                child: Slider(
-                  value: _micSensitivity,
-                  onChanged: (v) => setState(() => _micSensitivity = v),
-                ),
-              ),
-            ),
-            Text(
-              '${(_micSensitivity * 100).round()}%',
-              style: const TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ],
-        ),
         const SizedBox(height: 20),
         _buildSwitchTile(
           title: 'Supressão Tática de Ruído de Fundo',
@@ -1026,47 +925,6 @@ class _SettingsModalState extends State<SettingsModal> {
             await state.definirSupressaoDeRuido(val);
             await state.voiceService.aplicarDispositivosEscolhidos();
           },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAppearanceTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('TEMA E ESTILO DO HUD', 'Esquema visual militar-tático com alto contraste e ergonomia.'),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFF161B26),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: HudTheme.green.withValues(alpha: 0.4), width: 1.5),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.shield_moon_rounded, color: HudTheme.green, size: 26),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dark HUD Tático Sóbrio (Padrão Oficial)',
-                      style: TextStyle(color: HudTheme.textHeader, fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Fundo em ardósia profunda (#0B0E14), bordas em grafite tático (#1F2430) e acentos em verde esmeralda (#22C55E).',
-                      style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.check_circle_rounded, color: HudTheme.green, size: 20),
-            ],
-          ),
         ),
       ],
     );

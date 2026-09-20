@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:crypto/crypto.dart' as classic;
@@ -28,6 +29,7 @@ class ServerCrypto {
 
   static final _algorithm = AesGcm.with256bits();
   static final Map<String, SecretKey> _keyCache = {};
+  static final Map<String, Future<SecretKey>> _derivando = {};
   static final Map<String, String> _topicCache = {};
 
   /// Deriva (e memoriza) a chave AES-256 do código de convite do servidor.
@@ -36,19 +38,42 @@ class ServerCrypto {
     final cached = _keyCache[normalized];
     if (cached != null) return cached;
 
-    final pbkdf2 = Pbkdf2(
-      macAlgorithm: Hmac.sha256(),
-      iterations: 210000,
-      bits: 256,
-    );
+    // Duas chamadas simultâneas para o mesmo segredo esperariam duas vezes as
+    // 210 mil iterações: a primeira ainda não terminou e já não há o que
+    // memorizar. Quem chega depois espera a vez na mesma derivação.
+    final emCurso = _derivando[normalized];
+    if (emCurso != null) return emCurso;
 
-    final key = await pbkdf2.deriveKey(
-      secretKey: SecretKey(utf8.encode(normalized)),
-      nonce: utf8.encode(_keyDomain),
-    );
+    final futura = _derivarForaDoIsolate(normalized);
+    _derivando[normalized] = futura;
+    try {
+      final key = await futura;
+      _keyCache[normalized] = key;
+      return key;
+    } finally {
+      _derivando.remove(normalized);
+    }
+  }
 
-    _keyCache[normalized] = key;
-    return key;
+  /// PBKDF2 com 210 mil iterações em Dart puro custa de meio a dois segundos de
+  /// CPU. Na interface isso era o aplicativo inteiro congelado nos primeiros
+  /// segundos depois do login — um travamento por servidor, amigo e caixa de
+  /// entrada recém-contatados. O trabalho vai para um isolate; só os bytes
+  /// prontos voltam, e a chave privada nunca é atravessada.
+  static Future<SecretKey> _derivarForaDoIsolate(String normalized) async {
+    final bytes = await Isolate.run(() async {
+      final pbkdf2 = Pbkdf2(
+        macAlgorithm: Hmac.sha256(),
+        iterations: 210000,
+        bits: 256,
+      );
+      final derivada = await pbkdf2.deriveKey(
+        secretKey: SecretKey(utf8.encode(normalized)),
+        nonce: utf8.encode(_keyDomain),
+      );
+      return derivada.extractBytes();
+    });
+    return SecretKey(bytes);
   }
 
   /// Identificador opaco e estável do servidor, usado para montar o tópico MQTT.

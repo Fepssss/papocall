@@ -152,15 +152,23 @@ class HomeNavSidebar extends StatelessWidget {
                       border: Border.all(color: HudTheme.divider),
                     ),
                     child: Row(
-                      children: const [
-                        Icon(Icons.person_add_alt_1_rounded, color: HudTheme.accent, size: 18),
-                        SizedBox(width: 12),
-                        Text(
-                          'Adicionar Amigo',
-                          style: TextStyle(
-                            color: HudTheme.textNormal,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
+                      children: [
+                        const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          color: HudTheme.accent,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'Adicionar Amigo',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: HudTheme.textNormal,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -176,13 +184,17 @@ class HomeNavSidebar extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'SEUS SERVIDORES',
-                        style: TextStyle(
-                          color: HudTheme.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                      Flexible(
+                        child: Text(
+                          'SEUS SERVIDORES',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HudTheme.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                       InkWell(

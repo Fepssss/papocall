@@ -27,6 +27,34 @@ class SoundService {
   static DateTime _lastPlayTime = DateTime.fromMillisecondsSinceEpoch(0);
   static SoundType? _lastSoundType;
 
+  /// Os dois grupos que a tela de configurações liga e desliga. Cada aviso de
+  /// marcação fica fora das listas: ele sempre toca, e uma chave que não
+  /// controla nada seria pior que a ausência da chave.
+  static const List<SoundType> sonsDeChamada = [SoundType.joinCall, SoundType.leaveCall];
+  static const List<SoundType> sonsDeCompartilhamento = [
+    SoundType.screenShareStart,
+    SoundType.screenShareStop,
+    SoundType.screenWatchStart,
+    SoundType.screenWatchStop,
+  ];
+
+  static final Set<SoundType> _desativados = {};
+
+  static void definirSons(List<SoundType> tipos, {required bool ativos}) {
+    if (ativos) {
+      _desativados.removeAll(tipos);
+    } else {
+      _desativados.addAll(tipos);
+    }
+  }
+
+  static bool somAtivo(SoundType type) => !_desativados.contains(type);
+
+  /// Toque de teste, disparado de propósito por um botão. Ele ignora as
+  /// chaves de aviso: quem aperta "testar" quer saber se o alto-falante funciona
+  /// justamente quando os bipes automáticos estão desligados.
+  static void testar(SoundType type) => play(type, forcar: true);
+
   static void initialize() {
     if (_initialized) return;
     _initialized = true;
@@ -68,8 +96,9 @@ class SoundService {
     }
   }
 
-  static void play(SoundType type) {
+  static void play(SoundType type, {bool forcar = false}) {
     if (!Platform.isWindows) return;
+    if (!forcar && _desativados.contains(type)) return;
     if (!_initialized) initialize();
 
     final now = DateTime.now();

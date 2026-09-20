@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -7,8 +9,12 @@ import '../theme/hud_theme.dart';
 class ScreenShareDialog extends StatefulWidget {
   const ScreenShareDialog({super.key});
 
-  static Future<String?> show(BuildContext context) async {
-    return showDialog<String>(
+  /// A escolha volta completa: a janela que abre aqui decide a fonte e também a
+  /// resolução e os quadros por segundo com que a transmissão vai sair. Os
+  /// números são os mesmos que o `VoiceService` monta em `VideoParameters`.
+  static Future<({String sourceId, int width, int height, int fps})?> show(
+      BuildContext context) async {
+    return showDialog<({String sourceId, int width, int height, int fps})>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.75),
       builder: (context) => const ScreenShareDialog(),
@@ -26,7 +32,10 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
   final List<StreamSubscription> _subscriptions = [];
   bool _isLoading = true;
   String _selectedQuality = '1080p';
-  String _selectedFps = '30 FPS';
+  int _selectedFps = 30;
+
+  int get _alturaEscolhida => _selectedQuality == '1080p' ? 1080 : 720;
+  int get _larguraEscolhida => _selectedQuality == '1080p' ? 1920 : 1280;
 
   @override
   void initState() {
@@ -118,8 +127,8 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
       child: Container(
-        width: 720,
-        height: 560,
+        width: min(720.0, MediaQuery.sizeOf(context).width - 120),
+        height: min(560.0, MediaQuery.sizeOf(context).height - 120),
         decoration: BoxDecoration(
           color: HudTheme.bgSidebar,
           borderRadius: BorderRadius.circular(14),
@@ -348,9 +357,9 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
                   margin: const EdgeInsets.symmetric(horizontal: 8),
                   color: HudTheme.divider,
                 ),
-                _buildFpsChip('30 FPS'),
+                _buildFpsChip(30),
                 const SizedBox(width: 4),
-                _buildFpsChip('60 FPS'),
+                _buildFpsChip(60),
               ],
             ),
           ),
@@ -385,7 +394,12 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
             ),
             onPressed: _selectedSource != null
                 ? () {
-                    Navigator.of(context).pop(_selectedSource!.id);
+                    Navigator.of(context).pop((
+                      sourceId: _selectedSource!.id,
+                      width: _larguraEscolhida,
+                      height: _alturaEscolhida,
+                      fps: _selectedFps,
+                    ));
                   }
                 : null,
           ),
@@ -417,10 +431,10 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
     );
   }
 
-  Widget _buildFpsChip(String text) {
-    final active = _selectedFps == text;
+  Widget _buildFpsChip(int fps) {
+    final active = _selectedFps == fps;
     return InkWell(
-      onTap: () => setState(() => _selectedFps = text),
+      onTap: () => setState(() => _selectedFps = fps),
       borderRadius: BorderRadius.circular(4),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -429,7 +443,7 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          text,
+          '$fps FPS',
           style: TextStyle(
             fontSize: 11,
             fontWeight: active ? FontWeight.bold : FontWeight.w500,

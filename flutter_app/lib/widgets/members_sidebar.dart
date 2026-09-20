@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
+import '../theme/hud_layout.dart';
 import '../theme/hud_theme.dart';
 import 'member_context_menu.dart';
 
@@ -21,7 +22,7 @@ class MembersSidebar extends StatelessWidget {
     if (server == null) return const SizedBox.shrink();
 
     return Container(
-      width: 240,
+      width: HudLayout.of(context).barraMembros,
       color: HudTheme.bgSidebar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

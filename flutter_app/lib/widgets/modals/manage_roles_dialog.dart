@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/role.dart';
@@ -206,8 +208,8 @@ class _ManageRolesDialogState extends State<ManageRolesDialog> {
         side: const BorderSide(color: HudTheme.divider),
       ),
       child: SizedBox(
-        width: 760,
-        height: 560,
+        width: min(760.0, MediaQuery.sizeOf(context).width - 64),
+        height: min(560.0, MediaQuery.sizeOf(context).height - 96),
         child: Column(
           children: [
             _header(canManage),

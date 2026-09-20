@@ -52,6 +52,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? audioOutputId;
   bool noiseSuppression = true;
 
+  // Avisos sonoros, também persistidos. Quem obedece à escolha é o
+  // SoundService, que verifica antes de mandar o som ao Windows.
+  bool somDeChamada = true;
+  bool somDeCompartilhamento = true;
+
+  Future<void> definirSomDeChamada(bool valor) async {
+    somDeChamada = valor;
+    SoundService.definirSons(SoundService.sonsDeChamada, ativos: valor);
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> definirSomDeCompartilhamento(bool valor) async {
+    somDeCompartilhamento = valor;
+    SoundService.definirSons(SoundService.sonsDeCompartilhamento, ativos: valor);
+    await _saveSettings();
+    notifyListeners();
+  }
+
   /// Troca o microfone. `null` devolve a escolha ao padrão do Windows.
   ///
   /// Aqui só guarda e espelha no serviço: quem aplica no motor WebRTC é a
@@ -113,6 +132,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _connectionSubscription;
   StreamSubscription? _pingSubscription;
+
+  /// Assinaturas do próprio SDK do LiveKit (falantes, ocupantes, tela).
+  ///
+  /// Precisam ser guardadas: cada entrada e saída de sala criava um conjunto
+  /// novo de listeners que jamais era cancelado, e eles continuavam apontando
+  /// para um `Room` morto.
+  final List<StreamSubscription> _vozAssinaturas = [];
   Timer? _updateCheckTimer;
   bool _isDisposed = false;
 
@@ -144,8 +170,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Solicitações de amizade enviadas sem rede, aguardando reenvio.
   final List<FriendRequest> _outboxFriendRequests = [];
-
-  bool get hasPendingOutbox => _outboxFriendRequests.isNotEmpty;
 
   // --- Histórico compartilhado -------------------------------------------
   //
@@ -180,6 +204,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _historyPublishTimer;
   final Set<String> _serversNeedingHistoryPublish = {};
 
+  /// Janela de coalescência das gravações em disco.
+  ///
+  /// Cada mensagem recebida reescrevia o histórico inteiro e cada presença
+  /// reescrevia o retrato dos usuários conhecidos, sempre serializando e
+  /// gravando no isolato da interface. Numa conversa movimentada isso encavala
+  /// dezenas de escritas redundantes e é um dos motivos de a janela engasgar.
+  /// Aqui as chamadas próximas viram uma única escrita.
+  static const Duration _folgaDeGravacao = Duration(seconds: 5);
+  Timer? _gravacaoEmDiscoTimer;
+  bool _historicoSujo = false;
+
+  /// Última latência que a interface ficou sabendo. Serve só para não avisar de
+  /// novo o mesmo número.
+  int _ultimoPingNotificado = -1;
+
   /// Momento da última leitura de cada canal, para contar o que chegou depois.
   final Map<String, int> _lastReadAt = {};
 
@@ -203,13 +242,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _initVoiceListeners();
       _initDefaultData();
       _initStorageAndNetwork();
-    }
-  }
-
-  void setWindowFocused(bool focused) {
-    if (isWindowFocused != focused) {
-      isWindowFocused = focused;
-      notifyListeners();
     }
   }
 
@@ -249,6 +281,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // resumed: Janela do PapoCall está ativa/em destaque (focada)
     // inactive / hidden / paused: Usuário trocou de aplicativo ou minimizou
     final focused = (state == AppLifecycleState.resumed);
+    if (!focused) {
+      // Sair da janela é o último momento certo para guardar o que está sendo
+      // escrito: depois disso o aplicativo pode fechar sem nova digitação.
+      _rascunhoGravadoEm = null;
+      _saveDrafts();
+    }
     if (isWindowFocused != focused) {
       isWindowFocused = focused;
       notifyListeners();
@@ -270,25 +308,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _initVoiceListeners() {
-    _voiceService.activeSpeakersStream.listen((speakers) {
-      final userChanged = currentUser.isSpeaking != speakers.contains(currentUser.id);
-      currentUser.isSpeaking = speakers.contains(currentUser.id);
+    _vozAssinaturas.add(_voiceService.activeSpeakersStream.listen((falantes) {
+      // O LiveKit identifica todo mundo por `@username`; o restante do app
+      // trabalha com o id da conta. Comparar um com o outro é o que fazia o anel
+      // de "está falando" nunca acender, nem para a própria pessoa.
+      final nomes = falantes.map(_nomeDaIdentity).toSet();
+      var mudou = currentUser.isSpeaking != nomes.contains(currentUser.username.toLowerCase());
+      currentUser.isSpeaking = nomes.contains(currentUser.username.toLowerCase());
 
-      var remoteChanged = false;
       for (final user in _onlineUsers.values) {
-        final isSpk = speakers.contains(user.id);
-        if (user.isSpeaking != isSpk) {
-          user.isSpeaking = isSpk;
-          remoteChanged = true;
+        final estaFalando = nomes.contains(user.username.toLowerCase());
+        if (user.isSpeaking != estaFalando) {
+          user.isSpeaking = estaFalando;
+          mudou = true;
         }
       }
 
-      if (userChanged || remoteChanged) {
-        notifyListeners();
-      }
-    });
+      if (mudou) notifyListeners();
+    }));
 
-    _voiceService.screenShareTrackStream.listen((track) {
+    // A sala de voz em si: quem está nela é o que o LiveKit diz, não o que a
+    // presença anunciou. É a diferença entre ver o amigo na chamada e ver só o
+    // próprio avatar numa sala cheia.
+    _vozAssinaturas.add(_voiceService.participantsStream.listen((ocupantes) {
+      if (_isDisposed) return;
+      _ocupantesDaSala = ocupantes;
+      notifyListeners();
+    }));
+
+    _vozAssinaturas.add(_voiceService.screenShareTrackStream.listen((track) {
       final wasActive = activeScreenShareTrack != null;
       activeScreenShareTrack = track;
       activeScreenSharePresenter = _voiceService.activeScreenSharePresenter;
@@ -298,19 +346,78 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       _sendPresence();
       notifyListeners();
-    });
+    }));
 
     _pingSubscription?.cancel();
-    _pingSubscription = _voiceService.pingStream.listen((_) {
-      if (!_isDisposed) {
-        notifyListeners();
-      }
+    _pingSubscription = _voiceService.pingStream.listen((ms) {
+      if (_isDisposed) return;
+      // A batida vem a cada 2,5 s dentro da chamada; avisar a interface também
+      // quando o número é o mesmo pintava a HUD inteira de dois em dois
+      // segundos por nada.
+      if (ms == _ultimoPingNotificado) return;
+      _ultimoPingNotificado = ms;
+      notifyListeners();
     });
 
     _voiceService.onDisconnected = () {
       debugPrint('[AppState] LiveKit reportou desconexao da sala de voz.');
       disconnectVoice();
     };
+  }
+
+  static String _nomeDaIdentity(String identity) =>
+      identity.startsWith('@') ? identity.substring(1).toLowerCase() : identity.toLowerCase();
+
+  /// Quem está na sala de voz neste instante, na fonte verdadeira (LiveKit).
+  List<OcupanteDaSala> _ocupantesDaSala = const [];
+
+  /// Os ocupantes da sala traduzidos para um usuário conhecido, na ordem em que
+  /// entraram. Quem não está no diretório local ainda aparece: o nome vem do
+  /// próprio token, e esconder alguém da chamada por falta de cadastro seria
+  /// pior do que mostrá-lo pelo que ele é.
+  List<UserModel> get ocupantesDaChamada {
+    final lista = <UserModel>[];
+    for (final o in _ocupantesDaSala) {
+      // O próprio participante local vem sempre pela nossa conta: é o id dela
+      // que a interface compara para saber se o cartão é "Você".
+      final resolvido = o.isLocal
+          ? currentUser
+          : _porNomeDeUsuario(o.username) ??
+              UserModel(
+                id: 'livekit:${o.identity}',
+                username: o.username,
+                displayName: o.nome.isNotEmpty ? o.nome : o.username,
+              );
+      lista.add(UserModel(
+        id: resolvido.id,
+        username: resolvido.username,
+        displayName: resolvido.displayName,
+        avatar: resolvido.avatar,
+        status: UserStatus.online,
+        isSpeaking: o.falando,
+        isMuted: o.mudo,
+        isScreenSharing: o.isLocal ? currentUser.isScreenSharing : resolvido.isScreenSharing,
+        currentVoiceChannelId: connectedVoiceChannelId,
+        currentVoiceServerId: activeServerId,
+      ));
+    }
+    return lista;
+  }
+
+  /// Procura no diretório local e na lista de amigos pelo `username`.
+  UserModel? _porNomeDeUsuario(String nome) {
+    final alvo = nome.toLowerCase();
+    if (alvo.isEmpty) return null;
+    for (final u in _onlineUsers.values) {
+      if (u.username.toLowerCase() == alvo) return u;
+    }
+    for (final u in _knownUsers.values) {
+      if (u.username.toLowerCase() == alvo) return u;
+    }
+    for (final u in friends) {
+      if (u.username.toLowerCase() == alvo) return u;
+    }
+    return null;
   }
 
   int get voicePingMs => _voiceService.currentPingMs;
@@ -512,6 +619,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Adia a gravação do histórico; ver [_folgaDeGravacao].
+  void _saveChatHistorySoon() {
+    _historicoSujo = true;
+    _gravacaoEmDiscoTimer ??= Timer(_folgaDeGravacao, _escreverPendenciasEmDisco);
+  }
+
+  Future<void> _escreverPendenciasEmDisco() async {
+    _gravacaoEmDiscoTimer?.cancel();
+    _gravacaoEmDiscoTimer = null;
+    if (_historicoSujo) await _saveChatHistory();
+  }
+
   Future<void> _saveKnownUsers() async {
     try {
       final file = _getKnownUsersFile();
@@ -565,6 +684,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'audioInputId': audioInputId,
         'audioOutputId': audioOutputId,
         'noiseSuppression': noiseSuppression,
+        'somDeChamada': somDeChamada,
+        'somDeCompartilhamento': somDeCompartilhamento,
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -573,13 +694,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final Map<String, String> _drafts = {};
+  DateTime? _rascunhoGravadoEm;
+  static const Duration _folgaDeRascunho = Duration(seconds: 2);
+
   String getDraft(String channelId) => _drafts[channelId] ?? '';
+
+  /// O campo de mensagem dispara a cada tecla. Grava o rascunho no máximo uma
+  /// vez a cada [_folgaDeRascunho]: escrita em disco por caractere digitado é
+  /// o tipo de coisa que faz a janela engasgar enquanto se escreve.
   void setDraft(String channelId, String text) {
     _drafts[channelId] = text;
+    final agora = DateTime.now();
+    final anterior = _rascunhoGravadoEm;
+    if (anterior != null && agora.difference(anterior) < _folgaDeRascunho) return;
+    _rascunhoGravadoEm = agora;
     _saveDrafts();
   }
+
   void clearDraft(String channelId) {
     _drafts.remove(channelId);
+    _rascunhoGravadoEm = null;
     _saveDrafts();
   }
 
@@ -611,6 +745,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _saveChatHistory() async {
+    _historicoSujo = false;
     try {
       final file = _getChatHistoryFile();
       final Map<String, dynamic> serialized = {};
@@ -695,7 +830,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     for (final lista in _messages.values) {
       lista.removeWhere((m) => m.id == messageId);
     }
-    _saveChatHistory();
+    _saveChatHistorySoon();
     _saveDeletedMessages();
   }
 
@@ -744,7 +879,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         audioInputId = data['audioInputId'] as String?;
         audioOutputId = data['audioOutputId'] as String?;
         noiseSuppression = data['noiseSuppression'] as bool? ?? true;
+        somDeChamada = data['somDeChamada'] as bool? ?? true;
+        somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
         _espelharConfigDeAudio();
+        SoundService.definirSons(SoundService.sonsDeChamada, ativos: somDeChamada);
+        SoundService.definirSons(SoundService.sonsDeCompartilhamento,
+            ativos: somDeCompartilhamento);
       }
     } catch (e) {
       debugPrint('Erro ao carregar configurações: $e');
@@ -998,6 +1138,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       await UpdateService.instalarEReiniciar(instalador.path);
       AppLog.write('Update',
           'aplicativo encerrado para instalar a v${manifesto.version}');
+      // O processo morre agora: o que estava adiado para o disco precisava
+      // sair antes, ou a conversa da última janela se perderia na atualização.
+      await _escreverPendenciasEmDisco();
+      // O buffer do log morre com o processo: sem escoar antes, a última linha
+      // — justamente a que diz que a instalação começou — nunca chega ao disco.
+      await AppLog.encerrar();
       // O executável em uso não pode ser substituído por dentro: quem troca os
       // arquivos é o instalador, já destacado deste processo.
       exit(0);
@@ -1271,7 +1417,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     if (mudou) {
-      _saveChatHistory();
+      _saveChatHistorySoon();
       _saveKnownUsers();
       notifyListeners();
     }
@@ -1283,14 +1429,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// roster do servidor; a partir daí, assinar presença e histórico dele pelo
   /// nome exato faz com que ele apareça de imediato nas próximas aberturas do
   /// app, sem esperar que volte a falar.
-  void _trackMemberSlots(Server origin, String memberId) {
-    if (memberId.isEmpty || memberId == currentUser.id) return;
-    if (origin.memberIds.contains(memberId)) return;
+  bool _trackMemberSlots(Server origin, String memberId) {
+    if (memberId.isEmpty || memberId == currentUser.id) return false;
+    if (origin.memberIds.contains(memberId)) return false;
 
     origin.memberIds.add(memberId);
     _saveServers();
     _mqtt.subscribe(ServerCrypto.presenceSlotTopic(origin.inviteCode, memberId));
     _mqtt.subscribe(ServerCrypto.historySlotTopic(origin.inviteCode, memberId));
+    return true;
   }
 
   /// Registra o autor de uma mensagem como membro conhecido do servidor.
@@ -1510,6 +1657,66 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Aplica um estado de presença recebido, de um servidor ou da caixa de
+  /// presença de um amigo.
+  ///
+  /// Dois canais descrevem o mesmo usuário e cada um sabe só uma parte: o
+  /// heartbeat do servidor [servidorDoPacote] cala a voz de propósito quando a
+  /// pessoa está em outro servidor, e a presença pessoal é global. Misturá-los
+  /// sem critério era o que fazia alguém desaparecer da sala de voz na tela do
+  /// outro sem ter saído — o pacote do servidor vizinho, mais novo, apagava o que
+  /// o servidor da chamada acabava de dizer.
+  ///
+  /// A idade anunciada pelo remetente decide o que é "agora": [_lastSeen] guarda
+  /// o carimbo do pacote, e a varredura de presença quem está offline. Uma cópia
+  /// retida antiga que chega depois de uma recente continua sendo prova de que
+  /// ninguém publica ali há muito tempo.
+  ///
+  /// E a gravação em disco deixou de ser por pacote: um heartbeat por membro a
+  /// cada 10 segundos reescrevia o diretório inteiro por nada.
+  ///
+  /// Devolve `true` quando o resultado muda algo na tela. A marca de tempo fica
+  /// de fora da comparação de propósito: ela muda a cada batida do heartbeat e
+  /// nunca aparece enquanto a pessoa está online, então compará-la reacenderia
+  /// a árvore inteira a cada pacote, mesmo sem nada visível ter mudado.
+  bool _aplicarPresenca(UserModel user, int sentAt, {String? servidorDoPacote}) {
+    final uid = user.id;
+    final anterior = _onlineUsers[uid];
+    _lastSeen[uid] = sentAt > 0 ? sentAt : DateTime.now().millisecondsSinceEpoch;
+
+    final conhecido = _knownUsers[uid];
+    final mudouIdentidade = conhecido == null ||
+        conhecido.username != user.username ||
+        conhecido.displayName != user.displayName ||
+        conhecido.avatar != user.avatar;
+    _knownUsers[uid] = user;
+    if (mudouIdentidade) _saveKnownUsers();
+
+    // O pacote só sabe de chamada se veio do servidor onde a pessoa está na voz,
+    // ou se é o pessoal, que sempre sabe. Fora disso ele não tem o direito de
+    // limpar o que o outro canal acaba de anunciar.
+    final sabeDaChamada =
+        servidorDoPacote == null || servidorDoPacote == anterior?.currentVoiceServerId;
+    if (!sabeDaChamada &&
+        user.currentVoiceChannelId == null &&
+        anterior?.currentVoiceChannelId != null) {
+      user.currentVoiceChannelId = anterior!.currentVoiceChannelId;
+      user.currentVoiceServerId = anterior.currentVoiceServerId;
+      user.isMuted = anterior.isMuted;
+      user.isDeafened = anterior.isDeafened;
+    }
+
+    final visivel = _resumoVisivel(anterior) != _resumoVisivel(user);
+    _onlineUsers[uid] = user;
+    return visivel;
+  }
+
+  static String _resumoVisivel(UserModel? u) => u == null
+      ? 'ausente'
+      : '${u.status.name}|${u.displayName}|${u.username}|${u.avatar}'
+          '|${u.currentVoiceChannelId}|${u.currentVoiceServerId}'
+          '|${u.isMuted}|${u.isDeafened}|${u.isScreenSharing}';
+
   /// Processa atualização de presença vinda de um amigo
   void _processFriendPresencePayload(Map<String, dynamic> data) {
     final uid = data['userId'] as String?;
@@ -1540,10 +1747,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         currentVoiceServerId: isFresh ? data['voiceServerId'] as String? : null,
       );
 
-      _onlineUsers[uid] = user;
-      _knownUsers[uid] = user;
-      _lastSeen[uid] = isFresh ? DateTime.now().millisecondsSinceEpoch : sentAt;
-      _saveKnownUsers();
+      _aplicarPresenca(user, sentAt);
 
       // Atualiza também o amigo na lista local se encontrado
       final friendIndex = friends.indexWhere((f) => f.username.toLowerCase() == username.toLowerCase());
@@ -1673,7 +1877,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _saveServers();
-    _saveChatHistory();
+    _saveChatHistorySoon();
     notifyListeners();
 
     // Se estávamos numa sala de voz que só existia na estrutura provisória, o
@@ -1797,7 +2001,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           if (destino.length > _channelMessageCap) {
             destino.removeRange(0, destino.length - _channelMessageCap);
           }
-          _saveChatHistory();
+          // Escrita adiada: o retrato retido no broker traz estas mensagens de
+          // volta na próxima inicialização, então nenhuma delas se perde aqui.
+          _saveChatHistorySoon();
           // Passa a servir esta mensagem a quem entrar depois.
           _scheduleHistoryPublish(origin.id);
 
@@ -1854,13 +2060,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           currentVoiceChannelId: isFresh ? data['voiceChannelId'] as String? : null,
           currentVoiceServerId: isFresh ? data['voiceServerId'] as String? : null,
         );
-        _onlineUsers[uid] = user;
-        _knownUsers[uid] = user;
-        _lastSeen[uid] = isFresh ? DateTime.now().millisecondsSinceEpoch : sentAt;
-        _saveKnownUsers();
+        final visivel = _aplicarPresenca(user, sentAt, servidorDoPacote: origin.id);
+        final novoMembro = _trackMemberSlots(origin, uid);
 
-        _trackMemberSlots(origin, uid);
-        notifyListeners();
+        // Batida de heartbeat de membro que continua exatamente onde estava não
+        // é notícia para a tela: reacender a árvore a cada uma delas era o que
+        // mantinha o aplicativo desenhando o servidor inteiro parado.
+        if (visivel || novoMembro) notifyListeners();
       }
     }
   }
@@ -3267,14 +3473,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       orElse: () => activeServer ?? servers.first,
     );
 
-    if (!srv.memberIds.contains(currentUser.id)) {
-      srv.memberIds.insert(0, currentUser.id);
-    }
+    // Quem abre a lista pode não estar no roster que chegou pelo ar: servidor
+    // de outra pessoa ainda não sincronizado. Em vez de se inserir no model
+    // durante o build, a lista de exibição é que se monta com a gente na
+    // frente — o model fica como a rede entregou.
+    final ids = srv.memberIds.contains(currentUser.id)
+        ? srv.memberIds
+        : [currentUser.id, ...srv.memberIds];
 
     final online = <UserModel>[];
     final offline = <UserModel>[];
 
-    for (final memberId in srv.memberIds) {
+    for (final memberId in ids) {
       if (memberId == currentUser.id) {
         if (currentUser.status == UserStatus.offline) {
           offline.add(currentUser);
@@ -3470,8 +3680,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<bool> startScreenShare(String sourceId) async {
-    final ok = await _voiceService.startScreenShare(sourceId);
+  Future<bool> startScreenShare(
+    String sourceId, {
+    int width = 1920,
+    int height = 1080,
+    int fps = 30,
+  }) async {
+    final ok = await _voiceService.startScreenShare(
+      sourceId,
+      width: width,
+      height: height,
+      fps: fps,
+    );
     if (ok) {
       currentUser.isScreenSharing = true;
       activeScreenShareTrack = _voiceService.activeScreenShareTrack;
@@ -3505,6 +3725,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _voiceService.leaveVoice();
     activeScreenShareTrack = null;
     activeScreenSharePresenter = null;
+    _ocupantesDaSala = const [];
+    _ultimoPingNotificado = -1;
     _sendPresence();
     notifyListeners();
   }
@@ -3512,14 +3734,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     _isDisposed = true;
+    for (final s in _vozAssinaturas) {
+      s.cancel();
+    }
+    _vozAssinaturas.clear();
     _pingSubscription?.cancel();
     _pingSubscription = null;
     _connectionSubscription?.cancel();
     _connectionSubscription = null;
+    _mqttSubscription?.cancel();
+    _mqttSubscription = null;
     WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     _presenceSweepTimer?.cancel();
     _historyPublishTimer?.cancel();
+    _gravacaoEmDiscoTimer?.cancel();
+    _gravacaoEmDiscoTimer = null;
     _updateCheckTimer?.cancel();
     _voiceService.dispose();
     _mqtt.dispose();

@@ -191,26 +191,36 @@ class _HomePageViewState extends State<HomePageView> {
           Container(width: 1, height: 20, color: HudTheme.divider),
           const SizedBox(width: 12),
 
-          // Abas de Filtro
-          _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
-          const SizedBox(width: 6),
-          _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
-          const SizedBox(width: 6),
-          _buildFilterTab(
-            FriendViewTab.direct,
-            'Conversas',
-            directUnread,
-            isAlert: directUnread > 0,
+          // Abas de Filtro. Cabem folgadas na janela de projeto; numa janela
+          // estreita elas viram uma faixa rolável em vez de estourar a barra.
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
+                  const SizedBox(width: 6),
+                  _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
+                  const SizedBox(width: 6),
+                  _buildFilterTab(
+                    FriendViewTab.direct,
+                    'Conversas',
+                    directUnread,
+                    isAlert: directUnread > 0,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterTab(
+                    FriendViewTab.pending,
+                    'Solicitações',
+                    pendingCount,
+                    isAlert: pendingCount > 0,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildFilterTab(FriendViewTab.offline, 'Offline', offlineCount),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(width: 6),
-          _buildFilterTab(
-            FriendViewTab.pending,
-            'Solicitações',
-            pendingCount,
-            isAlert: pendingCount > 0,
-          ),
-          const SizedBox(width: 6),
-          _buildFilterTab(FriendViewTab.offline, 'Offline', offlineCount),
           const SizedBox(width: 12),
 
           // Botão Verde Neon: Adicionar Amigo
@@ -232,53 +242,78 @@ class _HomePageViewState extends State<HomePageView> {
 
           const Spacer(),
 
-          // Botão: Entrar via Código de Convite
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: HudTheme.accent,
-              side: const BorderSide(color: HudTheme.divider),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: const Icon(Icons.vpn_key_rounded, size: 14),
-            label: const Text('Entrar com Convite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
-            onPressed: () => _showJoinInviteDialog(context, state),
-          ),
-          const SizedBox(width: 8),
-
-          // Botão: Criar Novo Servidor
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: HudTheme.bgCard,
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: HudTheme.divider),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: const Icon(Icons.add_rounded, size: 16, color: HudTheme.green),
-            label: const Text('Criar Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-            onPressed: () => CreateServerDialog.show(context),
-          ),
-
-          if (state.activeServer != null) ...[
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: HudTheme.textHeader,
-                side: const BorderSide(color: HudTheme.divider),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          // Os três botões de ação cabem folgados na janela de projeto; numa
+          // janela estreita eles passam a rolar em vez de cortar a barra.
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildInviteButton(context, state),
+                    const SizedBox(width: 8),
+                    _buildCreateServerButton(context),
+                    if (state.activeServer != null) ...[
+                      const SizedBox(width: 8),
+                      _buildActiveServerButton(state),
+                    ],
+                  ],
+                ),
               ),
-              icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: HudTheme.accent),
-              label: Text(
-                state.activeServer!.name,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-              ),
-              onPressed: state.closeHomePage,
             ),
-          ],
+          ),
         ],
       ),
+    );
+  }
+
+  /// Botão: Entrar via Código de Convite
+  Widget _buildInviteButton(BuildContext context, AppState state) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: HudTheme.accent,
+        side: const BorderSide(color: HudTheme.divider),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: const Icon(Icons.vpn_key_rounded, size: 14),
+      label: const Text('Entrar com Convite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+      onPressed: () => _showJoinInviteDialog(context, state),
+    );
+  }
+
+  /// Botão: Criar Novo Servidor
+  Widget _buildCreateServerButton(BuildContext context) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: HudTheme.bgCard,
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: HudTheme.divider),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: const Icon(Icons.add_rounded, size: 16, color: HudTheme.green),
+      label: const Text('Criar Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+      onPressed: () => CreateServerDialog.show(context),
+    );
+  }
+
+  /// Botão que devolve a tela ao servidor aberto por trás da Home.
+  Widget _buildActiveServerButton(AppState state) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: HudTheme.textHeader,
+        side: const BorderSide(color: HudTheme.divider),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: HudTheme.accent),
+      label: Text(
+        state.activeServer!.name,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+      ),
+      onPressed: state.closeHomePage,
     );
   }
 
@@ -1018,12 +1053,16 @@ class _HomePageViewState extends State<HomePageView> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Bem-vindo ao PapoCall, ${user.username}!',
-                      style: const TextStyle(
-                        color: HudTheme.textHeader,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        'Bem-vindo ao PapoCall, ${user.username}!',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: HudTheme.textHeader,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1049,24 +1088,19 @@ class _HomePageViewState extends State<HomePageView> {
                 const SizedBox(height: 14),
 
                 // Métricas Rápidas
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
                     _buildMetricChip(
                       icon: Icons.dns_rounded,
                       label: 'Servidores: ${state.servers.length}',
                       color: HudTheme.accent,
                     ),
-                    const SizedBox(width: 12),
                     _buildMetricChip(
                       icon: Icons.people_alt_rounded,
                       label: 'Squad Online: ${state.onlineMembers.length}',
                       color: HudTheme.green,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildMetricChip(
-                      icon: Icons.graphic_eq_rounded,
-                      label: 'Motor LiveKit: Pronto',
-                      color: HudTheme.yellow,
                     ),
                   ],
                 ),
@@ -1106,9 +1140,13 @@ class _HomePageViewState extends State<HomePageView> {
         children: [
           Icon(icon, color: color, size: 14),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -1404,20 +1442,22 @@ class _HomePageViewState extends State<HomePageView> {
               child: const Icon(Icons.add_rounded, color: HudTheme.green, size: 24),
             ),
             const SizedBox(width: 14),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Criar Novo Servidor',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Estrutura padrão com canais, cargos e voz',
-                  style: TextStyle(color: HudTheme.textMuted, fontSize: 11),
-                ),
-              ],
+            Flexible(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Criar Novo Servidor',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Estrutura padrão com canais, cargos e voz',
+                    style: TextStyle(color: HudTheme.textMuted, fontSize: 11, height: 1.35),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1555,7 +1595,14 @@ class _HomePageViewState extends State<HomePageView> {
   }
 
   // --- SEÇÃO: STATUS DO SISTEMA HUD ---
+  // Cada pílula lê um estado real do AppState. Nada aqui é texto fixo: um
+  // painel que diz "tudo ótimo" mesmo quando a rede caiu é pior que nenhum
+  // painel, porque a pessoa passa a desconfiar dele exatamente na hora em que
+  // ele seria útil.
   Widget _buildSystemStatusCard(AppState state) {
+    final emChamada = state.connectedVoiceChannelId != null;
+    final ping = state.voicePingMs;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1577,30 +1624,35 @@ class _HomePageViewState extends State<HomePageView> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              _buildStatusPill(
-                title: 'LiveKit RTC Voice Engine',
-                status: state.connectedVoiceChannelId != null ? 'Conectado (RTC)' : 'Pronto',
-                isGood: true,
+              SizedBox(
+                width: 240,
+                child: _buildStatusPill(
+                  title: 'Voz ao vivo (LiveKit RTC)',
+                  status: emChamada
+                      ? (ping > 0 ? 'Conectada · $ping ms' : 'Conectando...')
+                      : 'Nenhum canal aberto',
+                  isGood: emChamada,
+                ),
               ),
-              const SizedBox(width: 12),
-              _buildStatusPill(
-                title: 'Mensageria EMQX MQTT',
-                status: 'Ativo (TCP 1883 / WSS)',
-                isGood: true,
+              SizedBox(
+                width: 240,
+                child: _buildStatusPill(
+                  title: 'Mensageria MQTT (TLS 8883)',
+                  status: state.isNetworkOnline ? 'Conectada' : 'Sem conexão',
+                  isGood: state.isNetworkOnline,
+                ),
               ),
-              const SizedBox(width: 12),
-              _buildStatusPill(
-                title: 'Render Inteligente',
-                status: 'Modo Eco Streamer Ativo',
-                isGood: true,
-              ),
-              const SizedBox(width: 12),
-              _buildStatusPill(
-                title: 'Latência do Subsistema',
-                status: '< 35ms Ultra Low',
-                isGood: true,
+              SizedBox(
+                width: 240,
+                child: _buildStatusPill(
+                  title: 'Janela',
+                  status: state.isWindowFocused ? 'Em foco' : 'Sem foco · live pausada',
+                  isGood: state.isWindowFocused,
+                ),
               ),
             ],
           ),
@@ -1610,46 +1662,44 @@ class _HomePageViewState extends State<HomePageView> {
   }
 
   Widget _buildStatusPill({required String title, required String status, required bool isGood}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: HudTheme.bgCard,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: HudTheme.divider),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(color: HudTheme.textMuted, fontSize: 11)),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: isGood ? HudTheme.green : HudTheme.yellow,
-                    shape: BoxShape.circle,
-                  ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: HudTheme.bgCard,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: HudTheme.textMuted, fontSize: 11)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: isGood ? HudTheme.green : HudTheme.yellow,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: isGood ? Colors.white : HudTheme.yellow,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color: isGood ? Colors.white : HudTheme.yellow,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

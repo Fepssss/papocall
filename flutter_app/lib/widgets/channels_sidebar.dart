@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/channel.dart';
@@ -34,23 +36,29 @@ class ChannelsSidebar extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipOval(
-                      child: Image.asset('assets/logo.png', width: 24, height: 24),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      srv?.name ?? 'PapoCall',
-                      style: const TextStyle(
-                        color: HudTheme.textHeader,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: Image.asset('assets/logo.png', width: 24, height: 24),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          srv?.name ?? 'PapoCall',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HudTheme.textHeader,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 const Icon(Icons.keyboard_arrow_down, color: HudTheme.textNormal),
               ],
             ),
@@ -221,15 +229,23 @@ class ChannelsSidebar extends StatelessWidget {
     final isSelected = state.activeChannelId == channel.id;
     final isConnected = state.connectedVoiceChannelId == channel.id;
 
-    // Usuários atualmente dentro desta sala de voz
+    // Usuários atualmente dentro desta sala de voz.
+    //
+    // Na sala em que estamos, a lista vem do LiveKit — ele é quem sabe quem
+    // entrou e saiu. Para as demais salas só resta a presença anunciada pelo
+    // broker, que é aproximada e atrasada.
     final voiceUsers = <UserModel>[];
     if (!isText) {
       if (isConnected) {
-        voiceUsers.add(state.currentUser);
-      }
-      for (final m in state.onlineMembers) {
-        if (m.currentVoiceChannelId == channel.id && !voiceUsers.any((u) => u.id == m.id)) {
-          voiceUsers.add(m);
+        voiceUsers.addAll(state.ocupantesDaChamada.isEmpty
+            ? [state.currentUser]
+            : state.ocupantesDaChamada);
+      } else {
+        for (final m in state.onlineMembers) {
+          if (m.currentVoiceChannelId == channel.id &&
+              !voiceUsers.any((u) => u.id == m.id)) {
+            voiceUsers.add(m);
+          }
         }
       }
     }
@@ -523,7 +539,7 @@ class _ChannelNameDialogState extends State<_ChannelNameDialog> {
         style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
       ),
       content: SizedBox(
-        width: 320,
+        width: min(320.0, MediaQuery.sizeOf(context).width - 96),
         child: TextField(
           controller: _controller,
           autofocus: true,

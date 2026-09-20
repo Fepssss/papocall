@@ -7,6 +7,39 @@ import 'auth_service.dart';
 import 'livekit_token_service.dart';
 import 'sound_service.dart';
 
+/// Quem está na sala de voz neste instante, do ponto de vista do LiveKit.
+///
+/// São dados simples, e não os objetos `Participant` do plugin: a UI não pode
+/// segurar um objeto que o motor descarta quando a pessoa sai, e um teste de
+/// widget não tem como fabricar um `Participant` verdadeiro.
+///
+/// Esta é a fonte do "quem está na call". A presença do MQTT diz em qual canal
+/// cada um disse que está, mas é um segundo canal de informação sobre o mesmo
+/// fato — e quando os dois discordavam, a tela mostrava só quem ela já conhecia
+/// de casa: duas pessoas na mesma sala, cada uma vendo a si mesma.
+class OcupanteDaSala {
+  const OcupanteDaSala({
+    required this.identity,
+    required this.nome,
+    required this.isLocal,
+    required this.mudo,
+    required this.falando,
+  });
+
+  /// Identidade no token, assinada pelo backend: `@username`.
+  final String identity;
+
+  /// Nome que a pessoa usa, vindo do próprio token.
+  final String nome;
+
+  final bool isLocal;
+  final bool mudo;
+  final bool falando;
+
+  /// O `username` puro, para ir procurar o usuário no diretório local.
+  String get username => identity.startsWith('@') ? identity.substring(1) : identity;
+}
+
 /// Serviço de Voz e Transmissão de Tela em Tempo Real na Nuvem utilizando LiveKit Cloud.
 /// Otimizado para estabilidade nativa no Windows, com DesktopCapturer e codecs de alta taxa de quadros.
 class VoiceService {
@@ -42,9 +75,9 @@ class VoiceService {
   EventsListener<ParticipantEvent>? _localParticipantListener;
   Set<String> _lastActiveSpeakers = {};
 
-  final StreamController<List<Participant>> _participantsController =
-      StreamController<List<Participant>>.broadcast();
-  Stream<List<Participant>> get participantsStream => _participantsController.stream;
+  final StreamController<List<OcupanteDaSala>> _participantsController =
+      StreamController<List<OcupanteDaSala>>.broadcast();
+  Stream<List<OcupanteDaSala>> get participantsStream => _participantsController.stream;
 
   VoidCallback? onDisconnected;
 
@@ -125,7 +158,7 @@ class VoiceService {
     }
   }
 
-  void _safeAddParticipants(List<Participant> participants) {
+  void _safeAddParticipants(List<OcupanteDaSala> participants) {
     if (!_participantsController.isClosed) {
       _participantsController.add(participants);
     }
@@ -239,13 +272,31 @@ class VoiceService {
     });
   }
 
-  Future<bool> startScreenShare(String sourceId) async {
+  /// Publica a tela escolhida. Largura, altura e quadros por segundo vêm do
+  /// diálogo de seleção e viram as restrições de captura; o teto de bitrate
+  /// acompanha os pixels, porque 60 FPS em 1080p com o bitrate de 720p produz
+  /// uma transmissão borrada em vez de uma transmissão fluida.
+  Future<bool> startScreenShare(
+    String sourceId, {
+    int width = 1920,
+    int height = 1080,
+    int fps = 30,
+  }) async {
     if (_room == null || !isConnected) return false;
     try {
-      _log('Iniciando compartilhamento de tela com sourceId: $sourceId');
+      _log('Iniciando compartilhamento de tela: $sourceId ${width}x$height@$fps');
+      // Oito bits a cada cem pixels-quadrado: sai 5 Mbps em 1080p30 e
+      // 2,2 Mbps em 720p30, que é o ritmo das transmissões do app até aqui.
+      final maxBitrate = (width * height * fps ~/ 100 * 8).clamp(1500000, 8000000);
       final options = ScreenShareCaptureOptions(
         sourceId: sourceId,
-        params: VideoParametersPresets.screenShareH1080FPS30,
+        params: VideoParameters(
+          dimensions: VideoDimensions(width, height),
+          encoding: VideoEncoding(
+            maxBitrate: maxBitrate,
+            maxFramerate: fps,
+          ),
+        ),
       );
 
       _screenShareTrack = await LocalVideoTrack.createScreenShareTrack(options);
@@ -282,6 +333,16 @@ class VoiceService {
       final speakerIdentities = event.speakers.map((s) => s.identity).toSet();
       _lastActiveSpeakers = speakerIdentities;
       _safeAddActiveSpeakers(speakerIdentities);
+      // O anel de quem está falando é desenhado na lista de ocupantes, então é
+      // ela que precisa ser reemitida.
+      _notifyParticipants();
+    });
+
+    // Renomeação de participante. O mudo chega pelos eventos de track,
+    // tratados mais abaixo; sem este listener o apelido do amigo ficaria
+    // congelado na versão que ele tinha ao entrar na sala.
+    _listener?.on<ParticipantNameUpdatedEvent>((event) {
+      _notifyParticipants();
     });
 
     _listener?.on<ParticipantConnectedEvent>((event) {
@@ -321,6 +382,7 @@ class VoiceService {
     });
 
     _listener?.on<TrackMutedEvent>((event) {
+      _notifyParticipants();
       if (event.publication.source == TrackSource.screenShareVideo) {
         if (event.publication.sid == _remoteScreenShareTrack?.sid) {
           _remoteScreenShareTrack = null;
@@ -331,6 +393,18 @@ class VoiceService {
       }
     });
 
+    _listener?.on<TrackUnmutedEvent>((event) {
+      _notifyParticipants();
+    });
+
+    _listener?.on<TrackPublishedEvent>((event) {
+      _notifyParticipants();
+    });
+
+    _listener?.on<TrackUnpublishedEvent>((event) {
+      _notifyParticipants();
+    });
+
     _listener?.on<RoomDisconnectedEvent>((event) {
       _log('Sala desconectada: ${event.reason}');
       _notifyParticipants();
@@ -338,14 +412,29 @@ class VoiceService {
     });
   }
 
+  /// Lista quem está na sala agora, dita pelo LiveKit e não pela presença do
+  /// MQTT: é a única fonte que sabe de fato quem entrou e saiu da sala de voz.
   void _notifyParticipants() {
-    if (_room == null) return;
-    final all = <Participant>[];
-    if (_room!.localParticipant != null) {
-      all.add(_room!.localParticipant!);
+    final room = _room;
+    if (room == null) return;
+    final lista = <OcupanteDaSala>[];
+
+    void adicionar(Participant p, {required bool local}) {
+      lista.add(OcupanteDaSala(
+        identity: p.identity,
+        nome: p.name,
+        isLocal: local,
+        mudo: !p.isMicrophoneEnabled(),
+        falando: _lastActiveSpeakers.contains(p.identity),
+      ));
     }
-    all.addAll(_room!.remoteParticipants.values);
-    _safeAddParticipants(all);
+
+    final local = room.localParticipant;
+    if (local != null) adicionar(local, local: true);
+    for (final p in room.remoteParticipants.values) {
+      adicionar(p, local: false);
+    }
+    _safeAddParticipants(lista);
   }
 
   Future<void> setMuted(bool muted) async {
@@ -393,7 +482,7 @@ class VoiceService {
       _localParticipantListener = null;
       _lastActiveSpeakers.clear();
       _safeAddActiveSpeakers(<String>{});
-      _safeAddParticipants(<Participant>[]);
+      _safeAddParticipants(<OcupanteDaSala>[]);
       _log('Desconectado e limpo com sucesso.');
     }
   }

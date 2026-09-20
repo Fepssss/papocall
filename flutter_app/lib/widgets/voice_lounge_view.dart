@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:livekit_client/livekit_client.dart';
@@ -17,10 +19,17 @@ class VoiceLoungeView extends StatelessWidget {
     final isConnected = state.connectedVoiceChannelId == channel?.id;
     final hasActiveScreenShare = isConnected && state.activeScreenShareTrack != null;
 
-    final channelMembers = [
-      state.currentUser,
-      ...state.onlineMembers.where((m) => m.currentVoiceChannelId == channel?.id),
-    ];
+    // Quem está na chamada é o que o LiveKit diz, não o que a presença do
+    // MQTT anunciou: ela chega atrasada, é sobrescrita por outros servidores e
+    // era o motivo de uma sala com duas pessoas mostrar um único cartão.
+    final channelMembers = isConnected
+        ? (state.ocupantesDaChamada.isEmpty
+            ? [state.currentUser]
+            : state.ocupantesDaChamada)
+        : [
+            for (final m in state.onlineMembers)
+              if (m.currentVoiceChannelId == channel?.id) m,
+          ];
 
     return Expanded(
       child: Container(
@@ -28,7 +37,7 @@ class VoiceLoungeView extends StatelessWidget {
         child: Column(
           children: [
             // Voice Header Bar
-            _buildHeader(channel?.name, isConnected, state.isConnectingVoice, hasActiveScreenShare),
+            _buildHeader(state, channel?.name, isConnected, hasActiveScreenShare),
 
             // Voice Main Stage (Screen Share or Member Cards Grid)
             Expanded(
@@ -50,7 +59,9 @@ class VoiceLoungeView extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(String? channelName, bool isConnected, bool isConnecting, bool hasActiveScreenShare) {
+  Widget _buildHeader(
+      AppState state, String? channelName, bool isConnected, bool hasActiveScreenShare) {
+    final isConnecting = state.isConnectingVoice;
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -61,12 +72,15 @@ class VoiceLoungeView extends StatelessWidget {
         children: [
           const Icon(Icons.volume_up, color: HudTheme.green, size: 20),
           const SizedBox(width: 8),
-          Text(
-            channelName ?? 'Sala de Voz',
-            style: const TextStyle(
-              color: HudTheme.textHeader,
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+          Flexible(
+            child: Text(
+              channelName ?? 'Sala de Voz',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: HudTheme.textHeader,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -97,8 +111,12 @@ class VoiceLoungeView extends StatelessWidget {
                 ),
                 const SizedBox(width: 5),
                 Text(
+                  // Latência medida pelo próprio SDK, não um rótulo decorativo:
+                  // "64 kbps" estava na tela mesmo com a chamada caída.
                   isConnected
-                      ? 'RTC Conectado • 64 kbps'
+                      ? (state.voicePingMs > 0
+                          ? 'RTC • ${state.voicePingMs} ms'
+                          : 'RTC conectado')
                       : (isConnecting ? 'Conectando...' : 'Desconectado'),
                   style: TextStyle(
                     color: isConnected ? HudTheme.green : (isConnecting ? HudTheme.accent : HudTheme.textMuted),
@@ -209,23 +227,27 @@ class VoiceLoungeView extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final count = channelMembers.length;
-                int crossAxisCount = 2;
-                if (count == 1) {
-                  crossAxisCount = 1;
-                } else if (count > 4) {
-                  crossAxisCount = 3;
-                }
+                // Quantas colunas cabem de verdade: com o critério só pelo
+                // número de pessoas, uma janela estreita ganhava três cartões de
+                // 16:9 espremidos e uma larga ficava com um único ocupante do
+                // lado errado da tela.
+                final colunas = count <= 1
+                    ? 1
+                    : (constraints.maxWidth / 300).floor().clamp(1, count > 4 ? 3 : 2);
 
                 return Center(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxWidth: count == 1 ? 640 : (count <= 4 ? 960 : 1200),
+                      maxWidth: min(
+                        constraints.maxWidth,
+                        count == 1 ? 640 : (count <= 4 ? 960 : 1200),
+                      ),
                     ),
                     child: GridView.builder(
                       shrinkWrap: true,
                       physics: const BouncingScrollPhysics(),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
+                        crossAxisCount: colunas,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                         childAspectRatio: 16 / 9,
@@ -571,23 +593,6 @@ class VoiceLoungeView extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Camera Button
-          _ModernDockButton(
-            icon: Icons.videocam_off,
-            tooltip: 'Ativar Câmera',
-            isActive: false,
-            activeColor: HudTheme.accent,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Transmissão de câmera em desenvolvimento.'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-
           // Screen Share Button
           _ModernDockButton(
             icon: state.isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
@@ -651,10 +656,15 @@ class VoiceLoungeView extends StatelessWidget {
     }
 
     try {
-      final sourceId = await ScreenShareDialog.show(context);
+      final escolha = await ScreenShareDialog.show(context);
 
-      if (sourceId != null && sourceId.isNotEmpty) {
-        final success = await state.startScreenShare(sourceId);
+      if (escolha != null) {
+        final success = await state.startScreenShare(
+          escolha.sourceId,
+          width: escolha.width,
+          height: escolha.height,
+          fps: escolha.fps,
+        );
         if (!success && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

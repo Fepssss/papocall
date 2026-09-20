@@ -20,15 +20,12 @@ class HudTheme {
 
   // Cores de Acento (Sóbrias e Refinadas)
   static const Color accent = Color(0xFF38BDF8); // Azul Aço / Ice Blue sóbrio
-  static const Color accentHover = Color(0xFF0284C7);
   static const Color green = Color(0xFF22C55E); // Verde natural para voz ativa e status
-  static const Color greenHover = Color(0xFF16A34A);
   static const Color red = Color(0xFFEF4444); // Vermelho sóbrio para mudo e desligamento
   static const Color yellow = Color(0xFFF59E0B); // Âmbar para ausente
 
   // Compatibilidade semântica
   static const Color blurple = accent;
-  static const Color blurpleHover = accentHover;
 
   // Indicadores de Status
   static const Color statusOnline = Color(0xFF22C55E);

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
@@ -28,7 +30,7 @@ class UpdateDialog extends StatelessWidget {
       backgroundColor: HudTheme.bgSidebar,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        width: 460,
+        width: min(460.0, MediaQuery.sizeOf(context).width - 64),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

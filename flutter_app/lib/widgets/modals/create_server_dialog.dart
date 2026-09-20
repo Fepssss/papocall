@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
@@ -114,7 +116,7 @@ class _CreateServerDialogState extends State<CreateServerDialog> {
         side: const BorderSide(color: HudTheme.divider, width: 1),
       ),
       child: Container(
-        width: 540,
+        width: min(540.0, MediaQuery.sizeOf(context).width - 64),
         padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,

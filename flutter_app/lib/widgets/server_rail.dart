@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import '../theme/hud_layout.dart';
 import '../theme/hud_theme.dart';
 import 'modals/create_server_dialog.dart';
 import 'server_context_menu.dart';
@@ -13,7 +14,7 @@ class ServerRail extends StatelessWidget {
     final state = context.watch<AppState>();
 
     return Container(
-      width: 72,
+      width: HudLayout.of(context).railServidores,
       color: HudTheme.bgServerRail,
       child: Column(
         children: [

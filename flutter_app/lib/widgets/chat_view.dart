@@ -259,12 +259,15 @@ class _ChatViewState extends State<ChatView> {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    channel?.name ?? 'geral',
-                    style: const TextStyle(
-                      color: HudTheme.textHeader,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                  Flexible(
+                    child: Text(
+                      channel?.name ?? 'geral',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: HudTheme.textHeader,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                   if (channel != null && channel.topic.isNotEmpty) ...[
@@ -573,19 +576,31 @@ class _ChatMessageTileState extends State<_ChatMessageTile> {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        msg.authorDisplayName.isNotEmpty ? msg.authorDisplayName : msg.author,
-                        style: const TextStyle(
-                          color: HudTheme.textHeader,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      // Nome e @id têm de caber na linha; a hora, não. Ela é a
+                      // última coisa a ser cortada, então sai fora do Flexible.
+                      Flexible(
+                        child: Text(
+                          msg.authorDisplayName.isNotEmpty ? msg.authorDisplayName : msg.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HudTheme.textHeader,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                       if (msg.authorUsername.isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Text(
-                          msg.authorUsername.startsWith('@') ? msg.authorUsername : '@${msg.authorUsername}',
-                          style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                        Flexible(
+                          child: Text(
+                            msg.authorUsername.startsWith('@')
+                                ? msg.authorUsername
+                                : '@${msg.authorUsername}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                          ),
                         ),
                       ],
                       const SizedBox(width: 8),

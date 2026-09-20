@@ -3,15 +3,17 @@ import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
 /// Resultado da emissão de um token de voz pelo backend.
+///
+/// Só o endereço e o JWT de sala. A identity de quem entra já vai assinada
+/// dentro desse token, decidida pelo servidor, então o cliente não guarda nem
+/// repete o campo `identity` que a resposta traz de sobra.
 class LiveKitGrant {
   final String serverUrl;
   final String token;
-  final String identity;
 
   const LiveKitGrant({
     required this.serverUrl,
     required this.token,
-    required this.identity,
   });
 }
 
@@ -95,7 +97,6 @@ class LiveKitTokenService {
     return LiveKitGrant(
       serverUrl: serverUrl,
       token: token,
-      identity: data['identity'] as String? ?? '',
     );
   }
 }

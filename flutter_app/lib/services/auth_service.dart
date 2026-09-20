@@ -238,18 +238,6 @@ class AuthService {
     }
   }
 
-  /// Verifica se o backend HTTP está ativo (usado apenas para diagnóstico na UI).
-  static Future<bool> isBackendReachable() async {
-    try {
-      final res = await http.get(Uri.parse('$apiBaseUrl/health')).timeout(
-        const Duration(seconds: 5),
-      );
-      return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
-
   /// Aquece o backend em cold start (ex.: Render free) consultando /health até responder 200
   /// ou esgotar o tempo limite de espera (padrão: 60 segundos com tentativas a cada 3 segundos).
   static Future<bool> warmUpBackend({

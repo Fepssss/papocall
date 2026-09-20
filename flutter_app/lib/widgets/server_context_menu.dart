@@ -98,7 +98,7 @@ class _ServerContextMenu extends StatelessWidget {
       ],
       const _MenuDivider(),
       _MenuItem(
-        label: 'Config. de notificação',
+        label: 'Config. de sons',
         icon: Icons.tune_rounded,
         trailing: const _Chevron(),
         onTap: () => _andThen(context, () => _openSettings(context, SettingsTab.notifications)),

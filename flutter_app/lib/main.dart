@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models/channel.dart';
 import 'providers/app_state.dart';
+import 'theme/hud_layout.dart';
 import 'theme/hud_theme.dart';
 import 'screens/auth_screen.dart';
 import 'services/sound_service.dart';
+import 'utils/app_log.dart';
 import 'widgets/app_left_panel.dart';
 import 'widgets/chat_view.dart';
 import 'widgets/home_page_view.dart';
@@ -14,6 +16,20 @@ import 'widgets/voice_lounge_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Sem isto, um erro fora do fluxo esperado ia para o nada: o aplicativo
+  // travava ou fechava sem deixar rastro e não havia o que investigar. O log é
+  // o único lugar onde a causa sobrevive ao fechamento da janela.
+  FlutterError.onError = (detalhes) {
+    FlutterError.presentError(detalhes);
+    AppLog.write('Erro', 'na interface: ${detalhes.exception}\n${detalhes.stack}');
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (erro, trilha) {
+    // Um assíncrono perdido não vale fechar uma chamada de voz em andamento,
+    // então fica registrado em vez de derrubar o processo.
+    AppLog.write('Erro', 'não tratado: $erro\n$trilha');
+    return true;
+  };
   SoundService.initialize();
   runApp(
     MultiProvider(
@@ -39,6 +55,20 @@ class PapoCallApp extends StatelessWidget {
         fontFamily: 'Segoe UI',
         useMaterial3: true,
       ),
+      // Uma só alavanca para a HUD inteira: o texto escala pela largura da
+      // janela, e com ele sobram as colunas de largura fixa. Fica no builder do
+      // MaterialApp porque alcança também os diálogos, abertos por cima da tela.
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.linear(
+              HudLayout.of(context).escala * media.textScaler.scale(1),
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: Consumer<AppState>(
         builder: (context, state, _) {
           if (state.isCheckingAuth) {
@@ -85,7 +115,8 @@ class MainScreen extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                // 1. Painel Esquerdo Unificado (312px = Server Rail + Channels/Home Sidebar + Perfil e Áudio)
+                // 1. Painel Esquerdo Unificado (rail de servidores + canais +
+                //    perfil e áudio), com a largura acompanhando a janela.
                 const AppLeftPanel(),
 
                 // 2. Área Central Principal (Home de Amigos, Voice Lounge ou Chat de Texto)
@@ -96,8 +127,10 @@ class MainScreen extends StatelessWidget {
                 else
                   const ChatView(),
 
-                // 3. Barra Lateral de Membros Online (oculta na Home)
-                if (!state.isHomePageActive) const MembersSidebar(),
+                // 3. Barra Lateral de Membros Online (oculta na Home, e cede a
+                //    vez primeiro quando a janela fica estreita).
+                if (!state.isHomePageActive && HudLayout.of(context).mostraBarraMembros)
+                  const MembersSidebar(),
               ],
             ),
           ),
@@ -130,12 +163,16 @@ class _UpdateBanner extends StatelessWidget {
           const Icon(Icons.system_update_alt_rounded,
               size: 16, color: HudTheme.accent),
           const SizedBox(width: 10),
-          Text(
-            texto,
-            style: const TextStyle(
-                color: HudTheme.textNormal,
-                fontSize: 12,
-                fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: HudTheme.textNormal,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(width: 12),
           TextButton(
@@ -168,18 +205,22 @@ class _OfflineBanner extends StatelessWidget {
       width: double.infinity,
       color: const Color(0xFF7F1D1D),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        children: const [
           SizedBox(
             width: 13,
             height: 13,
             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
           ),
           SizedBox(width: 10),
-          Text(
-            'Sem conexão com a rede do PapoCall — mensagens, presença e solicitações estão pausadas. Reconectando...',
-            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              'Sem conexão com a rede do PapoCall — mensagens, presença e solicitações estão pausadas. Reconectando...',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

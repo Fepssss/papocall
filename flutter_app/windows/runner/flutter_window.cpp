@@ -51,6 +51,19 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // Piso da janela: abaixo disto a HUD não cabe e a interface começa a cortar
+  // coluna por coluna. É em pixels lógicos e convertido pelo DPI da própria
+  // janela, então vale igual numa tela 4K com o Windows a 200%.
+  if (message == WM_GETMINMAXINFO) {
+    MINMAXINFO* info = reinterpret_cast<MINMAXINFO*>(lparam);
+    const UINT dpi = ::GetDpiForWindow(hwnd);
+    const LONG minimo_x = ::MulDiv(960, dpi, 96);
+    const LONG minimo_y = ::MulDiv(600, dpi, 96);
+    if (info->ptMinTrackSize.x < minimo_x) info->ptMinTrackSize.x = minimo_x;
+    if (info->ptMinTrackSize.y < minimo_y) info->ptMinTrackSize.y = minimo_y;
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

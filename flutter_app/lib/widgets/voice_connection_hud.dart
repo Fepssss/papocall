@@ -21,8 +21,7 @@ class VoiceConnectionHud extends StatelessWidget {
     final isConnecting = state.isConnectingVoice && state.connectedVoiceChannelId == null;
 
     return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: const BoxDecoration(
         color: HudTheme.bgHover,
         border: Border(
@@ -54,7 +53,6 @@ class VoiceConnectionHud extends StatelessWidget {
             textStyle: const TextStyle(
               color: Colors.white,
               fontSize: 11,
-              fontFamily: 'JetBrains Mono',
               height: 1.45,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -89,12 +87,16 @@ class VoiceConnectionHud extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      isConnecting ? 'Conectando...' : 'Voz Conectada',
-                      style: TextStyle(
-                        color: isConnecting ? HudTheme.accent : HudTheme.green,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                    Flexible(
+                      child: Text(
+                        isConnecting ? 'Conectando...' : 'Voz Conectada',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isConnecting ? HudTheme.accent : HudTheme.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),

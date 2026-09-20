@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import '../theme/hud_layout.dart';
 import '../theme/hud_theme.dart';
 import 'channels_sidebar.dart';
 import 'home_nav_sidebar.dart';
@@ -19,7 +20,7 @@ class AppLeftPanel extends StatelessWidget {
     final state = context.watch<AppState>();
 
     return Container(
-      width: 312,
+      width: HudLayout.of(context).painelEsquerdo,
       decoration: const BoxDecoration(
         color: HudTheme.bgSidebar,
         border: Border(

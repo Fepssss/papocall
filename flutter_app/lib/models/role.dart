@@ -36,13 +36,6 @@ class Permissions {
     RolePermission(kickMembers, 'Expulsar membros', 'Remover um membro do servidor.'),
     RolePermission(manageMessages, 'Apagar mensagens', 'Apagar mensagens de qualquer autor.'),
   ];
-
-  static RolePermission? byKey(String key) {
-    for (final p in all) {
-      if (p.key == key) return p;
-    }
-    return null;
-  }
 }
 
 /// Um cargo do servidor: nome e cor próprios, mais o conjunto de permissões.
