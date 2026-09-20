@@ -1,0 +1,8 @@
+{
+    "version":  "1.1.0",
+    "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
+    "sha256":  "26a62c0aeaebb8e732fc13369749a61312ad993ae28925af213e0be6c47ff599",
+    "sizeBytes":  17917137,
+    "notes":  "• Atualizador embutido: o próprio PapoCall avisa quando existe uma versão nova e instala sem pedir senha de administrador.\n• O login fica gravado com segurança na sua máquina: abrir o aplicativo não exige digitar a senha de novo.\n• A chamada de voz renova o token sozinha em vez de derrubar o seu login no meio da conversa.\n• Falhas de voz, de sessão e de atualização agora ficam registradas em papocall.log, na pasta de dados do aplicativo.",
+    "publishedAt":  "2026-09-20T01:52:38Z"
+}

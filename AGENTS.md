@@ -8,17 +8,27 @@ Este arquivo é lido automaticamente pelo Antigravity IDE para orientar o agente
 
 1. **Idioma**: Sempre responder, documentar e interagir em **Português do Brasil (pt-BR)**.
 2. **Nome do Projeto**: O aplicativo chama-se estritamente **PapoCall**. Nunca utilize termos legados (como *projetous*) e não faça referências a concorrentes (como *Discord*).
-3. **Padrão de Versionamento**:
-   - Versão atual do projeto: **`1.0.0s`**.
-   - **Pequenas atualizações / fixes**: Incrementar a letra final sequencialmente (`1.0.0d`, `1.0.0e`, ..., até `1.0.0z`).
-   - **Ao esgotar o alfabeto ('z')**: Avançar o patch com 'a' (`1.0.1a`, ..., `1.0.1z`, depois `1.0.2a`...).
-   - **Grandes atualizações estruturais (Big Update)**: Avançar para a próxima versão maior (`2.0.0a`).
-   - Todos os arquivos com versão devem ser mantidos estritamente sincronizados:
-     - `flutter_app/lib/theme/hud_theme.dart` (`appVersion`)
-     - `flutter_app/pubspec.yaml` (`version: 1.0.0+X`)
-     - `installer/setup.iss` (`#define MyAppVersion` e `VersionInfoVersion`)
-     - `package.json` (`"version"`)
-     - `installer/build_installer.ps1`
+3. **Padrão de Versionamento (SemVer puro, adotado na v1.1.0)**:
+   - Versão atual do projeto: **`1.1.0`**.
+   - Formato `MAJOR.MINOR.PATCH`: três números, sem letra e sem sufixo. As
+     versões de letra (`1.0.0s`, `1.0.0r`) continuam no histórico e no
+     changelog do site, mas não são mais produzidas.
+   - **PATCH** (`1.1.1`): correção ou melhoria sem recurso novo para quem usa.
+   - **MINOR** (`1.2.0`): recurso novo visível para quem usa.
+   - **MAJOR** (`2.0.0`): mudança estrutural que não conversa com a versão
+     anterior — protocolo MQTT, formato do que está no disco, contrato da API.
+   - A contagem por letras acabou porque o atualizador precisa comparar número
+     com número: em ordenação de texto, `1.0.0z` viria antes de `1.0.0aa`.
+   - **Fonte única da versão**: `flutter_app/lib/utils/app_version.dart`
+     (`const String kAppVersionLabel`). O `installer/build_installer.ps1` lê
+     exatamente essa linha e repassa o número ao `setup.iss`, ao instalador e ao
+     `public/version.json`. Nunca escreva o número da versão em outro arquivo.
+   - `flutter_app/pubspec.yaml` (`version: MAJOR.MINOR.PATCH+build`) continua
+     sincronizado: o build aborta se o prefixo não bater com `kAppVersionLabel`.
+   - `installer/setup.iss` e `installer/build_installer.ps1` recebem a versão por
+     linha de comando. Editá-los à mão para mudar versão é erro.
+   - `public/index.html` (título e changelog publicados no site) acompanha na
+     mão, como peça de comunicação com o usuário.
 4. **Segurança e Commits no Git**:
    - Nunca expor credenciais reais no histórico do Git.
    - **NUNCA embutir segredo algum no aplicativo Flutter.** O binário entregue
@@ -79,6 +89,12 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
      - O access token dura 15 min e o refresh 7 dias. Renova-se ao abrir o app e antes de entrar na call quando falta menos de 2 min (`AuthService.accessTokenValid`), sempre por `exp` do JWT (claim em **segundos**), sem decodificar nada — o payload do JWT é público por construção.
      - Diagnóstico: `AppLog.write(tag, msg)` anexa em `%APPDATA%\PapoCall\papocall.log` e **nunca** recebe token, senha ou chave; logar códigos HTTP, `error.code` e a hora de expiração é o que permitiu achar o defeito acima. `flutter test` define `FLUTTER_TEST`, e o AppLog se cala: teste não escreve no log da instalação real.
      - Toda escrita local passa por `AppPaths` (`lib/utils/app_paths.dart`). `AppState.dataRootOverride` é um alias de `AppPaths.rootOverride`: apontar a raiz para um diretório temporário no `setUp` é o que isola teste de dado real — ver a regra "Testes nunca apagam dados reais".
+   - **Atualizador (`update_service.dart` + aba "Atualizações") — invariante desde a v1.1.0**:
+     - O aplicativo se auto-atualiza consultando `public/version.json` no site, escrito pelo `build_installer.ps1` com o SHA-256 calculado sobre o instalador recém-compilado. `AppVersion.compareTo` compara número a número; é por isso que a versão é SemVer puro (regra 3).
+     - **`analisarManifesto()` recusa qualquer manifesto que não passe por HTTPS, mesmo host do site, caminho `/downloads/*.exe` e SHA-256 de 64 hex.** Executar um `.exe` é a ação mais destrutiva que o app toma sozinho; um `version.json` adulterado não pode virar execução de código.
+     - O download é descartado se o hash não conferir, o `Setup.exe` roda `/VERYSILENT` destacado num PowerShell (sem UAC, porque `PrivilegesRequired=lowest`), e **o app se encerra antes da troca** — o executável em uso não é substituído por dentro. O `[Run]` do `setup.iss` tem `skipifsilent`: quem reabre o aplicativo no fluxo silencioso é o script, senão abririam duas janelas.
+     - `baixarEInstalarAtualizacao()` **recusa rodar durante uma chamada de voz**: reiniciar no meio derruba a sala inteira, e essa escolha é de quem usa.
+     - A checagem automática roda **uma vez**, 8 s depois da abertura, e nunca derruba a janela: falha de rede fica guardada em `erroAoVerificarAtualizacao`. "Não consegui conferir" e "está em dia" continuam sendo frases diferentes na tela — `UpdateCheckResult` separa os dois, e o UI não tem botão que minta.
    - **Página Inicial do App (`flutter_app/lib/widgets/home_page_view.dart`)**:
      - Visualização em tela cheia acionada pelo botão no canto superior esquerdo da barra de servidores (`ServerRail`).
      - Oferece acesso rápido de 1 clique a canais de voz/chat, lista de amigos online com atalho para entrar na sala do amigo, diagnósticos ao vivo (latência, motor LiveKit e MQTT) e controle de chamada ativa.
@@ -86,8 +102,8 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
 2. **Hospedagem & Distribuição (Vercel & Inno Setup)**:
    - **Domínio Oficial**: `https://papocall.vercel.app`
    - **Landing Page**: `public/index.html` com botão estilizado de download.
-   - **Instalador Oficial**: `public/downloads/PapoCall-Setup.exe` (~17.7 MB) rastreado no Git para publicação estática na CDN da Vercel.
-   - **Automação de Build**: `installer/build_installer.ps1` compila o Flutter em modo Release para Windows e gera o instalador via Inno Setup (`ISCC.exe`).
+   - **Instalador Oficial**: `public/downloads/PapoCall-Setup.exe` (~17.9 MB) rastreado no Git para publicação estática na CDN da Vercel.
+   - **Automação de Build**: `installer/build_installer.ps1` compila o Flutter em modo Release para Windows e gera o instalador via Inno Setup (`ISCC.exe`), e depois publica o `public/version.json` (versão, URL, SHA-256, tamanho e notas) que o atualizador do aplicativo consulta. As notas vêm de `installer/release_notes.txt`.
 
 ---
 

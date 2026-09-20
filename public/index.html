@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.0.0s</span>
+        <span class="version-tag">v1.1.0</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.0.0s
+          Baixar v1.1.0
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.0.0s • Instalador Nativo (~17.7 MB) • Windows 10 e 11
+          Versão Oficial 1.1.0 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.0.0s - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.1.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -845,7 +845,7 @@
             </svg>
           </div>
           <h3>HUD de Configurações em Abas</h3>
-          <p>Organização limpa com seções verticais para Conta, Dados &amp; Privacidade, Permissões de Mensagens, Notificações com teste sonoro e controles de áudio.</p>
+          <p>Organização limpa com seções verticais para Conta, Dados &amp; Privacidade, Permissões de Mensagens, Notificações com teste sonoro, controles de áudio e Atualizações.</p>
         </div>
 
         <div class="feature-card">
@@ -867,6 +867,18 @@
           <h3>Modo Eco para Streamers</h3>
           <p>Otimização de hardware que suspende a renderização local da própria live ao minimizar o app, liberando sua GPU para o jogo sem afetar os espectadores.</p>
         </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </div>
+          <h3>Atualização Dentro do Próprio App</h3>
+          <p>O PapoCall avisa quando existe versão nova, baixa o instalador, confere a assinatura SHA-256 antes de executar qualquer coisa e reabre atualizado — sem site no meio e sem senha de administrador.</p>
+        </div>
       </div>
     </section>
 
@@ -885,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.1.0', this)">
+          v1.1.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0s', this)">
-          v1.0.0s <span class="badge-current">ATUAL</span>
+          v1.0.0s
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.0.0r', this)">
           v1.0.0r
@@ -932,12 +947,48 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.1.0 -->
+        <article class="release-card latest" data-version="v1.1.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.1.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">19 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O PapoCall agora se atualiza sozinho: ele avisa quando existe uma versão nova, baixa o instalador, confere a assinatura e reabre o aplicativo pronto — sem site, sem senha de administrador e sem reinstall na mão.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Atualização embutida no aplicativo</strong>: Oito segundos depois de abrir, o PapoCall consulta o servidor de atualizações. Existindo uma versão mais nova, aparece uma faixa na parte de cima da janela com o número da versão; ao clicar, ele mostra o que muda e baixa o instalador na frente de você, com barra de progresso. No fim, o aplicativo se fecha, instala a versão nova e reabre sozinho. Instalação por usuário: não pede senha de administrador nem levanta tela de UAC.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Aba &quot;Atualizações&quot; nas Configurações</strong>: Mostra a versão instalada, o resultado da última checagem e dois botões que fazem o que dizem — verificar agora e atualizar. Se a checagem falhou, a aba diz que falhou, em vez de fingir que você está em dia.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Nada roda sem conferir a assinatura</strong>: O instalador é baixado apenas por HTTPS, apenas do mesmo endereço do site oficial, e só executa depois que o SHA-256 calculado no arquivo bater com o publicado — a soma é gerada no momento em que o instalador é compilado, não digitada à mão. Diferiu, o download é apagado e nada acontece. Um endereço de atualização adulterado não é capaz de fazer o aplicativo executar um executável qualquer.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>A atualização respeita a sua chamada</strong>: Entrar em uma nova versão fecha o aplicativo, e isso derrubaria a sala de voz inteira. Enquanto você estiver em uma chamada, o botão de atualizar fica bloqueado e a razão aparece na tela. A decisão de reiniciar é sempre de quem está conversando.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Numeração nova, do jeito que dá para comparar</strong>: As versões largaram a letra no fim (<em>1.0.0s</em>) e passaram a <em>MAJOR.MINOR.PATCH</em>. Era necessário: para o atualizador saber se o que está no ar é mais novo que o que está na sua máquina, os números precisam ter ordem — em texto, <em>1.0.0z</em> viria antes de <em>1.0.0aa</em>. O <em>1.0.0s</em> vira <em>1.0.19</em> na conta, este pacote é o <em>1.1.0</em> (recurso novo), e um <em>2.0.0</em> só sai quando houver mudança estrutural que não conversa com a versão anterior. O número agora mora num único lugar do código, e o instalador, o site e o aplicativo o herdam de lá.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.0.0s -->
-        <article class="release-card latest" data-version="v1.0.0s">
+        <article class="release-card" data-version="v1.0.0s">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.0.0s</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">19 de Setembro de 2026</span>
           </div>
@@ -1413,7 +1464,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.0.0s</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.1.0</strong></p>
     </div>
   </footer>
 

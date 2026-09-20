@@ -1,6 +1,15 @@
 ; Script de instalacao profissional do PapoCall utilizando Inno Setup
+;
+; O numero desta versao NAO e digitado aqui: build_installer.ps1 le a constante
+; kAppVersionLabel do aplicativo e passa por /DMyAppVersion. O padrao abaixo so
+; vale para quem compilar o setup.iss a mao.
 #define MyAppName "PapoCall"
-#define MyAppVersion "1.0.0s"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
+#ifndef VersionInfoNumber
+  #define VersionInfoNumber "0.0.0.0"
+#endif
 #define MyAppPublisher "PapoCall"
 #define MyAppURL "https://papocall.vercel.app"
 #define MyAppExeName "PapoCall.exe"
@@ -30,9 +39,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-VersionInfoVersion=1.0.0.19
+VersionInfoVersion={#VersionInfoNumber}
 VersionInfoCompany=PapoCall
-VersionInfoDescription=PapoCall v1.0.0p - Aplicativo Desktop Nativo
+VersionInfoDescription=PapoCall v{#MyAppVersion} - Aplicativo Desktop Nativo
 VersionInfoCopyright=Copyright (C) 2026 PapoCall
 
 [Languages]
@@ -56,4 +65,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\icon.ico"; Tasks: startupicon
 
 [Run]
+; skipifsilent: na atualizacao automatica quem reabre o aplicativo e o proprio
+; script que disparou o setup. Sem esta flag a pessoa acordaria com duas janelas.
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

@@ -15,8 +15,10 @@ import '../services/server_crypto.dart';
 import '../services/voice_service.dart';
 import '../services/sound_service.dart';
 import '../services/auth_service.dart';
+import '../services/update_service.dart';
 import '../utils/app_log.dart';
 import '../utils/app_paths.dart';
+import '../utils/app_version.dart';
 import '../utils/mentions.dart';
 
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
@@ -60,6 +62,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _connectionSubscription;
   StreamSubscription? _pingSubscription;
+  Timer? _updateCheckTimer;
   bool _isDisposed = false;
 
   /// Estado da malha de sincronização (MQTT) exposto à UI.
@@ -67,6 +70,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Sem isso o app parecia normal enquanto nada entrava nem saía: mensagens,
   /// presenças e solicitações de amizade simplesmente sumiam em silêncio.
   bool isNetworkOnline = false;
+
+  // --- Atualizações ---------------------------------------------------------
+
+  /// Versão mais nova anunciada pelo site, ou null quando não há nenhuma.
+  UpdateManifest? atualizacaoDisponivel;
+
+  /// Motivo de a última consulta ter falhado. "Não consegui conferir" e "não há
+  /// novidade" são mensagens diferentes para quem está na tela; misturar as
+  /// duas faria o app mentir que está tudo em dia.
+  String? erroAoVerificarAtualizacao;
+
+  bool verificandoAtualizacao = false;
+  bool baixandoAtualizacao = false;
+
+  /// Alguma consulta chegou a terminar sem erro? Sem isso a tela não tem como
+  /// dizer "você está em dia" — que só é verdade depois de conferir.
+  bool atualizacoesConferidas = false;
+
+  /// Fração do instalador já baixada (0 a 1); null antes de começar.
+  double? progressoDoDownload;
 
   /// Solicitações de amizade enviadas sem rede, aguardando reenvio.
   final List<FriendRequest> _outboxFriendRequests = [];
@@ -689,6 +712,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     isCheckingAuth = false;
     notifyListeners();
 
+    // A checagem de versão roda com a janela já de pé: o site de atualizações
+    // não pode atrasar a abertura do aplicativo.
+    _updateCheckTimer =
+        Timer(const Duration(seconds: 8), () => verificarAtualizacao());
+
     if (isAuthenticated) {
       await _startNetwork();
     }
@@ -848,6 +876,74 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     );
     isAuthenticated = false;
     notifyListeners();
+  }
+
+  // --- Atualizações ---------------------------------------------------------
+
+  /// Consulta o site e guarda o que ele anuncia como versão mais nova.
+  ///
+  /// Roda na abertura do aplicativo e no botão "Verificar agora". Falha de
+  /// rede apenas fica guardada: nada aqui interrompe o que a pessoa estava
+  /// fazendo.
+  Future<void> verificarAtualizacao() async {
+    if (verificandoAtualizacao || baixandoAtualizacao) return;
+    verificandoAtualizacao = true;
+    notifyListeners();
+
+    final resultado = await UpdateService.verificar(atual: AppVersion.atual);
+    if (_isDisposed) return;
+
+    verificandoAtualizacao = false;
+    atualizacaoDisponivel = resultado.manifesto;
+    erroAoVerificarAtualizacao = resultado.erro;
+    atualizacoesConferidas = resultado.erro == null;
+    notifyListeners();
+  }
+
+  /// Baixa o instalador novo, confere a soma e reinicia o aplicativo por cima.
+  ///
+  /// Recusa rodar durante uma chamada: trocar os arquivos no meio de uma
+  /// conversa de voz derruba a sala inteira, e essa decisão é de quem usa.
+  Future<void> baixarEInstalarAtualizacao() async {
+    final manifesto = atualizacaoDisponivel;
+    if (manifesto == null || baixandoAtualizacao) return;
+    if (connectedVoiceChannelId != null) {
+      erroAoVerificarAtualizacao =
+          'Saia da chamada de voz antes de atualizar: reiniciar o aplicativo '
+          'no meio da chamada derruba a sala para todo mundo.';
+      notifyListeners();
+      return;
+    }
+
+    baixandoAtualizacao = true;
+    erroAoVerificarAtualizacao = null;
+    progressoDoDownload = 0;
+    notifyListeners();
+
+    try {
+      final instalador = await UpdateService.baixar(
+        manifesto,
+        onProgress: (fracao) {
+          if (_isDisposed) return;
+          progressoDoDownload = fracao;
+          notifyListeners();
+        },
+      );
+      await UpdateService.instalarEReiniciar(instalador.path);
+      AppLog.write('Update',
+          'aplicativo encerrado para instalar a v${manifesto.version}');
+      // O executável em uso não pode ser substituído por dentro: quem troca os
+      // arquivos é o instalador, já destacado deste processo.
+      exit(0);
+    } catch (e) {
+      AppLog.write('Update', 'atualização abortada: $e');
+      if (_isDisposed) return;
+      baixandoAtualizacao = false;
+      progressoDoDownload = null;
+      erroAoVerificarAtualizacao =
+          e is UpdateException ? e.mensagem : 'Falha ao atualizar: $e';
+      notifyListeners();
+    }
   }
 
   /// Janela em que uma presença ainda conta como recente (3 heartbeats).
@@ -3005,6 +3101,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _heartbeatTimer?.cancel();
     _presenceSweepTimer?.cancel();
     _historyPublishTimer?.cancel();
+    _updateCheckTimer?.cancel();
     _voiceService.dispose();
     _mqtt.dispose();
     super.dispose();

@@ -12,6 +12,7 @@ enum SettingsTab {
   notifications,
   voiceAudio,
   appearance,
+  updates,
 }
 
 class SettingsModal extends StatefulWidget {
@@ -168,6 +169,12 @@ class _SettingsModalState extends State<SettingsModal> {
                           tab: SettingsTab.appearance,
                           icon: Icons.palette_outlined,
                           label: 'Aparência do HUD',
+                        ),
+                        _buildTabButton(
+                          tab: SettingsTab.updates,
+                          icon: Icons.system_update_alt_rounded,
+                          label: 'Atualizações',
+                          badge: state.atualizacaoDisponivel != null,
                         ),
                       ],
                     ),
@@ -346,6 +353,7 @@ class _SettingsModalState extends State<SettingsModal> {
     required SettingsTab tab,
     required IconData icon,
     required String label,
+    bool badge = false,
   }) {
     final isSelected = _selectedTab == tab;
 
@@ -383,6 +391,15 @@ class _SettingsModalState extends State<SettingsModal> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (badge)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: HudTheme.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
             ],
           ),
         ),
@@ -404,6 +421,8 @@ class _SettingsModalState extends State<SettingsModal> {
         return Icons.mic_none_outlined;
       case SettingsTab.appearance:
         return Icons.palette_outlined;
+      case SettingsTab.updates:
+        return Icons.system_update_alt_rounded;
     }
   }
 
@@ -421,6 +440,8 @@ class _SettingsModalState extends State<SettingsModal> {
         return 'Voz e Transmissão de Áudio';
       case SettingsTab.appearance:
         return 'Aparência e HUD Tático';
+      case SettingsTab.updates:
+        return 'Atualizações';
     }
   }
 
@@ -438,6 +459,8 @@ class _SettingsModalState extends State<SettingsModal> {
         return _buildVoiceAudioTab(state);
       case SettingsTab.appearance:
         return _buildAppearanceTab();
+      case SettingsTab.updates:
+        return _buildUpdatesTab(state);
     }
   }
 
@@ -721,6 +744,158 @@ class _SettingsModalState extends State<SettingsModal> {
           value: _desktopNotifications,
           onChanged: (val) => setState(() => _desktopNotifications = val),
         ),
+      ],
+    );
+  }
+
+  /// Aba de atualizações: o estado real da última consulta e os dois botões
+  /// que existem para servir a ela.
+  ///
+  /// Não há "procure por novidades" decorativo aqui — o que aparece é o que o
+  /// servidor respondeu, inclusive quando a resposta foi um erro.
+  Widget _buildUpdatesTab(AppState state) {
+    final manifesto = state.atualizacaoDisponivel;
+    final ocupado = state.verificandoAtualizacao || state.baixandoAtualizacao;
+
+    final String situacao;
+    final Color corSituacao;
+    if (state.erroAoVerificarAtualizacao != null) {
+      situacao = state.erroAoVerificarAtualizacao!;
+      corSituacao = HudTheme.red;
+    } else if (state.verificandoAtualizacao) {
+      situacao = 'Consultando o servidor de atualizações...';
+      corSituacao = HudTheme.textMuted;
+    } else if (manifesto != null) {
+      situacao = 'Versão ${manifesto.version} pronta para instalar.';
+      corSituacao = HudTheme.accent;
+    } else if (state.atualizacoesConferidas) {
+      situacao = 'Você está na versão mais recente.';
+      corSituacao = HudTheme.green;
+    } else {
+      situacao = 'Ainda não conferimos hoje.';
+      corSituacao = HudTheme.textMuted;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B26),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF222838)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: HudTheme.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.system_update_alt_rounded,
+                    color: HudTheme.accent, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Versão instalada: ${HudTheme.appVersion}',
+                      style: const TextStyle(
+                        color: HudTheme.textHeader,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      situacao,
+                      style: TextStyle(
+                          color: corSituacao, fontSize: 12, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (manifesto != null && manifesto.notes.trim().isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text(
+            'O QUE HÁ DE NOVO',
+            style: TextStyle(
+              color: HudTheme.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            manifesto.notes.trim(),
+            style: const TextStyle(
+                color: HudTheme.textNormal, fontSize: 12.5, height: 1.5),
+          ),
+        ],
+        if (state.baixandoAtualizacao) ...[
+          const SizedBox(height: 14),
+          LinearProgressIndicator(
+            value: state.progressoDoDownload,
+            minHeight: 6,
+            backgroundColor: const Color(0xFF1E2330),
+            valueColor: const AlwaysStoppedAnimation(HudTheme.green),
+          ),
+        ],
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: HudTheme.textNormal,
+                side: const BorderSide(color: Color(0xFF222838)),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              ),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Verificar agora', style: TextStyle(fontSize: 12)),
+              onPressed: ocupado ? null : () => state.verificarAtualizacao(),
+            ),
+            const Spacer(),
+            if (manifesto != null)
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: HudTheme.green,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFF1E2330),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6)),
+                ),
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: Text(
+                  state.baixandoAtualizacao
+                      ? 'Baixando...'
+                      : 'Atualizar para ${manifesto.version}',
+                  style:
+                      const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                onPressed: ocupado || state.connectedVoiceChannelId != null
+                    ? null
+                    : () => state.baixarEInstalarAtualizacao(),
+              ),
+          ],
+        ),
+        if (state.connectedVoiceChannelId != null) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Saia da chamada de voz para atualizar: reiniciar o aplicativo no '
+            'meio da conversa derruba a sala para todo mundo.',
+            style: TextStyle(
+                color: HudTheme.textMuted, fontSize: 11.5, height: 1.4),
+          ),
+        ],
       ],
     );
   }
