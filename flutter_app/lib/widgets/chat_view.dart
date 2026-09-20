@@ -287,27 +287,34 @@ class _ChatViewState extends State<ChatView> {
             ),
 
             // Messages Feed
+            //
+            // A SelectionArea abraça a lista inteira, e não cada balão: assim dá
+            // para arrastar o texto de uma mensagem para dentro de outra, como
+            // se copia de um documento, sem que soltar o botão no meio de uma
+            // frase deixe metade da seleção para trás.
             Expanded(
               child: messages.isEmpty
                   ? _EmptyChannelHint(channelName: channel?.name ?? 'geral')
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        return _ChatMessageTile(
-                          msg: msg,
-                          knownHandles: knownHandles,
-                          selfHandle: selfHandle,
-                          isMentioningMe: msg.authorId != state.currentUser.id &&
-                              !msg.isSystem &&
-                              mentionsUser(msg.text, selfHandle),
-                          canDelete: !msg.isSystem &&
-                              state.canDeleteMessage(state.activeServerId, msg),
-                          onDelete: () => _confirmDeleteMessage(state, msg),
-                        );
-                      },
+                  : SelectionArea(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          return _ChatMessageTile(
+                            msg: msg,
+                            knownHandles: knownHandles,
+                            selfHandle: selfHandle,
+                            isMentioningMe: msg.authorId != state.currentUser.id &&
+                                !msg.isSystem &&
+                                mentionsUser(msg.text, selfHandle),
+                            canDelete: !msg.isSystem &&
+                                state.canDeleteMessage(state.activeServerId, msg),
+                            onDelete: () => _confirmDeleteMessage(state, msg),
+                          );
+                        },
+                      ),
                     ),
             ),
 

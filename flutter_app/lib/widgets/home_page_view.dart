@@ -309,9 +309,16 @@ class _HomePageViewState extends State<HomePageView> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: HudTheme.accent),
-      label: Text(
-        state.activeServer!.name,
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+      // O nome do servidor é o que empurra a barra para fora da tela: com um
+      // teto de largura ele vira reticências antes de cortar os botões ao lado.
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 160),
+        child: Text(
+          state.activeServer!.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+        ),
       ),
       onPressed: state.closeHomePage,
     );

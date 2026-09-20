@@ -119,15 +119,18 @@ class _DirectChatSectionState extends State<DirectChatSection> {
                       style: TextStyle(color: HudTheme.textMuted, fontSize: 13),
                     ),
                   )
-                : ListView.builder(
-                    // De cabeça para baixo: a conversa abre já no fim, sem
-                    // precisar de controller de rolagem nem de bombear o
-                    // deslocamento a cada mensagem que chega.
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    itemCount: mensagens.length,
-                    itemBuilder: (context, index) =>
-                        _Bolha(mensagem: mensagens[mensagens.length - 1 - index], minha: _eMinha(state, mensagens[mensagens.length - 1 - index])),
+                : SelectionArea(
+                    child: ListView.builder(
+                      // De cabeça para baixo: a conversa abre já no fim, sem
+                      // precisar de controller de rolagem nem de bombear o
+                      // deslocamento a cada mensagem que chega.
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      itemCount: mensagens.length,
+                      itemBuilder: (context, index) => _Bolha(
+                          mensagem: mensagens[mensagens.length - 1 - index],
+                          minha: _eMinha(state, mensagens[mensagens.length - 1 - index])),
+                    ),
                   ),
           ),
 

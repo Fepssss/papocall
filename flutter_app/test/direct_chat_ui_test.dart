@@ -139,6 +139,25 @@ void main() {
     expect(find.text('oi de novo'), findsOneWidget);
   });
 
+  testWidgets('o texto de uma conversa privada pode ser escolhido com o mouse',
+      (tester) async {
+    final state = aplicativo();
+    presenca(state);
+    state.openDirectChat('user-amigo');
+    await discoDeVerdade(tester, () => entregarMensagem(state, 'recado para copiar'));
+    await montar(tester, state);
+
+    // É a SelectionArea abraçando a lista que faz o arrasto escolher letras em
+    // vez de só rolar a janela. Sem ela, o balão devolve o toque para a lista.
+    expect(
+      find.ancestor(
+        of: find.text('recado para copiar'),
+        matching: find.byType(SelectionArea),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('envio recusado pela malha devolve o texto digitado ao usuário',
       (tester) async {
     final state = aplicativo();

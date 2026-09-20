@@ -14,9 +14,10 @@ import 'app_sandbox.dart';
 
 /// A HUD tem de acompanhar a janela em vez de cortar linha por linha.
 ///
-/// O aplicativo já abriu em janela mínima de 960x600 e cresce sozinha até o
-/// monitor, mas isso só vale se cada tela couber em cada largura. Estas
-/// montagens percorrem as resoluções reais (da mínima às 2K) com nomes
+/// O aplicativo já abre em janela mínima de 960x600, mas isso só vale se cada
+/// tela couber em cada largura: abaixo da largura de projeto a interface cede
+/// texto e colunas juntas, acima dela ela fica exatamente no tamanho desenhado.
+/// Estas montagens percorrem as resoluções reais (da mínima às 2K) com nomes
 /// propositadamente longos: qualquer [RenderFlex] estourado vira exceção
 /// capturada pelo `takeException`.
 void main() {
@@ -131,7 +132,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('o painel esquerdo e o texto crescem com a janela', (tester) async {
+  testWidgets('o painel esquerdo encolhe na janela estreita e para no tamanho desenhado',
+      (tester) async {
     final state = aplicativo();
 
     await montar(tester, state, const Size(960, 600));
@@ -142,8 +144,11 @@ void main() {
     final largo = tester.getSize(find.byType(AppLeftPanel));
     final escalaLarga = MediaQuery.of(tester.element(find.byType(AppLeftPanel))).textScaler;
 
-    expect(estreito.width, lessThan(340));
-    expect(largo.width, greaterThan(estreito.width));
-    expect(escalaLarga.scale(100), greaterThan(escalaEstreita.scale(100)));
+    // O tamanho de projeto é um teto, não um ponto de partida: numa janela
+    // grande a pessoa vê a HUD do jeito que ela foi desenhada, e não 30% maior.
+    expect(largo.width, 312);
+    expect(escalaLarga.scale(100), 100);
+    expect(estreito.width, lessThan(largo.width));
+    expect(escalaEstreita.scale(100), lessThan(escalaLarga.scale(100)));
   });
 }

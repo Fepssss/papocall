@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.2.0</span>
+        <span class="version-tag">v1.2.1</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.2.0
+          Baixar v1.2.1
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.2.0 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
+          Versão Oficial 1.2.1 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.2.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.2.1 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.2.1', this)">
+          v1.2.1 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.2.0', this)">
-          v1.2.0 <span class="badge-current">ATUAL</span>
+          v1.2.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.1.3', this)">
           v1.1.3
@@ -959,12 +962,40 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.2.1 -->
+        <article class="release-card latest" data-version="v1.2.1">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.2.1</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">20 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A HUD voltou ao tamanho que foi desenhado para ter, a barra de cima parou de cortar os botões no canto da tela, e o texto do chat agora pode ser escolhido e copiado.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>O tamanho de projeto virou teto, não ponto de partida</strong>: na v1.2.0 a interface passou a esticar o próprio desenho conforme a janela abria — num monitor Full HD ela chegava a 30% maior do que o tamanho desenhado, e era isso que fazia o painel parecer grande demais e a barra de cima transbordar pelo canto. Agora uma janela grande serve para mostrar mais conteúdo, com as letras do tamanho de sempre. Para o outro lado a adaptação continua: abaixo de 1280 pixels de largura o texto e as colunas encolhem juntos, e abaixo de 1180 a lista de membros cede lugar ao chat.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Nome de servidor comprido não empurra mais nada</strong>: na barra de cima, o botão que devolve ao servidor aberto passa a mostrar reticências quando o nome não cabe, em vez de cortar os botões de convite e de criar servidor que ficam ao lado.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Texto que se escolhe com o mouse</strong>: arraste sobre qualquer mensagem, num canal ou numa conversa privada, para escolher trecho, palavra ou linha e copiar. A seleção atravessa mensagens, como num documento — e continua respeitando as marcações destacadas.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.2.0 -->
-        <article class="release-card latest" data-version="v1.2.0">
+        <article class="release-card" data-version="v1.2.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.2.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">20 de Setembro de 2026</span>
           </div>
@@ -1018,7 +1049,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.2.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.2.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1592,7 +1623,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.2.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.2.1</strong></p>
     </div>
   </footer>
 

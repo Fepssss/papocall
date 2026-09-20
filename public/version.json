@@ -1,8 +1,8 @@
 {
-    "version":  "1.2.0",
+    "version":  "1.2.1",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "b922d4301c40eed2736f705a5617020311fae03eaf9fa207d2d4e1b5b6d96d4b",
-    "sizeBytes":  17852244,
-    "notes":  "• Conversa privada entre duas pessoas, fora dos servidores: o que você escreve só existe nas duas máquinas, cifrado ponta a ponta com chave X25519 própria de cada conversa.\n• A chamada de voz mostra todo mundo que está dentro. Antes, com duas pessoas na sala, aparecia um só cartão.\n• Os travamentos acabaram: a chamada segurava memória e cada pacote de presença reconstruía a tela inteira. O HUD agora acompanha o tamanho da janela, de 1280px a 4K, sem cortar barra nem texto.\n• Escolha o microfone e a saída de áudio nas configurações e ligue ou desligue os bipes de entrada, saída e compartilhamento de tela. O que está desligado fica desligado depois de reiniciar.\n• Compartilhamento de tela agora obedece à resolução e aos quadros por segundo que você escolhe, e o cartão de status da página inicial mostra latência, conexão e foco reais em vez de texto decorativo.",
-    "publishedAt":  "2026-09-20T23:05:26Z"
+    "sha256":  "8e5b4bc6f9747352c4aa48fa5a16774ff30e44b694afa4ebdc3602ab0ac23d80",
+    "sizeBytes":  17903001,
+    "notes":  "• A HUD voltou ao tamanho de sempre: em janela grande ela não é mais esticada, e o espaço que sobra serve para mostrar mais conteúdo, não letras maiores. Na barra de cima, o nome do servidor agora vira reticências em vez de empurrar os botões para fora da tela.\n• O texto do chat pode ser escolhido com o mouse, nos canais e nas conversas privadas, e copiado como em qualquer documento.\n• Em janela estreita a interface continua cedendo espaço — texto e colunas encolhem juntos — para nada sair da tela.",
+    "publishedAt":  "2026-09-20T23:34:39Z"
 }
