@@ -91,9 +91,14 @@ Ou baixar diretamente o instalador oficial:
 
 ## 🧪 Testes
 
-Os três checks abaixo são **obrigatórios** na `main`: PR com qualquer um
-vermelho não entra, nem para quem é admin. Push direto na `main` continua
-funcionando (o portão pega PR, não o fluxo de release).
+Os três checks abaixo rodam em todo PR e são **obrigatórios** na `main`: PR com
+qualquer um vermelho não entra sem que alguém passe por cima de propósito
+(`gh pr merge --admin`, ou o botão correspondente na interface).
+
+O `enforce_admins` está desligado de caso pensado: com ele ligado, o GitHub
+passou a rejeitar também o **push direto** na `main` — e é por ali que o
+instalador é publicado. Ligar de volta é um comando, se um dia o fluxo passar a
+ser todo por PR.
 
 ```bash
 # Aplicativo (analyze + widgets + criptografia do chat e dos servidores)
