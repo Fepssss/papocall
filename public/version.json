@@ -1,8 +1,8 @@
 {
-    "version":  "1.3.1",
+    "version":  "1.4.0",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "a0b1d04189e14aeb7baf1b2fe11303c35132b37f3ac26989593bad09f3831897",
-    "sizeBytes":  17934726,
-    "notes":  "• Ensurdecer agora silencia de verdade a sala. O botão só mutava o próprio microfone — o ícone trocava e você continuava ouvindo todo mundo. Cada faixa de áudio que chega dos amigos é desligada ao ensurdecer e reativada ao voltar a ouvir, inclusive as de quem entrar depois ou de uma transmissão com som.\n• A escolha sobrevive a sair e voltar para a chamada: quem sai ensurdecido reentra sem ouvir ninguém até querer.\n• O volume regulado da live é reaplicado quando você volta a ouvir.",
-    "publishedAt":  "2026-09-21T00:25:36Z"
+    "sha256":  "b10eb01bc3acf677459aa42af4bb0928197f70fd3659699342fe5fbbbf80c7de",
+    "sizeBytes":  18239643,
+    "notes":  "• Mini perfil: clique em alguém na lista de membros e abre o cartão com a foto, o @, o cargo que a pessoa tem naquele servidor, se ela está em algum canal de voz, quando foi vista por último e em quantos servidores de vocês os dois estão. Os botões são os que já funcionam: mensagem direta, adicionar ou remover amigo e, para quem tem permissão, gerenciar membro.\n• Foto de perfil: escolha uma imagem do seu computador em Configurações \u003e Conta. Ela é recortada no quadrado, reduzida a 128 pixels e comprimida antes de entrar no perfil, e aparece para quem conversa com você. Dá para remover quando quiser.\n• O botão de GIF estava mandando um único endereço fixo que hoje não existe mais — por isso aparecia \"[GIF não carregado]\". Agora você cola o link, vê a prévia de verdade, e o envio só libera com a imagem carregando.\n• Respiro ao mandar mensagem, sem cronômetro na tela: um intervalo curto entre uma mensagem e outra e um teto para rajadas, no canal e na conversa privada. O texto continua no campo até poder sair.\n• Um arquivo escolhido por engano, que não seja uma imagem legível, agora é recusado com aviso em vez de travar no meio do caminho.",
+    "publishedAt":  "2026-09-21T01:23:08Z"
 }

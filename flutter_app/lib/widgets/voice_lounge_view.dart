@@ -9,6 +9,7 @@ import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
 import 'anel_de_fala.dart';
 import 'modals/live_settings_dialog.dart';
+import 'retrato_usuario.dart';
 import 'screen_share_dialog.dart';
 
 class VoiceLoungeView extends StatelessWidget {
@@ -507,13 +508,11 @@ class VoiceLoungeView extends StatelessWidget {
               children: [
                 AnelDeFala(
                   falando: user.isSpeaking,
-                  child: CircleAvatar(
-                    radius: 12,
-                    backgroundColor: isSelf ? HudTheme.blurple : HudTheme.bgHover,
-                    child: Text(
-                      user.initials,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
+                  child: RetratoUsuario(
+                    avatar: user.avatar,
+                    iniciais: user.initials,
+                    raio: 12,
+                    corQuandoSemFoto: isSelf ? HudTheme.blurple : HudTheme.bgHover,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -904,17 +903,11 @@ class _ParticipantCardState extends State<_ParticipantCard> {
                           ]
                         : null,
                   ),
-                  child: CircleAvatar(
-                    radius: 38,
-                    backgroundColor: widget.isSelf ? HudTheme.blurple : const Color(0xFF2B2D31),
-                    child: Text(
-                      user.initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  child: RetratoUsuario(
+                    avatar: user.avatar,
+                    iniciais: user.initials,
+                    raio: 38,
+                    corQuandoSemFoto: widget.isSelf ? HudTheme.blurple : const Color(0xFF2B2D31),
                   ),
                 ),
               ),

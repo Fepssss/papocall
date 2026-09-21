@@ -7,6 +7,8 @@ import '../theme/hud_layout.dart';
 import '../theme/hud_theme.dart';
 import 'anel_de_fala.dart';
 import 'member_context_menu.dart';
+import 'member_profile_card.dart';
+import 'retrato_usuario.dart';
 
 class MembersSidebar extends StatelessWidget {
   const MembersSidebar({super.key});
@@ -156,19 +158,14 @@ class _MemberTileState extends State<_MemberTile> {
               falando: widget.user.isSpeaking,
               child: Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: widget.isSelf
+                  RetratoUsuario(
+                    avatar: widget.user.avatar,
+                    iniciais: widget.user.initials,
+                    raio: 16,
+                    corQuandoSemFoto: widget.isSelf
                         ? HudTheme.blurple
                         : (isOffline ? HudTheme.bgCard : HudTheme.bgHover),
-                    child: Text(
-                      widget.user.initials,
-                      style: TextStyle(
-                        color: isOffline ? HudTheme.textMuted : Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    corDasIniciais: isOffline ? HudTheme.textMuted : Colors.white,
                   ),
                   Positioned(
                     bottom: 0,
@@ -252,8 +249,17 @@ class _MemberTileState extends State<_MemberTile> {
       ),
     );
 
+    // Clique abre o mini perfil; botão direito segue sendo o atalho de gestão.
+    void abrePerfil(TapUpDetails detalhes) => MemberProfileCard.show(
+          context,
+          widget.server,
+          widget.user,
+          detalhes.globalPosition,
+        );
+
     if (isOffline) {
       return GestureDetector(
+        onTapUp: abrePerfil,
         onSecondaryTapUp: (details) =>
             MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
         child: Opacity(
@@ -264,6 +270,7 @@ class _MemberTileState extends State<_MemberTile> {
     }
 
     return GestureDetector(
+      onTapUp: abrePerfil,
       onSecondaryTapUp: (details) =>
           MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
       child: tileContent,

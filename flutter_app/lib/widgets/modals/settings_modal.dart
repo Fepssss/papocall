@@ -1,11 +1,13 @@
 import 'dart:math';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/app_state.dart';
 import '../../services/sound_service.dart';
 import '../../theme/hud_theme.dart';
+import '../retrato_usuario.dart';
 import 'audio_devices_panel.dart';
 
 enum SettingsTab {
@@ -32,6 +34,41 @@ class _SettingsModalState extends State<SettingsModal> {
 
   late TextEditingController _displayNameController;
   late TextEditingController _usernameController;
+
+  /// A foto escolhida é lida, recortada e comprimida num isolate, e isso leva
+  /// um instante: o botão se fecha enquanto dura para a pessoa não escolher
+  /// duas imagens e aplicar a primeira por engano.
+  bool _escolhendoFoto = false;
+
+  Future<void> _escolherFoto(AppState state) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _escolhendoFoto = true);
+    try {
+      final escolhida = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+        dialogTitle: 'Escolher foto de perfil',
+      );
+      final bytes = (escolhida == null || escolhida.files.isEmpty)
+          ? null
+          : escolhida.files.first.bytes;
+      if (bytes == null) return;
+      final erro = await state.definirFotoDePerfil(bytes);
+      if (erro != null) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(erro),
+          backgroundColor: HudTheme.red,
+        ));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Não deu para abrir essa imagem: $e'),
+        backgroundColor: HudTheme.red,
+      ));
+    } finally {
+      if (mounted) setState(() => _escolhendoFoto = false);
+    }
+  }
 
   @override
   void initState() {
@@ -460,14 +497,46 @@ class _SettingsModalState extends State<SettingsModal> {
             border: Border.all(color: const Color(0xFF222838)),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 34,
-                backgroundColor: HudTheme.blurple,
-                child: Text(
-                  user.initials,
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
+              Column(
+                children: [
+                  RetratoUsuario(
+                    avatar: user.avatar,
+                    iniciais: user.initials,
+                    raio: 34,
+                    corQuandoSemFoto: HudTheme.blurple,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: 84,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: HudTheme.accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: _escolhendoFoto ? null : () => _escolherFoto(state),
+                      child: Text(
+                        _escolhendoFoto ? '...' : (user.avatar.isEmpty ? 'Foto' : 'Trocar'),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  if (user.avatar.isNotEmpty)
+                    SizedBox(
+                      width: 84,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: HudTheme.red,
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => state.removerFotoDePerfil(),
+                        child: const Text('Remover', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 20),
               Expanded(

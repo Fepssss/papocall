@@ -5,6 +5,7 @@ import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import 'anel_de_fala.dart';
 import 'modals/settings_modal.dart';
+import 'retrato_usuario.dart';
 
 class UserProfileBar extends StatelessWidget {
   const UserProfileBar({super.key});
@@ -136,13 +137,11 @@ class _UserInfoSectionState extends State<_UserInfoSection> {
                 falando: widget.user.isSpeaking,
                 child: Stack(
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: HudTheme.blurple,
-                      child: Text(
-                        widget.user.initials,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
+                    RetratoUsuario(
+                      avatar: widget.user.avatar,
+                      iniciais: widget.user.initials,
+                      raio: 16,
+                      corQuandoSemFoto: HudTheme.blurple,
                     ),
                     Positioned(
                       bottom: 0,

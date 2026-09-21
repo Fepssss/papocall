@@ -7,12 +7,16 @@ import '../../providers/app_state.dart';
 import '../../theme/hud_theme.dart';
 
 class AddFriendDialog extends StatefulWidget {
-  const AddFriendDialog({super.key});
+  const AddFriendDialog({super.key, this.handleInicial = ''});
 
-  static Future<void> show(BuildContext context) {
+  /// Quando o convite nasce do mini perfil de alguém, o @ já vem preenchido: a
+  /// pessoa acabou de apontar para quem queria adicionar.
+  final String handleInicial;
+
+  static Future<void> show(BuildContext context, {String handleInicial = ''}) {
     return showDialog<void>(
       context: context,
-      builder: (_) => const AddFriendDialog(),
+      builder: (_) => AddFriendDialog(handleInicial: handleInicial),
     );
   }
 
@@ -21,7 +25,8 @@ class AddFriendDialog extends StatefulWidget {
 }
 
 class _AddFriendDialogState extends State<AddFriendDialog> {
-  final TextEditingController _handleController = TextEditingController();
+  late final TextEditingController _handleController =
+      TextEditingController(text: widget.handleInicial);
   String? _errorMessage;
   bool _isLoading = false;
 

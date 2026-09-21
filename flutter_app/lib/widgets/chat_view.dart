@@ -8,6 +8,8 @@ import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/mentions.dart';
 import 'mention_text.dart';
+import 'modals/gif_dialog.dart';
+import 'retrato_usuario.dart';
 
 class ChatView extends StatefulWidget {
   const ChatView({super.key});
@@ -208,7 +210,9 @@ class _ChatViewState extends State<ChatView> {
     final text = _textController.text.trim();
     final channelId = state.activeChannelId;
     if (text.isNotEmpty) {
-      state.sendMessage(text);
+      // O texto só sai do campo quando a mensagem saiu do aparelho: no respiro
+      // entre envios o que a pessoa digitou continua ali, esperando.
+      if (!state.sendMessage(text)) return;
       state.clearDraft(channelId);
       _textController.clear();
       _closeMentions();
@@ -363,16 +367,23 @@ class _ChatViewState extends State<ChatView> {
                     IconButton(
                       icon: const Icon(Icons.gif_box, color: HudTheme.textMuted),
                       tooltip: 'Enviar GIF',
-                      onPressed: () {
-                        // Quick send popular GIF
-                        state.sendMessage('', gifUrl: 'https://media.giphy.com/media/jpbnoe3UIa8TU8LM13/giphy.gif');
-                        _scrollToBottom();
-                      },
+                      onPressed: state.podeEnviar
+                          ? () async {
+                              final url = await GifDialog.show(context);
+                              if (url == null || !mounted) return;
+                              if (state.sendMessage('', gifUrl: url)) _scrollToBottom();
+                            }
+                          : null,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.send, color: HudTheme.blurple),
-                      tooltip: 'Enviar Mensagem',
-                      onPressed: () => _handleSend(state),
+                      icon: Icon(
+                        Icons.send,
+                        color: state.podeEnviar ? HudTheme.blurple : HudTheme.textMuted,
+                      ),
+                      tooltip: state.podeEnviar
+                          ? 'Enviar Mensagem'
+                          : 'Um instante entre uma mensagem e outra',
+                      onPressed: state.podeEnviar ? () => _handleSend(state) : null,
                     ),
                   ],
                 ),
@@ -563,16 +574,14 @@ class _ChatMessageTileState extends State<_ChatMessageTile> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: msg.isSystem ? HudTheme.green : HudTheme.blurple,
-              child: Text(
-                (msg.authorDisplayName.isNotEmpty
-                        ? msg.authorDisplayName[0]
-                        : (msg.author.isNotEmpty ? msg.author[0] : '?'))
-                    .toUpperCase(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
+            RetratoUsuario(
+              avatar: msg.authorAvatar,
+              iniciais: (msg.authorDisplayName.isNotEmpty
+                      ? msg.authorDisplayName[0]
+                      : (msg.author.isNotEmpty ? msg.author[0] : '?'))
+                  .toUpperCase(),
+              raio: 18,
+              corQuandoSemFoto: msg.isSystem ? HudTheme.green : HudTheme.blurple,
             ),
             const SizedBox(width: 12),
             Expanded(

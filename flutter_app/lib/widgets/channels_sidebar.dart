@@ -10,6 +10,7 @@ import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
 import 'anel_de_fala.dart';
 import 'channel_context_menu.dart';
+import 'retrato_usuario.dart';
 
 class ChannelsSidebar extends StatelessWidget {
   const ChannelsSidebar({super.key});
@@ -459,13 +460,11 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
           children: [
             AnelDeFala(
               falando: widget.user.isSpeaking,
-              child: CircleAvatar(
-                radius: 11,
-                backgroundColor: widget.isSelf ? HudTheme.blurple : HudTheme.bgHover,
-                child: Text(
-                  widget.user.initials,
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                ),
+              child: RetratoUsuario(
+                avatar: widget.user.avatar,
+                iniciais: widget.user.initials,
+                raio: 11,
+                corQuandoSemFoto: widget.isSelf ? HudTheme.blurple : HudTheme.bgHover,
               ),
             ),
             const SizedBox(width: 8),

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.3.1+27
+version: 1.4.0+28
 
 environment:
   sdk: ^3.13.3
@@ -40,6 +40,11 @@ dependencies:
   http: ^1.6.0
   crypto: ^3.0.7
   cryptography: ^2.9.0
+  # Foto de perfil: `file_picker` abre o diálogo nativo do Windows sem DLL
+  # extra, e `image` reduz e comprime em JPEG — um PNG de 128px pesa dezenas de
+  # kilobytes e a foto viaja dentro de cada pacote de presença.
+  file_picker: ^10.3.10
+  image: ^4.5.4
 
 dev_dependencies:
   flutter_test:

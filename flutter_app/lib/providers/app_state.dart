@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
@@ -21,6 +23,7 @@ import '../services/update_service.dart';
 import '../utils/app_log.dart';
 import '../utils/app_paths.dart';
 import '../utils/app_version.dart';
+import '../utils/foto_de_perfil.dart';
 import '../utils/mentions.dart';
 
 /// Como a tela de outra pessoa ocupa a janela do PapoCall.
@@ -140,6 +143,29 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _voiceService.entradaDeAudioId = audioInputId;
     _voiceService.saidaDeAudioId = audioOutputId;
     _voiceService.supressaoDeRuido = noiseSuppression;
+  }
+
+  /// Troca a foto de perfil pela imagem escolhida no disco.
+  ///
+  /// A decodificação de uma foto de celular custa dezenas de milissegundos e
+  /// aconteceria no meio da pintura da janela, então o trabalho vai para um
+  /// isolate. Devolve o motivo da recusa, ou null quando a foto entrou.
+  Future<String?> definirFotoDePerfil(Uint8List bytes) async {
+    final resultado = await Isolate.run(() => prepararFotoDePerfil(bytes));
+    final nova = resultado.avatar;
+    if (nova == null) return resultado.erro ?? 'Não foi possível usar essa imagem.';
+    currentUser.avatar = nova;
+    await _saveSettings();
+    _sendPresence();
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> removerFotoDePerfil() async {
+    currentUser.avatar = '';
+    await _saveSettings();
+    _sendPresence();
+    notifyListeners();
   }
 
   // Gerenciamento de Foco e Otimização de Renderização de Live
@@ -723,6 +749,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'user_id': currentUser.id,
         'username': currentUser.username.replaceAll('@', '').trim(),
         'displayName': currentUser.displayName,
+        'avatar': currentUser.avatar,
         'mutedServers': _mutedServerIds.toList(),
         'audioInputId': audioInputId,
         'audioOutputId': audioOutputId,
@@ -915,6 +942,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
         if (savedDisplayName != null && savedDisplayName.isNotEmpty && !isAuthenticated) {
           currentUser.displayName = savedDisplayName;
+        }
+        // A foto é a escolha da pessoa, não uma credencial: ela é pública e já
+        // viaja na presença. Guardada aqui, volta antes do primeiro batimento.
+        final salvoAvatar = data['avatar'] as String?;
+        if (salvoAvatar != null && salvoAvatar.isNotEmpty) {
+          currentUser.avatar = salvoAvatar;
         }
         final muted = data['mutedServers'];
         if (muted is List) {
@@ -2814,8 +2847,56 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return handles;
   }
 
-  void sendMessage(String text, {String? gifUrl, String? replyToAuthor, String? replyToText}) {
-    if (text.trim().isEmpty && gifUrl == null) return;
+  /// Nada segurava ninguém de apertar Enter trinta vezes em cinco segundos e
+  /// encher o canal. O respiro é curto o bastante para não aparecer no uso
+  /// normal de uma conversa e longo o bastante para o spam não passar.
+  static const Duration _respiroPorMensagem = Duration(milliseconds: 800);
+  static const int _tetoNaJanela = 12;
+  static const Duration _janelaDeObservacao = Duration(seconds: 15);
+  final List<DateTime> _enviosRecentes = [];
+
+  /// Quantos milissegundos faltam para o próximo envio poder sair. Zero libera.
+  ///
+  /// Não há cronômetro na tela: o que a pessoa vê é o botão de envio ficar
+  /// mudo por um instante e o texto continuar no campo, esperando.
+  int esperaParaEnviarMs([DateTime? momento]) {
+    final agora = momento ?? DateTime.now();
+    final recentes =
+        _enviosRecentes.where((t) => agora.difference(t) <= _janelaDeObservacao).toList();
+    if (recentes.isEmpty) return 0;
+
+    var ms = 0;
+    final descanso = agora.difference(recentes.last);
+    if (descanso < _respiroPorMensagem) {
+      ms = (_respiroPorMensagem - descanso).inMilliseconds;
+    }
+    if (recentes.length >= _tetoNaJanela) {
+      final ateLiberar =
+          (_janelaDeObservacao - agora.difference(recentes.first)).inMilliseconds;
+      if (ateLiberar > ms) ms = ateLiberar;
+    }
+    return ms > 0 ? ms : 0;
+  }
+
+  bool get podeEnviar => esperaParaEnviarMs() == 0;
+
+  void _registrarEnvio([DateTime? momento]) {
+    final agora = momento ?? DateTime.now();
+    _enviosRecentes.removeWhere((t) => agora.difference(t) > _janelaDeObservacao);
+    _enviosRecentes.add(agora);
+  }
+
+  /// Manda uma mensagem para o canal aberto. Devolve false quando o respiro de
+  /// envio segurou a mensagem — aí o chamador mantém o texto no campo.
+  bool sendMessage(String text, {String? gifUrl, String? replyToAuthor, String? replyToText}) {
+    final corpo = text.trim();
+    final gif = gifUrl?.trim() ?? '';
+    if (corpo.isEmpty && gif.isEmpty) return false;
+    // Um GIF que não é endereço não é imagem: a mensagem sairia vazia para o
+    // outro lado.
+    if (gif.isNotEmpty && !(gif.startsWith('https://') || gif.startsWith('http://'))) return false;
+    if (esperaParaEnviarMs() > 0) return false;
+    _registrarEnvio();
 
     final newMsg = ChatMessage(
       id: _uuid.v4(),
@@ -2824,9 +2905,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       authorDisplayName: currentUser.displayName,
       authorUsername: currentUser.username,
       authorAvatar: currentUser.avatar,
-      text: text.trim(),
+      text: corpo,
       timestamp: 'Hoje às ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-      gifUrl: gifUrl,
+      gifUrl: gif.isEmpty ? null : gif,
       replyToAuthor: replyToAuthor,
       replyToText: replyToText,
     );
@@ -2847,6 +2928,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _publishChatMessage(targetServer, targetChannel, targetChannelId, newMsg);
       _scheduleHistoryPublish(targetServer.id);
     }
+    return true;
   }
 
   /// Publica a mensagem no servidor/canal em que ela foi escrita.
@@ -3071,6 +3153,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     final bloqueio = bloqueioDeEnvioDireto(peerId);
     if (bloqueio != null) return bloqueio;
+
+    // O mesmo respiro do canal vale aqui; a interface desabilita o botão antes
+    // de chegar neste ponto, e a recusa só aparece se alguém chamar direto.
+    if (esperaParaEnviarMs() > 0) return 'Espere um instante antes de mandar outra.';
+    _registrarEnvio();
 
     final amigo = _amigoPorId(peerId)!;
     final agora = DateTime.now();

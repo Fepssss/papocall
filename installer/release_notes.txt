@@ -1,3 +1,5 @@
-• Ensurdecer agora silencia de verdade a sala. O botão só mutava o próprio microfone — o ícone trocava e você continuava ouvindo todo mundo. Cada faixa de áudio que chega dos amigos é desligada ao ensurdecer e reativada ao voltar a ouvir, inclusive as de quem entrar depois ou de uma transmissão com som.
-• A escolha sobrevive a sair e voltar para a chamada: quem sai ensurdecido reentra sem ouvir ninguém até querer.
-• O volume regulado da live é reaplicado quando você volta a ouvir.
+• Mini perfil: clique em alguém na lista de membros e abre o cartão com a foto, o @, o cargo que a pessoa tem naquele servidor, se ela está em algum canal de voz, quando foi vista por último e em quantos servidores de vocês os dois estão. Os botões são os que já funcionam: mensagem direta, adicionar ou remover amigo e, para quem tem permissão, gerenciar membro.
+• Foto de perfil: escolha uma imagem do seu computador em Configurações > Conta. Ela é recortada no quadrado, reduzida a 128 pixels e comprimida antes de entrar no perfil, e aparece para quem conversa com você. Dá para remover quando quiser.
+• O botão de GIF estava mandando um único endereço fixo que hoje não existe mais — por isso aparecia "[GIF não carregado]". Agora você cola o link, vê a prévia de verdade, e o envio só libera com a imagem carregando.
+• Respiro ao mandar mensagem, sem cronômetro na tela: um intervalo curto entre uma mensagem e outra e um teto para rajadas, no canal e na conversa privada. O texto continua no campo até poder sair.
+• Um arquivo escolhido por engano, que não seja uma imagem legível, agora é recusado com aviso em vez de travar no meio do caminho.

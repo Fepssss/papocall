@@ -92,6 +92,9 @@ class _DirectChatSectionState extends State<DirectChatSection> {
   Widget _buildConversa(AppState state, UserModel peer) {
     final mensagens = state.directMessages(peer.id);
     final bloqueio = state.bloqueioDeEnvioDireto(peer.id);
+    // O respiro de envio não aparece como cronômetro: o botão fica mudo por um
+    // instante e o texto continua no campo.
+    final podeSair = bloqueio == null && state.podeEnviar;
     final impressao = state.impressaoDoPar(peer.id);
 
     if (_avisoDe != peer.id) {
@@ -184,11 +187,11 @@ class _DirectChatSectionState extends State<DirectChatSection> {
                 const SizedBox(width: 8),
                 IconButton.filled(
                   style: IconButton.styleFrom(
-                    backgroundColor: bloqueio == null ? HudTheme.green : HudTheme.bgHover,
+                    backgroundColor: podeSair ? HudTheme.green : HudTheme.bgHover,
                     foregroundColor: Colors.white,
                   ),
-                  tooltip: 'Enviar',
-                  onPressed: bloqueio == null ? () => _enviar(state, peer.id) : null,
+                  tooltip: podeSair ? 'Enviar' : 'Um instante entre uma mensagem e outra',
+                  onPressed: podeSair ? () => _enviar(state, peer.id) : null,
                   icon: const Icon(Icons.send_rounded, size: 18),
                 ),
               ],
