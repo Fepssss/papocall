@@ -45,7 +45,11 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     pior_us_ = 0;
     pico_ = 0.0f;
     trocas_de_taxa_ = 0;
-    despejo_.open(caminhoDaTemporada(kNomeDoDespejo), std::ios::binary | std::ios::trunc);
+    falhas_de_escrita_ = 0;
+    // `out` não é padrão quando se passa um modo explícito: sem ele o arquivo
+    // abre, os contadores contam e o despejo não escreve uma linha.
+    despejo_.open(caminhoDaTemporada(kNomeDoDespejo),
+                  std::ios::out | std::ios::binary | std::ios::trunc);
     escreverResumo();
   }
 
@@ -61,6 +65,9 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     }
     despejo_.write(reinterpret_cast<const char*>(buffer),
                    static_cast<std::streamsize>(num_frames) * static_cast<std::streamsize>(sizeof(float)));
+    // Um stream que entra em fail() escreve invisivelmente para sempre: o
+    // contador é o que impede esta sonda de mentir de novo.
+    if (despejo_.fail()) ++falhas_de_escrita_;
 
     const auto fim = std::chrono::steady_clock::now();
     const long long deste =
@@ -101,11 +108,12 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     char linha[256];
     std::snprintf(linha, sizeof(linha),
                   "taxa_hz=%d\ncanais=%d\nnum_bands=%d\nbuffer_size=%d\n"
-                  "quadros=%lld\ntrocas_de_taxa=%d\npico=%.6f\n"
+                  "quadros=%lld\ntrocas_de_taxa=%d\nfalhas_de_escrita=%lld\npico=%.6f\n"
                   "media_us_por_quadro=%lld\npior_us_por_quadro=%lld\n"
                   "audio_segundos=%.2f\n",
                   taxa_hz_, canais_, num_bands_, tamanho_buffer_, quadros_,
-                  trocas_de_taxa_, static_cast<double>(pico_), media, pior_us_,
+                  trocas_de_taxa_, falhas_de_escrita_, static_cast<double>(pico_),
+                  media, pior_us_,
                   static_cast<double>(quadros_) / 100.0);
     resumo << linha;
   }
@@ -119,6 +127,7 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
   long long somados_us_ = 0;
   long long pior_us_ = 0;
   int trocas_de_taxa_ = 0;
+  long long falhas_de_escrita_ = 0;
   float pico_ = 0.0f;
 };
 
