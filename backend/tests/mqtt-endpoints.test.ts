@@ -128,7 +128,13 @@ describe('11. POST /mqtt/credentials', () => {
     assert.equal(res.status, 200);
 
     const { mqttUsername, mqttPassword, expiresAt } = res.body.data;
-    assert.equal(mqttUsername, userId, 'o nome no broker é o UUID, não o @ nem o e-mail');
+    // O nome no broker é a credencial, não a conta: com mais de um aparelho aberto
+    // a consulta do broker teria de escolher entre várias linhas se fosse o id do
+    // usuário.
+    assert.notEqual(mqttUsername, userId);
+    const sessao = await prisma.mqttSession.findUnique({ where: { id: mqttUsername } });
+    assert.ok(sessao, 'o nome entregue tem de existir como sessão');
+    assert.equal(sessao!.user_id, userId);
     assert.match(mqttPassword, /^[0-9a-f]{64}$/, '256 bits em hex');
     assert.ok(Date.parse(expiresAt) > Date.now() + 60_000);
   });

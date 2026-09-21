@@ -1,0 +1,163 @@
+# Template do emqx.conf. NÃO suba este arquivo direto: rode ./render.sh, que
+# injeta `acl.sql`, `authn.sql` e as credenciais do banco e escreve
+# `etc/emqx.conf` — arquivo que fica no servidor e nunca entra no git.
+#
+# Por que renderizar em vez de escrever a query aqui: as duas consultas são a regra
+# de autorização do produto, e vivem em arquivos próprios justamente para serem
+# testadas contra um Postgres de verdade no CI do backend
+# (`backend/tests/mqtt-sql.test.ts`). Colar uma cópia neste arquivo seria criar a
+# segunda versão de uma regra de segurança, e a segunda versão é sempre a que
+# envelhece sozinha.
+
+node {
+  name = "papocall@127.0.0.1"
+}
+
+cluster {
+  # Um nó só nesta fase. O nome em modo `static` deixa acrescentar um segundo sem
+  # mexer em nada do resto — ver o README, seção "standby".
+  name = papocall
+  node_strategy = static
+  static { nodes = ["papocall@127.0.0.1"] }
+}
+
+# ---------------------------------------------------------------------------
+# Portas
+# ---------------------------------------------------------------------------
+# O listener TCP plano (1883) não existe aqui de propósito: sem TLS o broker ouve
+# usuário, senha e os nomes de tópico inteiros, e os nomes de tópico são justamente
+# a fronteira que a ACL protege.
+listeners.ssl.default {
+  enable = true
+  bind = "0.0.0.0:8883"
+  max_connections = 1024
+  ssl_options {
+    certfile = "/opt/emqx/etc/certs/broker.crt"
+    keyfile  = "/opt/emqx/etc/certs/broker.key"
+    cacertfile = "/opt/emqx/etc/certs/ca.crt"
+    # O aplicativo valida o certificado ao conectar (dart:io). `verify_none` aqui é
+    # sobre o que o broker exige do cliente: MQTT não usa mTLS neste projeto.
+    verify = verify_none
+  }
+}
+
+listeners.wss.default {
+  enable = true
+  bind = "0.0.0.0:8084"
+  max_connections = 1024
+  ssl_options {
+    certfile = "/opt/emqx/etc/certs/broker.crt"
+    keyfile  = "/opt/emqx/etc/certs/broker.key"
+    cacertfile = "/opt/emqx/etc/certs/ca.crt"
+    verify = verify_none
+  }
+}
+
+listeners.tcp.default { enable = false }
+listeners.ws.default { enable = false }
+
+# ---------------------------------------------------------------------------
+# Banco de autorização
+# ---------------------------------------------------------------------------
+database {
+  type = postgresql
+  enable = true
+  host = "__DB_HOST__"
+  port = __DB_PORT__
+  database = "__DB_NAME__"
+  username = "__DB_USER__"
+  password = "__DB_PASS__"
+  pool_size = 8
+  # A conexão do broker com o banco é só de leitura: ele não escreve nada. Os
+  # grants e as sessões são escritos pela aplicação, com as credenciais dela.
+  ssl = { enable = false }
+}
+
+# ---------------------------------------------------------------------------
+# Autenticação: sem credencial válida não entra ninguém
+# ---------------------------------------------------------------------------
+authentication = [
+  {
+    mechanism = password_based
+    user_id_type = username
+    password_hash_algorithm {
+      name = sha256
+      encode_type = hex
+    }
+    backend {
+      type = postgresql
+      query = """
+__AUTHN_SQL__
+"""
+    }
+  }
+]
+
+# ---------------------------------------------------------------------------
+# Autorização: o que cada credencial pode tocar
+# ---------------------------------------------------------------------------
+authorization {
+  sources = [
+    {
+      type = postgresql
+      enable = true
+      query = """
+__ACL_SQL__
+"""
+    }
+  ]
+
+  # Fechado por padrão. Se a consulta não devolve linha, a resposta é não — o
+  # oposto do que o broker público de antes fazia, onde "ninguém disse não" era o
+  # bastante para publicar.
+  no_match = deny
+  deny_action = ignore
+}
+
+# ---------------------------------------------------------------------------
+# Freio de abuso
+# ---------------------------------------------------------------------------
+# Por cliente, não por IP: atrás de um NAT de empresa todos os usuários saem do
+# mesmo endereço, e um limite por IP puniria gente inocente.
+limits {
+  rate {
+    msgs_keys = ["ClientID"]
+    messages_rate = 100/s
+    msgs_burst = 200
+    # Publicar é o caminho de spam; assinar é barato e acontece em lote na abertura.
+    topics_rate = 50/s
+    delivery_rate = 200/s
+  }
+  conn {
+    max_conn_rate = 10
+    max_exceptions = 1000
+  }
+}
+
+# Retenção e sessão: o produto guarda estado em mensagens retidas (estrutura do
+# servidor, presença, histórico por membro), então o tempo de vida delas é
+# deliberadamente longo e a limpeza é feita pelo próprio aplicativo publicando
+# payload vazio.
+mqtt {
+  max_mqueue_len = 512
+  retain_available = true
+  message_expiry_interval = 30d
+}
+
+dashboard {
+  listener = { bind = "127.0.0.1", port = 18083 }
+  # Senha vem do ambiente no docker-compose. O painel fica preso em localhost: para
+  # abrir, túnel SSH — não porta pública.
+}
+
+log {
+  console {
+    formatter = text
+    level = warning
+  }
+  file {
+    level = warning
+    # `all` em arquivo é o que faz um broker com milhares de conexões encher o
+    # disco. Os eventos de autenticação ficam no audit do próprio EMQX.
+  }
+}

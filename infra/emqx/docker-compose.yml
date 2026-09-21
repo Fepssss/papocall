@@ -1,0 +1,42 @@
+# Broker MQTT dedicado do PapoCall.
+#
+# Sobe o EMQX com o mesmo Postgres do backend por padrão — ver o README deste
+# diretório antes de subir, principalmente o passo do certificado.
+#
+#   ./render.sh                    # injeta acl.sql e authn.sql no emqx.conf
+#   docker compose up -d
+#
+# Nada aqui expõe a porta 1883 (texto puro). Um broker que aceita plain text é um
+# broker onde um café público escuta os metadados de todo mundo, e a criptografia
+# de conteúdo não protege nada disso.
+
+services:
+  emqx:
+    # Fechado na major+minor: a sintaxe de `authentication`/`authorization` mudou
+    # entre as 5.x, e um `latest` que acorda com outra sintaxe derruba o chat de
+    # todo mundo com um erro de configuração no boot.
+    image: emqx/emqx:5.8.6
+    container_name: papocall-emqx
+    restart: unless-stopped
+    ports:
+      - '8883:8883'   # MQTT sobre TLS
+      - '8084:8084'   # MQTT sobre WebSocket seguro (fallback para redes que bloqueiam 8883)
+    environment:
+      EMQX_NODE__NAME: papocall@127.0.0.1
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${DASHBOARD_SENHA:?defina DASHBOARD_SENHA no ambiente — veja o README}
+      # O Postgres onde vivem mqtt_sessions e mqtt_grants. Em produção é o mesmo
+      # banco do backend; a senha de leitura fica num arquivo fora do git.
+      EMQX_AUTHN_SQL_HOST: ${BANCO_HOST:?}
+      EMQX_AUTHN_SQL_PORT: ${BANCO_PORT:-5432}
+      EMQX_AUTHN_SQL_USER: ${BANCO_USUARIO:?}
+      EMQX_AUTHN_SQL_PASS: ${BANCO_SENHA:?}
+      EMQX_AUTHN_SQL_DB: ${BANCO_NOME:?}
+    volumes:
+      - ./etc/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+      - ./certs:/opt/emqx/etc/certs:ro
+    healthcheck:
+      test: ['CMD', '/opt/emqx/bin/emqx', 'ctl', 'status']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s

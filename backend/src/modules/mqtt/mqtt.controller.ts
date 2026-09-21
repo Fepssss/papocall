@@ -40,12 +40,13 @@ export class MqttController {
       const expiresAt = new Date(agora.getTime() + env.MQTT_CREDENTIAL_TTL_MINUTES * 60_000);
       const mqttPassword = generateRandomToken(32);
 
-      await prisma.$transaction(async (tx) => {
-        await tx.mqttSession.create({
+      const sessao = await prisma.$transaction(async (tx) => {
+        const criada = await tx.mqttSession.create({
           data: { user_id: user.id, password_hash: hashToken(mqttPassword), expires_at: expiresAt },
         });
         await syncOwnGrants(tx, user.id, user.rawUsername);
         await tx.mqttSession.deleteMany({ where: { user_id: user.id, expires_at: { lt: agora } } });
+        return criada;
       });
 
       // Mantém só as mais recentes. Sem isto, o teto acima não passa de comentário.
@@ -62,7 +63,11 @@ export class MqttController {
       res.status(200).json({
         success: true,
         data: {
-          mqttUsername: user.id,
+          // O nome no broker é o id da CREDENCIAL, não o da conta. Uma conta pode
+          // ter várias credenciais vivas (mais de um aparelho aberto), e a consulta
+          // do broker precisa voltar uma linha só. Ninguém fica identificável no
+          // log do broker nem por conta nem por @.
+          mqttUsername: sessao.id,
           mqttPassword,
           expiresAt: expiresAt.toISOString(),
           // Onde conectar. Chega do servidor para que trocar de broker seja uma
