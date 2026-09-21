@@ -1,8 +1,8 @@
 {
-    "version":  "1.5.0",
+    "version":  "1.5.1",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "abc2dbbf8d15188b449a8a5e3c845d97f7bc4955878696e0b0c06239972f321c",
-    "sizeBytes":  18252240,
-    "notes":  "• A foto de perfil agora pode ser um GIF animado: escolha o arquivo em Configurações \u003e Conta e ele continua se mexendo na lista de membros, no chat, nos cartões da chamada de voz, na sua barra de perfil e no mini perfil de quem abrir o seu.\n• Como o retrato viaja dentro de cada pacote de presença, o GIF é recortado no quadrado, reduzido a 96 pixels e amostrado em até 12 quadros, com teto de 16 KB. O que não couber é recusado na hora, com aviso, e o perfil fica exatamente como estava.\n• GIFs enormes são recusados já pelo cabeçalho do arquivo, sem gastar tempo decodificando o que não ia caber.",
-    "publishedAt":  "2026-09-21T02:03:36Z"
+    "sha256":  "86c7e3a4f5e4025f2556e57eaa596c4cfae56a91987b6df753f85eb6c373daea",
+    "sizeBytes":  18250931,
+    "notes":  "• Atualizar não abre mais a janela do PowerShell na sua frente. O handoff continua precisando do console — sem ele a instalação morria junto com o aplicativo —, mas a primeira coisa que o script faz agora é esconder a própria janela, e o instalador trabalha em silêncio.\n• A barra de voz no painel esquerdo ganhou a fileira de controles: compartilhar tela, configurar a transmissão enquanto ela está no ar, mutar o microfone e ensurdecer. Apertar ensurdecer ali silencia a sala de verdade, do mesmo jeito que no dock da chamada.\n• A linha de status da voz agora diz \"servidor / canal\", com o servidor e o canal que sustentam a conexão, em vez do nome fixo de antes.",
+    "publishedAt":  "2026-09-21T03:01:01Z"
 }

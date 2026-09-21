@@ -7,10 +7,10 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
+import 'acao_compartilhar_tela.dart';
 import 'anel_de_fala.dart';
 import 'modals/live_settings_dialog.dart';
 import 'retrato_usuario.dart';
-import 'screen_share_dialog.dart';
 
 class VoiceLoungeView extends StatelessWidget {
   const VoiceLoungeView({super.key});
@@ -673,7 +673,7 @@ class VoiceLoungeView extends StatelessWidget {
             isActive: state.isScreenSharing,
             activeColor: HudTheme.accent,
             isDestructive: state.isScreenSharing,
-            onPressed: () => _handleScreenShareToggle(context, state),
+            onPressed: () => alternarCompartilhamentoDeTela(context, state),
           ),
           const SizedBox(width: 8),
 
@@ -718,37 +718,6 @@ class VoiceLoungeView extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _handleScreenShareToggle(BuildContext context, AppState state) async {
-    if (state.isScreenSharing) {
-      await state.stopScreenShare();
-      return;
-    }
-
-    try {
-      final escolha = await ScreenShareDialog.show(context);
-
-      if (escolha != null) {
-        final success = await state.startScreenShare(
-          escolha.sourceId,
-          nomeDaFonte: escolha.nome,
-          width: escolha.width,
-          height: escolha.height,
-          fps: escolha.fps,
-        );
-        if (!success && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Não foi possível iniciar o compartilhamento de tela.'),
-              backgroundColor: HudTheme.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Erro ao abrir diálogo de seleção de tela: $e');
-    }
   }
 
   Widget _buildDisconnectedPrompt(BuildContext context, AppState state, String? channelId) {

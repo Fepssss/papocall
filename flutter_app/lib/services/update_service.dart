@@ -241,7 +241,7 @@ class UpdateService {
     // console inexistente do próprio cmd e o processo morreria junto com o pai
     // no exit(0) logo abaixo. `/min` dá console novo ao filho: é isso que
     // permite ao instalador terminar o trabalho depois de o app fechar.
-    final cmd = comandoDoHandoff(script);
+    final cmd = comandoDoHandoff(roteiroDeHandoff(script));
     await Process.start(
       cmd.first,
       cmd.sublist(1),
@@ -249,6 +249,25 @@ class UpdateService {
     );
     AppLog.write('Update', 'instalador destacado; o app vai fechar');
   }
+
+  /// A primeira coisa que o script faz é esconder a própria janela de console.
+  ///
+  /// O console é obrigatório — sem ele o PowerShell destacado não executa nada,
+  /// e sem um console novo o instalador morreria junto deste app — mas ele não
+  /// precisa aparecer na cara de quem só quis atualizar. O `try` envolve tudo de
+  /// propósito: se esconder falhar numa máquina qualquer, instalar continua
+  /// funcionando e o pior cenário volta a ser a janelinha minimizada de antes.
+  static const String _esconderConsole =
+      "try { Add-Type -TypeDefinition "
+      "'using System;using System.Runtime.InteropServices;"
+      'public static class EscondeConsole{'
+      '[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();'
+      '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);}'
+      "'; [EscondeConsole]::ShowWindow([EscondeConsole]::GetConsoleWindow(), 0) | Out-Null } catch {}";
+
+  /// O texto que vai para o `-Command` do PowerShell: primeiro esconde a própria
+  /// janela, depois faz o trabalho pedido.
+  static String roteiroDeHandoff(String script) => '$_esconderConsole $script';
 
   /// O comando que entrega o instalador fora da árvore de processos deste
   /// aplicativo. Fixado em teste: sem console próprio (`/min`), o PowerShell
@@ -262,6 +281,8 @@ class UpdateService {
         'powershell.exe',
         '-NoProfile',
         '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
         '-ExecutionPolicy',
         'Bypass',
         '-Command',

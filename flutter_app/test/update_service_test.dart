@@ -212,6 +212,8 @@ void main() {
 
       expect(cmd.take(5).toList(), ['cmd.exe', '/c', 'start', '""', '/min']);
       expect(cmd, contains('powershell.exe'));
+      // A janela do console não pode aparecer na cara de quem só atualizou.
+      expect(cmd.sublist(5, cmd.length - 2), containsAll(['-WindowStyle', 'Hidden']));
       expect(cmd.last, 'Write-Output 1');
     });
 
@@ -222,7 +224,10 @@ void main() {
       if (marcador.existsSync()) marcador.deleteSync();
 
       final script = "Set-Content -Path '${marcador.path.replaceAll("'", "''")}' -Value 'ok'";
-      final cmd = UpdateService.comandoDoHandoff(script);
+      // O roteiro completo, com o esconde-console na frente: se aquela linha
+      // travar em alguma máquina, é aqui que isso aparece.
+      final cmd =
+          UpdateService.comandoDoHandoff(UpdateService.roteiroDeHandoff(script));
       await Process.start(cmd.first, cmd.sublist(1), mode: ProcessStartMode.detached);
 
       for (var i = 0; i < 30 && !marcador.existsSync(); i++) {

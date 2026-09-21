@@ -152,6 +152,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a barra de voz manda mutar e ensurdecer de onde ela está', (tester) async {
+    final state = aplicativo(naVoz: true);
+    await montar(tester, state, const Size(1280, 800));
+
+    // A linha de cima diz servidor / canal — não o nome fixo de antes.
+    expect(find.text('Servidor de Testes da Hud / Sala Alfa'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.mic_rounded));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(state.currentUser.isMuted, isTrue);
+    expect(find.byIcon(Icons.mic_off_rounded), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.headset_rounded));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(state.currentUser.isDeafened, isTrue);
+    expect(state.voiceService.ensurdecido, isTrue,
+        reason: 'ensurdecer pela barra lateral tem de silenciar a sala, não só o microfone');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('o painel esquerdo encolhe na janela estreita e para no tamanho desenhado',
       (tester) async {
     final state = aplicativo();
