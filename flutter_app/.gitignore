@@ -46,3 +46,10 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# O CMake do plugin vendorizado baixa ~28 MB de binários do libwebrtc para estas
+# pastas na primeira build. Ficam no disco para o build não depender de rede, mas
+# não entram no Git: o que se versiona é o fonte do patch, não o binário da
+# dependência — e o `.exe` publicado já carrega o dele.
+third_party/flutter_webrtc/third_party/libwebrtc/
+third_party/flutter_webrtc/third_party/downloads/

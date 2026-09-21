@@ -18,6 +18,9 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Fonte de terceiros vendorizado e patcheado: o Dart dele é do pacote original,
+    # e as lints dele não são nosso portão de publicação.
+    - third_party/**
 
 linter:
   # The lint rules applied to this project can be customized in the

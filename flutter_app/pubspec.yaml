@@ -46,6 +46,16 @@ dependencies:
   file_picker: ^10.3.10
   image: ^4.5.4
 
+# O flutter_webrtc do pub não dá ao Dart nenhum acesso ao gancho de processamento
+# de quadro de áudio que o libwebrtc empacotado já tem no Windows
+# (`RTCAudioProcessing::SetCapturePostProcessing`). O cancelamento de ruído
+# precisa acontecer na thread de captura, em C++, então o plugin é vendorizado e
+# patcheado aqui. A lista do que muda e como reaplicar está em
+# third_party/flutter_webrtc/PATCHES.md.
+dependency_overrides:
+  flutter_webrtc:
+    path: third_party/flutter_webrtc
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
