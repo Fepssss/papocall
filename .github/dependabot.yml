@@ -32,8 +32,10 @@ updates:
       - dependencies
       - backend
     commit-message:
-      prefix: chore(deps)
-      include: scope
+      # O Dependabot acrescenta o tipo da dependência sozinho: `prefix: chore`
+      # sai como "chore(deps): ...", enquanto `prefix: chore(deps)` sairia
+      # "chore(deps)(deps): ...".
+      prefix: chore
     groups:
       # Patch e minor viram um PR único por ecossistema; major continua
       # individual, porque é o único caso em que a quebra de contrato merece
@@ -60,8 +62,10 @@ updates:
       - dependencies
       - site
     commit-message:
-      prefix: chore(deps)
-      include: scope
+      # O Dependabot acrescenta o tipo da dependência sozinho: `prefix: chore`
+      # sai como "chore(deps): ...", enquanto `prefix: chore(deps)` sairia
+      # "chore(deps)(deps): ...".
+      prefix: chore
     groups:
       menores-e-patches:
         patterns:
@@ -92,8 +96,10 @@ updates:
       - dependencies
       - aplicativo
     commit-message:
-      prefix: chore(deps)
-      include: scope
+      # O Dependabot acrescenta o tipo da dependência sozinho: `prefix: chore`
+      # sai como "chore(deps): ...", enquanto `prefix: chore(deps)` sairia
+      # "chore(deps)(deps): ...".
+      prefix: chore
     ignore:
       - dependency-name: flutter_webrtc
 
@@ -111,5 +117,4 @@ updates:
       - dependencies
       - infraestrutura
     commit-message:
-      prefix: chore(ci)
-      include: scope
+      prefix: chore
