@@ -20,6 +20,12 @@ constexpr char kNomeDaMarca[] = "papocall_audio_probe.on";
 // Um quadro são 10 ms, então 500 quadros são 5 segundos de conversa.
 constexpr long long kQuadrosPorResumo = 500;
 
+// E 6000 são 60 segundos de despejo. O teto existe porque este código vai dentro
+// de um build publicado: sem ele, uma chamada de uma hora com a marca esquecida
+// no diretório temporário gravaria centenas de megabytes. Depois do teto os
+// contadores e o tempo por quadro continuam, só para de escrever PCM.
+constexpr long long kTetoDeQuadrosDespejados = 6000;
+
 // Caminho largo, não texto: o diretório temporário costuma levar o nome de
 // quem logou, e esse nome pode ter acento.
 std::filesystem::path caminhoDaTemporada(const std::string& nome) {
@@ -60,7 +66,7 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
   }
 
   void Process(int num_bands, int num_frames, int buffer_size, float* buffer) override {
-    if (!despejo_.is_open() || num_frames <= 0) return;
+    if (num_frames <= 0) return;
 
     const auto inicio = std::chrono::steady_clock::now();
 
@@ -75,12 +81,18 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
       if (valor >= 32767.0f) ++recortados;
       quadrateira += static_cast<double>(buffer[i]) * buffer[i];
     }
-    despejo_.write(reinterpret_cast<const char*>(buffer),
-                   static_cast<std::streamsize>(num_frames) *
-                       static_cast<std::streamsize>(sizeof(float)));
-    // Um stream que entra em fail() escreve invisivelmente para sempre: o
-    // contador é o que impede esta sonda de mentir de novo.
-    if (despejo_.fail()) ++falhas_de_escrita_;
+    if (despejo_.is_open()) {
+      despejo_.write(reinterpret_cast<const char*>(buffer),
+                     static_cast<std::streamsize>(num_frames) *
+                         static_cast<std::streamsize>(sizeof(float)));
+      // Um stream que entra em fail() escreve invisivelmente para sempre: o
+      // contador é o que impede esta sonda de mentir de novo.
+      if (despejo_.fail()) ++falhas_de_escrita_;
+      if (quadros_ >= kTetoDeQuadrosDespejados) {
+        despejo_.flush();
+        despejo_.close();
+      }
+    }
 
     const auto fim = std::chrono::steady_clock::now();
     const long long deste =
@@ -96,7 +108,6 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     tamanho_buffer_ = buffer_size;
 
     if (quadros_ % kQuadrosPorResumo == 0) {
-      despejo_.flush();
       escreverResumo();
     }
   }

@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.5.2</span>
+        <span class="version-tag">v1.6.0</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.5.2
+          Baixar v1.6.0
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.5.2 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
+          Versão Oficial 1.6.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.5.2 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.6.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.6.0', this)">
+          v1.6.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.5.2', this)">
-          v1.5.2 <span class="badge-current">ATUAL</span>
+          v1.5.2
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.5.1', this)">
           v1.5.1
@@ -980,12 +983,39 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.6.0 -->
+        <article class="release-card latest" data-version="v1.6.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.6.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">21 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O microfone passou a ter quatro controles, um por processador — e dá para tirar um por vez e ouvir a diferença no meio da conversa.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Quatro chaves no microfone</strong>: Configurações → Voz e Áudio ganhou cancelamento de eco, ganho automático, supressão de ruído e filtro passa-altas, cada um com seu próprio botão. Essas são as quatro opções de processamento que o Windows realmente aplica no áudio que sai do seu aparelho — as outras que o motor de áudio oferece (os níveis, o isolamento de voz, a detecção de digitação) param no caminho nativo do desktop, então não têm botão enganando ninguém. Mudar qualquer um deles recria a faixa do microfone na hora, sem sair da call.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Os padrões não mudaram</strong>: dos quatro, só a supressão de ruído tinha interface. Os três novos começam exatamente como o Windows já aplicava sozinho — eco ligado, ganho automático ligado, passa-altas desligado. Ninguém acorda com a voz diferente por causa desta versão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Se a voz soar apertada, agora tem como caçar o culpado</strong>: cancelamento de eco com fone no ouvido não tem o que cancelar e ainda assim filtra a fala, e o ganho automático é o que mais comprime quando trabalha demais — com os dois ligados ao mesmo tempo, o resultado é aquela voz de rádio pequeno. Agora se tira um por vez.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.5.2 -->
-        <article class="release-card latest" data-version="v1.5.2">
+        <article class="release-card" data-version="v1.5.2">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.5.2</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">21 de Setembro de 2026</span>
           </div>
@@ -1246,7 +1276,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.5.2 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.6.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1820,7 +1850,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.5.2</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.6.0</strong></p>
     </div>
   </footer>
 
