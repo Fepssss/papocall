@@ -90,6 +90,19 @@ docker compose -f docker-compose.test.yml down -v
 - `tests/security.test.ts` — os `.env.example` da raiz e do backend não podem
   conter chave nem secret reais; os valores atribuídos passam por um corte de
   entropia de Shannon.
+- `tests/mqtt-acl.test.ts` — a regra de autorização do broker, sem banco: os
+  vetores de hash vêm da implementação Dart, e a tabela de verdade percorre caso
+  a caso o que é permitido negado (ler a caixa alheia é o caso principal).
+- `tests/mqtt-endpoints.test.ts` — `/mqtt/credentials` e `/mqtt/memberships`
+  contra o banco: só hash da senha no disco, teto de credenciais vivas, substituição
+  do conjunto de salas, revogação no logout-all e recálculo dos prefixos na troca
+  de `@`.
+
+O `npm test` roda com `--test-concurrency=1`. Não é detalhe de performance: o
+`node --test` paraleliza **arquivos**, e as duas suítes que falam com o banco
+compartilham o mesmo Postgres — a limpeza por domínio de uma apaga as contas que a
+outra está usando no meio, e o resultado é um P2003 que não tem nada a ver com o
+código testado.
 
 ## O que roda no CI
 
