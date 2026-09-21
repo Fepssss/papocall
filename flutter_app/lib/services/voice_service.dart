@@ -146,10 +146,22 @@ class VoiceService {
   String? entradaDeAudioId;
   String? saidaDeAudioId;
   bool supressaoDeRuido = true;
+  bool cancelamentoDeEco = true;
+  bool ganhoAutomatico = true;
+  bool filtroPassaAltas = false;
 
+  /// Os quatro abaixo são as únicas chaves de processamento que o caminho nativo
+  /// do Windows lê (`flutter_media_stream.cc` resolve `echoCancellation`,
+  /// `noiseSuppression`, `autoGainControl` e `highpassFilter`, inclusive dentro
+  /// da lista `optional` que o LiveKit usa). Os modos, o `voiceIsolation` e o
+  /// `typingNoiseDetection` que o `AudioCaptureOptions` também oferece são
+  /// descartados no desktop — por isso não há UI para eles.
   AudioCaptureOptions get _opcoesDeCaptura => AudioCaptureOptions(
         deviceId: entradaDeAudioId,
         noiseSuppression: supressaoDeRuido,
+        echoCancellation: cancelamentoDeEco,
+        autoGainControl: ganhoAutomatico,
+        highPassFilter: filtroPassaAltas,
       );
 
   /// Enumeração dos dispositivos. São funções, não métodos, porque em teste de

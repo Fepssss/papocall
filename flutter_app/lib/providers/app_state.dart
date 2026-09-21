@@ -73,6 +73,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? audioInputId;
   String? audioOutputId;
   bool noiseSuppression = true;
+  bool echoCancellation = true;
+  bool autoGainControl = true;
+  bool highPassFilter = false;
 
   // Avisos sonoros, também persistidos. Quem obedece à escolha é o
   // SoundService, que verifica antes de mandar o som ao Windows.
@@ -132,8 +135,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> definirSupressaoDeRuido(bool valor) async {
-    noiseSuppression = valor;
+  Future<void> definirSupressaoDeRuido(bool valor) =>
+      _definirProcessadorDeVoz(supressao: valor);
+
+  Future<void> definirCancelamentoDeEco(bool valor) =>
+      _definirProcessadorDeVoz(eco: valor);
+
+  Future<void> definirGanhoAutomatico(bool valor) =>
+      _definirProcessadorDeVoz(ganho: valor);
+
+  Future<void> definirFiltroPassaAltas(bool valor) =>
+      _definirProcessadorDeVoz(passaAltas: valor);
+
+  /// Os quatro processamentos de microfone que o Windows de fato aplica. Um
+  /// único caminho de escrita para que salvar, espelhar no serviço e avisar a
+  /// interface não se dissociem em quatro cópias.
+  Future<void> _definirProcessadorDeVoz({
+    bool? supressao,
+    bool? eco,
+    bool? ganho,
+    bool? passaAltas,
+  }) async {
+    if (supressao != null) noiseSuppression = supressao;
+    if (eco != null) echoCancellation = eco;
+    if (ganho != null) autoGainControl = ganho;
+    if (passaAltas != null) highPassFilter = passaAltas;
     _espelharConfigDeAudio();
     await _saveSettings();
     notifyListeners();
@@ -143,6 +169,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _voiceService.entradaDeAudioId = audioInputId;
     _voiceService.saidaDeAudioId = audioOutputId;
     _voiceService.supressaoDeRuido = noiseSuppression;
+    _voiceService.cancelamentoDeEco = echoCancellation;
+    _voiceService.ganhoAutomatico = autoGainControl;
+    _voiceService.filtroPassaAltas = highPassFilter;
   }
 
   /// Troca a foto de perfil pela imagem escolhida no disco.
@@ -754,6 +783,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'audioInputId': audioInputId,
         'audioOutputId': audioOutputId,
         'noiseSuppression': noiseSuppression,
+        'echoCancellation': echoCancellation,
+        'autoGainControl': autoGainControl,
+        'highPassFilter': highPassFilter,
         'somDeChamada': somDeChamada,
         'somDeCompartilhamento': somDeCompartilhamento,
         'volumeDaLive': volumeDaLive,
@@ -956,6 +988,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         audioInputId = data['audioInputId'] as String?;
         audioOutputId = data['audioOutputId'] as String?;
         noiseSuppression = data['noiseSuppression'] as bool? ?? true;
+        echoCancellation = data['echoCancellation'] as bool? ?? true;
+        autoGainControl = data['autoGainControl'] as bool? ?? true;
+        highPassFilter = data['highPassFilter'] as bool? ?? false;
         somDeChamada = data['somDeChamada'] as bool? ?? true;
         somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
         volumeDaLive = (data['volumeDaLive'] as num?)?.toDouble() ?? 0.8;

@@ -931,6 +931,25 @@ class _SettingsModalState extends State<SettingsModal> {
   Widget _buildVoiceAudioTab(AppState state) {
     final isConnected = state.connectedVoiceChannelId != null;
 
+    Widget linhaProcessador({
+      required String title,
+      required String subtitle,
+      required bool value,
+      required Future<void> Function(bool) definir,
+    }) {
+      return _buildSwitchTile(
+        title: title,
+        subtitle: subtitle,
+        value: value,
+        // Republicar a faixa é o que faz a chave pegar numa call em andamento:
+        // as quatro vão como constraint no instante em que o microfone nasce.
+        onChanged: (val) async {
+          await definir(val);
+          await state.voiceService.aplicarDispositivosEscolhidos();
+        },
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -989,16 +1008,41 @@ class _SettingsModalState extends State<SettingsModal> {
         const SizedBox(height: 24),
         const AudioDevicesPanel(),
         const SizedBox(height: 20),
-        _buildSwitchTile(
-          title: 'Supressão Tática de Ruído de Fundo',
-          subtitle: 'Filtra cliques mecânicos do teclado, ruídos de vento e estática do microfone.',
+        // As quatro chaves abaixo são as únicas de processamento de microfone
+        // que o caminho nativo do Windows lê. As outras opções que o
+        // AudioCaptureOptions oferece — os modos, o voiceIsolation e a detecção
+        // de digitação — são descartadas no desktop, então não têm linha aqui.
+        linhaProcessador(
+          title: 'Supressão de ruído de fundo',
+          subtitle:
+              'Filtra cliques de teclado, vento e estática antes da sua voz subir. Em nível alto '
+              'o WebRTC deixa a voz oca, e é aí que ela começa a soar como rádio.',
           value: state.noiseSuppression,
-          // Não é enfeite: vai como noiseSuppression na captura do microfone,
-          // e o VoiceService republica a faixa quando isto muda na call.
-          onChanged: (val) async {
-            await state.definirSupressaoDeRuido(val);
-            await state.voiceService.aplicarDispositivosEscolhidos();
-          },
+          definir: state.definirSupressaoDeRuido,
+        ),
+        linhaProcessador(
+          title: 'Cancelamento de eco',
+          subtitle:
+              'Tira do microfone o que está saindo no alto-falante. Com fone no ouvido não há eco '
+              'para cancelar, e o filtro pode afinar a voz — vale desligar se você sempre usa fone.',
+          value: state.echoCancellation,
+          definir: state.definirCancelamentoDeEco,
+        ),
+        linhaProcessador(
+          title: 'Ganho automático',
+          subtitle:
+              'Aperta os fortes e levanta os fracos para o volume da sua voz ficar estável para os '
+              'outros. É o que mais soa como rádio de pilha quando trabalha demais.',
+          value: state.autoGainControl,
+          definir: state.definirGanhoAutomatico,
+        ),
+        linhaProcessador(
+          title: 'Filtro passa-altas',
+          subtitle:
+              'Corta o ronco grave — mesa vibrando, ar-condicionado, vento. Tira corpo da voz, então '
+              'só vale ligar se esse ronco existir.',
+          value: state.highPassFilter,
+          definir: state.definirFiltroPassaAltas,
         ),
       ],
     );

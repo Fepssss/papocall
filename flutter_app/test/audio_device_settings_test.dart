@@ -42,11 +42,37 @@ void main() {
     await state.definirMicrofone('mic-usb');
     await state.definirSaidaDeAudio('fone-azul');
     await state.definirSupressaoDeRuido(false);
+    await state.definirCancelamentoDeEco(false);
+    await state.definirGanhoAutomatico(false);
+    await state.definirFiltroPassaAltas(true);
 
     final salvas = configLida();
     expect(salvas['audioInputId'], 'mic-usb');
     expect(salvas['audioOutputId'], 'fone-azul');
     expect(salvas['noiseSuppression'], false);
+    expect(salvas['echoCancellation'], false);
+    expect(salvas['autoGainControl'], false);
+    expect(salvas['highPassFilter'], true);
+  });
+
+  test('as quatro chaves de processamento chegam ao serviço que entra na call',
+      () async {
+    final state = AppState();
+
+    // Ninguém pediu para mudar de comportamento no upgrade: os três que não
+    // tinham UI começam como o caminho nativo já aplicava por padrão.
+    expect(state.voiceService.cancelamentoDeEco, isTrue);
+    expect(state.voiceService.ganhoAutomatico, isTrue);
+    expect(state.voiceService.filtroPassaAltas, isFalse);
+
+    await state.definirCancelamentoDeEco(false);
+    expect(state.voiceService.cancelamentoDeEco, isFalse);
+
+    await state.definirGanhoAutomatico(false);
+    expect(state.voiceService.ganhoAutomatico, isFalse);
+
+    await state.definirFiltroPassaAltas(true);
+    expect(state.voiceService.filtroPassaAltas, isTrue);
   });
 
   test('a escolha fica espelhada no serviço que entra na call', () async {
