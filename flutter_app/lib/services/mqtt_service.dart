@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
+import 'mqtt_credential_service.dart';
+
 /// Mensagem bruta recebida do broker, ainda cifrada.
 /// A decifragem acontece em [ServerCrypto], não aqui: este serviço é apenas
 /// transporte e nunca tem acesso ao conteúdo em claro.
@@ -20,6 +22,58 @@ class MqttService {
   /// Espera entre tentativas de reconexão, com teto de 30s.
   static const int _retryBaseSeconds = 3;
   static const int _retryMaxSeconds = 30;
+
+  // ----------------------------------------------------------------------------
+  // Onde o broker fica.
+  //
+  // Não existe mais host de broker escrito neste arquivo: o endereço chega do
+  // backend junto da credencial (`MQTT_HOST` no servidor), e estes defaults de
+  // build só servem para desenvolvimento e para o caso de o painel ainda não ter
+  // sido configurado. Nenhum deles é segredo — é um endereço público.
+  // ----------------------------------------------------------------------------
+  static const String _hostFromEnv = String.fromEnvironment('PAPOCALL_MQTT_HOST');
+  static const int _portaFromEnv =
+      int.fromEnvironment('PAPOCALL_MQTT_PORT', defaultValue: 8883);
+  static const String _wssFromEnv = String.fromEnvironment('PAPOCALL_MQTT_WSS_URL');
+  static const int _wssPortaFromEnv =
+      int.fromEnvironment('PAPOCALL_MQTT_WSS_PORT', defaultValue: 8084);
+
+  /// Injetado por `AppState`: pede uma credencial nova ao backend.
+  ///
+  /// Fica sendo callback, e não o serviço chamando o serviço, por dois motivos:
+  /// quem tem o access token e sabe renová-lo é o `AppState` (a renovação é
+  /// single-flight, e renovar por conta própria queimaria o refresh token), e assim
+  /// o ciclo de reconexão continua dono da própria decisão de quando buscar.
+  Future<MqttCredential?> Function()? obterCredencial;
+
+  /// Renova com esta antecedência para a troca não cair no meio de um CONNECT.
+  static const Duration _folgaDeRenovacao = Duration(minutes: 5);
+
+  MqttCredential? _credencial;
+
+  String get _host {
+    final informada = _credencial?.host ?? '';
+    return informada.isNotEmpty ? informada : _hostFromEnv;
+  }
+
+  int get _porta {
+    final informada = _credencial?.port ?? 0;
+    return informada > 0 ? informada : _portaFromEnv;
+  }
+
+  String get _wssUrl {
+    final informada = _credencial?.wssUrl ?? '';
+    return informada.isNotEmpty ? informada : _wssFromEnv;
+  }
+
+  /// A porta do WSS vem embutida na URL; sem ela, usa-se a do build.
+  int get _wssPorta {
+    try {
+      return Uri.parse(_wssUrl).port;
+    } catch (_) {
+      return _wssPortaFromEnv;
+    }
+  }
 
   MqttServerClient? _client;
   bool _isConnected = false;
@@ -58,8 +112,8 @@ class MqttService {
   /// Conecta ao broker e mantém a conexão viva indefinidamente.
   ///
   /// Se as duas portas falharem, agenda nova tentativa com backoff: antes, uma
-  /// única falha no arranque (rede do usuário ainda subindo, broker público
-  /// momentaneamente saturado) deixava o app isolado até ser reiniciado.
+  /// única falha no arranque (rede do usuário ainda subindo, broker saturado)
+  /// deixava o app isolado até ser reiniciado.
   Future<bool> connect(String clientId) async {
     _wantsConnection = true;
     _clientId = clientId;
@@ -70,23 +124,63 @@ class MqttService {
     return ok;
   }
 
+  /// Credencial de sessão, buscando uma nova quando não há ou está perto de vencer.
+  ///
+  /// `null` significa "agora não dá" — o backend frio, uma renovação que falhou,
+  /// o logout no meio. Nesse caso a tentativa não parte: um CONNECT sem credencial
+  /// num broker que não aceita anônimo só produziria um erro de leitura ambígua,
+  /// e o backoff já trata isto como o que é, uma tentativa a mais mais tarde.
+  Future<MqttCredential?> _credencialValida() async {
+    final atual = _credencial;
+    if (atual != null && !atual.expirandoEm(_folgaDeRenovacao)) return atual;
+
+    final buscar = obterCredencial;
+    if (buscar == null) {
+      debugPrint('[MQTT] Nenhum provedor de credencial injetado; não tento conectar.');
+      return null;
+    }
+
+    try {
+      final nova = await buscar();
+      if (nova != null) _credencial = nova;
+      return nova;
+    } catch (e) {
+      debugPrint('[MQTT] Falha ao buscar credencial: $e');
+      return null;
+    }
+  }
+
   Future<bool> _attemptConnect(String clientId) async {
     _teardownClient();
 
-    // Cada tentativa usa um sufixo novo no clientId: o broker público derruba a
-    // sessão anterior quando o mesmo identificador reaparece, o que geraria um
-    // laço de desconexões entre a tentativa nova e a conexão zumbi antiga.
+    final credencial = await _credencialValida();
+    if (credencial == null) return false;
+
+    if (_host.isEmpty) {
+      debugPrint('[MQTT] Broker não configurado: o servidor não devolveu MQTT_HOST '
+          'e o build não recebeu --dart-define=PAPOCALL_MQTT_HOST.');
+      return false;
+    }
+
+    // Cada tentativa usa um sufixo novo no clientId: o broker derruba a sessão
+    // anterior quando o mesmo identificador reaparece, o que geraria um laço de
+    // desconexões entre a tentativa nova e a conexão zumbi antiga.
     final base = clientId.length > 4 ? clientId.substring(0, clientId.length - 4) : clientId;
     final attemptId = '$base${DateTime.now().microsecondsSinceEpoch % 10000}';
 
-    // 1. TLS nativo na porta 8883 (mqtts).
-    if (await _tryConnectTls(attemptId)) return true;
+    // 1. TLS nativo (mqtts) na porta informada pelo backend.
+    if (await _tryConnectTls(attemptId, credencial)) return true;
 
-    // 2. Fallback para WebSocket seguro na porta 8084 (caso a 8883 esteja bloqueada na rede do usuário).
-    // Não existe fallback em texto puro: o payload já é cifrado ponta a ponta,
-    // mas o TLS ainda protege os metadados (quais tópicos, quando, de qual IP).
+    // 2. Fallback para WebSocket seguro, caso a porta nativa esteja bloqueada na
+    //    rede do usuário. Não existe fallback em texto puro, nem aqui nem no
+    //    broker: o TLS protege os metadados (quais tópicos, quando, de qual IP)
+    //    que a criptografia de conteúdo não esconde.
+    if (_wssUrl.isEmpty) {
+      debugPrint('[MQTT] Sem URL WSS configurada; não tento o fallback.');
+      return false;
+    }
     debugPrint('[MQTT] Tentando fallback para WebSocket seguro (wss)...');
-    return await _tryConnectWs(attemptId);
+    return await _tryConnectWs(attemptId, credencial);
   }
 
   void _scheduleRetry() {
@@ -107,11 +201,11 @@ class MqttService {
     });
   }
 
-  Future<bool> _tryConnectTls(String clientId) async {
+  Future<bool> _tryConnectTls(String clientId, MqttCredential credencial) async {
     MqttServerClient? client;
     try {
-      client = MqttServerClient('broker.emqx.io', clientId);
-      client.port = 8883;
+      client = MqttServerClient(_host, clientId);
+      client.port = _porta;
       client.secure = true;
       client.keepAlivePeriod = 20;
       client.autoReconnect = false;
@@ -122,6 +216,7 @@ class MqttService {
       // nunca responder CONNACK — as três portas falhavam igual.
       final connMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
+          .authenticateAs(credencial.username, credencial.password)
           .startClean();
       client.connectionMessage = connMessage;
 
@@ -134,20 +229,20 @@ class MqttService {
         _setupMessageListener(client);
         _setConnected(true);
         _resubscribeAll();
-        debugPrint('[MQTT] Conectado via TLS 8883 com sucesso!');
+        debugPrint('[MQTT] Conectado via TLS nativo ($_host:$_porta) com sucesso!');
         return true;
       }
     } catch (e) {
-      debugPrint('[MQTT] Falha na conexão TLS 8883: $e');
+      debugPrint('[MQTT] Falha na conexão TLS nativa: $e');
     }
     _discard(client);
     return false;
   }
 
-  Future<bool> _tryConnectWs(String clientId) async {
+  Future<bool> _tryConnectWs(String clientId, MqttCredential credencial) async {
     MqttServerClient? client;
     try {
-      client = MqttServerClient.withPort('wss://broker.emqx.io/mqtt', clientId, 8084);
+      client = MqttServerClient.withPort(_wssUrl, clientId, _wssPorta);
       client.useWebSocket = true;
       client.websocketProtocols = MqttClientConstants.protocolsSingleDefault;
       client.keepAlivePeriod = 20;
@@ -156,6 +251,7 @@ class MqttService {
 
       final connMessage = MqttConnectMessage()
           .withClientIdentifier(clientId)
+          .authenticateAs(credencial.username, credencial.password)
           .startClean();
       client.connectionMessage = connMessage;
 
@@ -168,7 +264,7 @@ class MqttService {
         _setupMessageListener(client);
         _setConnected(true);
         _resubscribeAll();
-        debugPrint('[MQTT] Conectado via WebSocket 8084 com sucesso!');
+        debugPrint('[MQTT] Conectado via WebSocket seguro ($_wssUrl) com sucesso!');
         return true;
       }
     } catch (e) {
@@ -225,9 +321,11 @@ class MqttService {
       for (final msg in messages) {
         final recMess = msg.payload as MqttPublishMessage;
 
-        // O broker é público: qualquer um pode publicar qualquer coisa nos
-        // tópicos. Descarta payloads absurdos antes de alocar a string, para
-        // que um terceiro não consiga inflar a memória do app.
+        // O broker já não aceita anônimo, mas continua sendo um repetidor que
+        // não confiamos: qualquer cliente com credencial — ou o próprio operador
+        // do broker — pode publicar o que quiser. Daí o teto abaixo, que existe
+        // para um terceiro não inflar a memória do app, e a verificação de MAC no
+        // ServerCrypto, que é o que realmente descarta a mensagem forjada.
         if (recMess.payload.message.length > _maxPayloadBytes) continue;
 
         // Payload vazio é o marcador de "limpe o retido" deste tópico e não
@@ -248,9 +346,16 @@ class MqttService {
     }
   }
 
+  /// Assina [topic], ainda que ele já esteja na nossa lista.
+  ///
+  /// Reenviar é de propósito. Com um broker que autoriza, uma assinatura negada é
+  /// invisível para nós: sem resposta de erro, "eu já pedi essa assinatura" não é
+  /// prova nenhuma de que ela está ativa. Um SUBSCRIBE repetido no mesmo tópico é
+  /// idempotente pela spec, e é o que deixa a reconciliação depois de conectar
+  /// consertar uma autorização que chegou atrasada.
   void subscribe(String topic) {
-    final isNew = _subscribedTopics.add(topic);
-    if (_client != null && _isConnected && isNew) {
+    _subscribedTopics.add(topic);
+    if (_client != null && _isConnected) {
       _client!.subscribe(topic, MqttQos.atLeastOnce);
     }
   }
@@ -342,6 +447,9 @@ class MqttService {
     _setConnected(false);
     _subscribedTopics.clear();
     _teardownClient();
+    // A senha é da sessão de login: encerrada a sessão, nada de guardá-la para a
+    // próxima conta que abrir neste aparelho.
+    _credencial = null;
   }
 
   void dispose() {

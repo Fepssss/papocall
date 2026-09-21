@@ -14,6 +14,7 @@ import '../models/role.dart';
 import '../models/server.dart';
 import '../models/user_model.dart';
 import '../services/mqtt_service.dart';
+import '../services/mqtt_credential_service.dart';
 import '../services/direct_crypto.dart';
 import '../services/server_crypto.dart';
 import '../services/voice_service.dart';
@@ -1088,6 +1089,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
       final clientId = 'pc_${_uuid.v4().replaceAll('-', '').substring(0, 20)}';
       debugPrint('[AppState] Conectando rede MQTT...');
+      // O broker é autenticado: a senha de sessão vem do backend. Quem decide a
+      // hora de buscar é o MqttService — na primeira tentativa e de novo quando a
+      // credencial estiver perto de vencer —, então isto entra como callback e não
+      // como uma chamada aqui.
+      _mqtt.obterCredencial = _credencialMqtt;
       // Não aguarda o resultado: se a primeira tentativa falhar, o MqttService
       // reconecta sozinho com backoff e _handleConnectionChange reassina tudo.
       unawaited(_mqtt.connect(clientId));
@@ -1105,17 +1111,84 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Toda vez que a malha volta, o estado precisa ser reconciliado: reassinar
   /// os tópicos, reanunciar presença, republicar a estrutura dos servidores e
   /// reenviar o que ficou preso na fila de saída enquanto estávamos offline.
+  ///
+  /// A ordem importa agora que o broker autoriza: primeiro as participações, depois
+  /// as assinaturas. Ao contrário, o app pediria assinatura em cima de uma
+  /// autorização que ainda não existe no banco, e a recusa não gera erro nenhum do
+  /// lado do cliente — só silêncio.
   void _handleConnectionChange(bool connected) {
     isNetworkOnline = connected;
     notifyListeners();
     if (!connected) return;
 
+    unawaited(_restabelecerEstadoDoMqtt());
+  }
+
+  Future<void> _restabelecerEstadoDoMqtt() async {
+    await _sincronizarParticipacoesMqtt();
+    if (!_mqtt.isConnected) return; // caiu no meio; a próxima reconexão refaz
+
     _subscribeToOwnServers();
     _publishAllServerInfo();
     _sendPresence();
     _flushOutbox();
+    await _reenviarSolicitacoesPendentes();
     for (final srv in servers) {
       _publishHistorySnapshot(srv);
+    }
+  }
+
+  /// Republica os pedidos de amizade que ainda esperam resposta.
+  ///
+  /// Um pedido vive como mensagem **retida** no compartimento de quem recebe — é
+  /// assim que ele chega a quem estava offline. O custo aparece justamente numa
+  /// troca de broker: o retido fica onde estava, e o pedido pendente morreria com
+  /// ele. Republicar é idempotente, e não por sorte: quem já é amigo limpa o
+  /// compartimento ao receber, e quem já viu aquele pedido (mesmo `id` ou mesmo
+  /// par) é tratado como repetição e não notifica de novo.
+  Future<void> _reenviarSolicitacoesPendentes() async {
+    for (final req in pendingSentRequests) {
+      if (!_mqtt.isConnected) return; // caiu no meio: a próxima reconexão retoma
+      await _publishFriendRequest(req);
+    }
+  }
+
+  /// Credencial de sessão do broker, buscada pelo `MqttService` quando convém.
+  Future<MqttCredential?> _credencialMqtt() async {
+    final sessao = currentSession;
+    if (sessao == null || !isAuthenticated || sessao.accessToken.isEmpty) return null;
+
+    return MqttCredentialService.requestCredential(
+      accessToken: sessao.accessToken,
+      renewSession: renewSession,
+    );
+  }
+
+  /// Declara no backend em quais salas estou, pelo identificador derivado do
+  /// convite — nunca pelo convite em si, que é a chave AES-256 da sala.
+  ///
+  /// Substituir, não acrescentar: é assim que sair de um servidor tira o acesso na
+  /// mesma hora, em vez de esperar alguém lembrar de pedir.
+  Future<void> _sincronizarParticipacoesMqtt() async {
+    final sessao = currentSession;
+    if (sessao == null || !isAuthenticated || sessao.accessToken.isEmpty) return;
+
+    final topicIds = servers
+        .map((s) => s.inviteCode.trim())
+        .where((code) => code.isNotEmpty)
+        .map(ServerCrypto.topicIdFor)
+        .toSet()
+        .toList();
+
+    try {
+      await MqttCredentialService.syncMemberships(
+        topicIds: topicIds,
+        accessToken: sessao.accessToken,
+        renewSession: renewSession,
+      );
+    } catch (e) {
+      // Sem isto, o sintoma de uma recusa no broker seria "chat mudo" e nada mais.
+      AppLog.write('MQTT', 'participações não sincronizadas: $e');
     }
   }
 
@@ -2267,6 +2340,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     servers.add(newServer);
     await _saveServers();
+    // A sala nova só existe para o broker depois de declarada: sem isto, o dono
+    // assinaria e publicaria num tópico que a autorização ainda não cobre.
+    await _sincronizarParticipacoesMqtt();
     _subscribeToOwnServers();
     // Publica a estrutura antes de qualquer outra coisa: é o que quem entrar
     // pelo convite vai adotar, inclusive se entrar com o criador offline.
@@ -2763,6 +2839,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } else if (activeServerId == srv.id) {
       selectServer(servers.first.id);
     }
+    // Tira a sala do conjunto declarado: é isto que fecha o acesso no broker, e
+    // não o apagar das nossas listas.
+    unawaited(_sincronizarParticipacoesMqtt());
     _subscribeToOwnServers();
     _sendPresence();
     notifyListeners();
@@ -2812,6 +2891,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     servers.add(joinedServer);
     await _saveServers();
+    await _sincronizarParticipacoesMqtt();
     _subscribeToOwnServers();
     selectServer(joinedServer.id);
     await _requestServerInfo(joinedServer);
