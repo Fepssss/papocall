@@ -1,3 +1,5 @@
-• A HUD voltou ao tamanho de sempre: em janela grande ela não é mais esticada, e o espaço que sobra serve para mostrar mais conteúdo, não letras maiores. Na barra de cima, o nome do servidor agora vira reticências em vez de empurrar os botões para fora da tela.
-• O texto do chat pode ser escolhido com o mouse, nos canais e nas conversas privadas, e copiado como em qualquer documento.
-• Em janela estreita a interface continua cedendo espaço — texto e colunas encolhem juntos — para nada sair da tela.
+• Quem está falando na chamada de voz agora aparece com um anel verde também na lista embaixo do canal, na lista de membros e na sua própria barra de perfil — antes o retorno só existia nos cartões da sala.
+• A live de outra pessoa ganhou regulador de volume na barra da transmissão, e o controle só aparece quando a transmissão tem áudio de verdade.
+• Modo teatro e tela cheia para a live: o vídeo cresce, os participantes ficam flutuando por cima, e Esc devolve a janela ao normal.
+• Quem está ao vivo tem um painel para configurar a transmissão sem parar: trocar de janela, mudar resolução e quadros por segundo, tudo aplicado na hora.
+• O áudio do sistema passa a ir junto na transmissão quando o Windows consegue capturá-lo; sem isso a live continua só com imagem, e o aplicativo diz qual dos dois casos aconteceu.

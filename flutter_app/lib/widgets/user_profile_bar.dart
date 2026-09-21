@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import 'anel_de_fala.dart';
 import 'modals/settings_modal.dart';
 
 class UserProfileBar extends StatelessWidget {
@@ -131,30 +132,33 @@ class _UserInfoSectionState extends State<_UserInfoSection> {
           ),
           child: Row(
             children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: HudTheme.blurple,
-                    child: Text(
-                      widget.user.initials,
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: widget.statusColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: HudTheme.bgProfile, width: 2),
+              AnelDeFala(
+                falando: widget.user.isSpeaking,
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: HudTheme.blurple,
+                      child: Text(
+                        widget.user.initials,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: widget.statusColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: HudTheme.bgProfile, width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(

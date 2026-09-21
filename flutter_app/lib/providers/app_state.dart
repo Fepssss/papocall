@@ -23,6 +23,9 @@ import '../utils/app_paths.dart';
 import '../utils/app_version.dart';
 import '../utils/mentions.dart';
 
+/// Como a tela de outra pessoa ocupa a janela do PapoCall.
+enum ModoDeExibicao { normal, teatro, telaCheia }
+
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final MqttService _mqtt = MqttService();
   final VoiceService _voiceService = VoiceService();
@@ -46,6 +49,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool isWatchingScreenShare = true;
   bool get isScreenSharing => _voiceService.isScreenSharing;
 
+  /// Como a tela de outra pessoa ocupa a janela.
+  ///  - `normal`: palco com a faixa de participantes embaixo;
+  ///  - `teatro`: palco grande e participantes flutuando por cima;
+  ///  - `telaCheia`: nada mais na janela; Esc devolve o normal.
+  ModoDeExibicao modoDeExibicao = ModoDeExibicao.normal;
+
+  /// A escolha que está no ar agora. Guardada para quem transmite poder trocar
+  /// uma parte dela — a janela, a resolução, os quadros — sem recomeçar do zero.
+  ({String sourceId, String nome, int width, int height, int fps})? transmissaoAtual;
+
+  void definirModoDeExibicao(ModoDeExibicao modo) {
+    if (modoDeExibicao == modo) return;
+    modoDeExibicao = modo;
+    notifyListeners();
+  }
+
   // Configurações de Voz e Áudio, persistidas em settings.json. O VoiceService
   // é quem aplica no motor WebRTC; aqui vive apenas a escolha da pessoa.
   String? audioInputId;
@@ -56,6 +75,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // SoundService, que verifica antes de mandar o som ao Windows.
   bool somDeChamada = true;
   bool somDeCompartilhamento = true;
+
+  /// Volume do áudio que vem junto da tela de outra pessoa, de 0 a 1.
+  double volumeDaLive = 0.8;
+
+  /// Só há o que regular quando a transmissão do amigo trouxe faixa de áudio.
+  bool get liveComAudio => _voiceService.liveComAudio;
+
+  /// Arrastar o controle não pode escrever no disco a cada quadro pintado.
+  void ajustarVolumeDaLive(double valor) {
+    volumeDaLive = valor.clamp(0.0, 1.0).toDouble();
+    _voiceService.definirVolumeDaLive(volumeDaLive);
+    notifyListeners();
+  }
+
+  /// Grava a escolha, para valer quando o slider soltar.
+  Future<void> definirVolumeDaLive(double valor) async {
+    ajustarVolumeDaLive(valor);
+    await _saveSettings();
+  }
 
   Future<void> definirSomDeChamada(bool valor) async {
     somDeChamada = valor;
@@ -343,6 +381,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       currentUser.isScreenSharing = _voiceService.isScreenSharing;
       if (!wasActive && track != null) {
         isWatchingScreenShare = true;
+      }
+      // Acabou a transmissão: sair sozinho do teatro e da tela cheia, que sem
+      // palco nenhum deixariam a janela preta.
+      if (wasActive && track == null) {
+        modoDeExibicao = ModoDeExibicao.normal;
       }
       _sendPresence();
       notifyListeners();
@@ -686,6 +729,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'noiseSuppression': noiseSuppression,
         'somDeChamada': somDeChamada,
         'somDeCompartilhamento': somDeCompartilhamento,
+        'volumeDaLive': volumeDaLive,
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -881,7 +925,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         noiseSuppression = data['noiseSuppression'] as bool? ?? true;
         somDeChamada = data['somDeChamada'] as bool? ?? true;
         somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
+        volumeDaLive = (data['volumeDaLive'] as num?)?.toDouble() ?? 0.8;
         _espelharConfigDeAudio();
+        _voiceService.definirVolumeDaLive(volumeDaLive);
         SoundService.definirSons(SoundService.sonsDeChamada, ativos: somDeChamada);
         SoundService.definirSons(SoundService.sonsDeCompartilhamento,
             ativos: somDeCompartilhamento);
@@ -3675,13 +3721,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (watching) {
       SoundService.playScreenWatchStart();
     } else {
+      // Sair da tela do outro também fecha o teatro e a tela cheia: quem volta
+      // a entrar na transmissão espera encontrá-la do jeito padrão.
       SoundService.playScreenWatchStop();
+      modoDeExibicao = ModoDeExibicao.normal;
     }
     notifyListeners();
   }
 
   Future<bool> startScreenShare(
     String sourceId, {
+    String nomeDaFonte = '',
     int width = 1920,
     int height = 1080,
     int fps = 30,
@@ -3693,6 +3743,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       fps: fps,
     );
     if (ok) {
+      transmissaoAtual = (
+        sourceId: sourceId,
+        nome: nomeDaFonte,
+        width: width,
+        height: height,
+        fps: fps,
+      );
       currentUser.isScreenSharing = true;
       activeScreenShareTrack = _voiceService.activeScreenShareTrack;
       activeScreenSharePresenter = 'Você';
@@ -3704,9 +3761,37 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return ok;
   }
 
+  /// Recomeça a transmissão com outra janela, resolução ou framerate.
+  ///
+  /// Trocar a faixa no lugar (o `restartTrack` do SDK) preservaria o cartão de
+  /// quem assiste, mas ele pega a primeira faixa do stream novo — com o áudio do
+  /// sistema junto, isso pode ser o áudio no lugar do vídeo. Parar e publicar de
+  /// novo é o caminho que não depende de sorte: quem assiste vê o cartão piscar
+  /// e voltar, e o que volta é o que foi pedido.
+  Future<bool> reconfigurarTransmissao({
+    String? sourceId,
+    String? nomeDaFonte,
+    int? width,
+    int? height,
+    int? fps,
+  }) async {
+    final atual = transmissaoAtual;
+    if (!isScreenSharing || atual == null) return false;
+    await _voiceService.stopScreenShare();
+    currentUser.isScreenSharing = false;
+    return startScreenShare(
+      sourceId ?? atual.sourceId,
+      nomeDaFonte: nomeDaFonte ?? atual.nome,
+      width: width ?? atual.width,
+      height: height ?? atual.height,
+      fps: fps ?? atual.fps,
+    );
+  }
+
   Future<void> stopScreenShare() async {
     await _voiceService.stopScreenShare();
     currentUser.isScreenSharing = false;
+    transmissaoAtual = null;
     activeScreenShareTrack = _voiceService.activeScreenShareTrack;
     activeScreenSharePresenter = _voiceService.activeScreenSharePresenter;
     SoundService.playScreenShareStop();
@@ -3725,6 +3810,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _voiceService.leaveVoice();
     activeScreenShareTrack = null;
     activeScreenSharePresenter = null;
+    transmissaoAtual = null;
+    modoDeExibicao = ModoDeExibicao.normal;
     _ocupantesDaSala = const [];
     _ultimoPingNotificado = -1;
     _sendPresence();

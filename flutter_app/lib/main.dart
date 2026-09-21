@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'models/channel.dart';
 import 'providers/app_state.dart';
@@ -104,37 +105,57 @@ class MainScreen extends StatelessWidget {
     final state = context.watch<AppState>();
     final isVoiceActive = state.activeChannel?.type == ChannelType.voice;
 
-    return Scaffold(
-      body: Column(
-        children: [
-          // Faixa de status da malha de sincronização. Enquanto ela estiver
-          // fora do ar, nenhuma mensagem, presença ou solicitação de amizade
-          // entra ou sai — e o app precisa dizer isso em vez de parecer normal.
-          if (!state.isNetworkOnline) const _OfflineBanner(),
-          if (state.atualizacaoDisponivel != null) const _UpdateBanner(),
-          Expanded(
-            child: Row(
-              children: [
-                // 1. Painel Esquerdo Unificado (rail de servidores + canais +
-                //    perfil e áudio), com a largura acompanhando a janela.
-                const AppLeftPanel(),
+    // A tela cheia da live é a janela inteira: as duas colunas fixas saem, e o
+    // Esc devolve o que era antes. Sem sair dela, nada mais na tela funciona.
+    final aoVivoEmTelaCheia = state.activeScreenShareTrack != null &&
+        state.isWatchingScreenShare &&
+        !state.isHomePageActive &&
+        isVoiceActive &&
+        state.modoDeExibicao == ModoDeExibicao.telaCheia;
 
-                // 2. Área Central Principal (Home de Amigos, Voice Lounge ou Chat de Texto)
-                if (state.isHomePageActive)
-                  const Expanded(child: HomePageView())
-                else if (isVoiceActive)
-                  const VoiceLoungeView()
-                else
-                  const ChatView(),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (state.modoDeExibicao != ModoDeExibicao.normal) {
+            state.definirModoDeExibicao(ModoDeExibicao.normal);
+          }
+        },
+      },
+      child: Scaffold(
+        body: Column(
+          children: [
+            // Faixa de status da malha de sincronização. Enquanto ela estiver
+            // fora do ar, nenhuma mensagem, presença ou solicitação de amizade
+            // entra ou sai — e o app precisa dizer isso em vez de parecer normal.
+            if (!state.isNetworkOnline && !aoVivoEmTelaCheia) const _OfflineBanner(),
+            if (state.atualizacaoDisponivel != null && !aoVivoEmTelaCheia)
+              const _UpdateBanner(),
+            Expanded(
+              child: Row(
+                children: [
+                  // 1. Painel Esquerdo Unificado (rail de servidores + canais +
+                  //    perfil e áudio), com a largura acompanhando a janela.
+                  if (!aoVivoEmTelaCheia) const AppLeftPanel(),
 
-                // 3. Barra Lateral de Membros Online (oculta na Home, e cede a
-                //    vez primeiro quando a janela fica estreita).
-                if (!state.isHomePageActive && HudLayout.of(context).mostraBarraMembros)
-                  const MembersSidebar(),
-              ],
+                  // 2. Área Central Principal (Home de Amigos, Voice Lounge ou Chat de Texto)
+                  if (state.isHomePageActive)
+                    const Expanded(child: HomePageView())
+                  else if (isVoiceActive)
+                    const VoiceLoungeView()
+                  else
+                    const ChatView(),
+
+                  // 3. Barra Lateral de Membros Online (oculta na Home, e cede a
+                  //    vez primeiro quando a janela fica estreita).
+                  if (!state.isHomePageActive &&
+                      !aoVivoEmTelaCheia &&
+                      HudLayout.of(context).mostraBarraMembros)
+                    const MembersSidebar(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

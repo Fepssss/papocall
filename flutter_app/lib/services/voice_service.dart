@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
 import '../utils/app_log.dart';
@@ -56,9 +57,33 @@ class VoiceService {
 
   LocalVideoTrack? _screenShareTrack;
   LocalTrackPublication<LocalVideoTrack>? _screenSharePublication;
+  LocalAudioTrack? _screenShareAudioTrack;
+  LocalTrackPublication<LocalAudioTrack>? _screenShareAudioPublication;
 
   VideoTrack? _remoteScreenShareTrack;
   String? _remoteScreenSharePresenter;
+  AudioTrack? _remoteScreenShareAudioTrack;
+
+  /// Volume do áudio que vem junto da tela de outra pessoa, de 0 a 1. O
+  /// [AppState] é dono do número persistido; aqui ele só é aplicado na faixa.
+  double volumeDaLive = 0.8;
+
+  /// Só existe controle de volume quando a transmissão tem áudio de verdade.
+  bool get liveComAudio => _remoteScreenShareAudioTrack != null;
+
+  void definirVolumeDaLive(double volume) {
+    volumeDaLive = volume.clamp(0.0, 1.0).toDouble();
+    _aplicarVolumeDaLive();
+  }
+
+  void _aplicarVolumeDaLive() {
+    final faixa = _remoteScreenShareAudioTrack;
+    if (faixa == null) return;
+    // O caminho nativo do WebRTC pede o id da faixa e da conexão peer para
+    // regular um áudio que vem de fora; é o que o próprio SDK usa.
+    rtc.Helper.setVolume(volumeDaLive, faixa.mediaStreamTrack).catchError(
+        (Object e) => _log('Não foi possível regular o volume da transmissão: $e'));
+  }
 
   bool get isScreenSharing => _screenSharePublication != null;
   VideoTrack? get activeScreenShareTrack => _screenShareTrack ?? _remoteScreenShareTrack;
@@ -299,9 +324,16 @@ class VoiceService {
         ),
       );
 
-      _screenShareTrack = await LocalVideoTrack.createScreenShareTrack(options);
+      _screenShareTrack = await _capturarFaixaDeVideo(options);
       _screenSharePublication = await _room!.localParticipant?.publishVideoTrack(_screenShareTrack!);
       _log('Tela publicada com sucesso: ${_screenSharePublication?.sid}');
+
+      final audio = _screenShareAudioTrack;
+      if (audio != null) {
+        _screenShareAudioPublication =
+            await _room!.localParticipant?.publishAudioTrack(audio);
+        _log('Áudio da transmissão publicado: ${_screenShareAudioPublication?.sid}');
+      }
       _safeAddScreenShareTrack(_screenShareTrack);
       return true;
     } catch (e, stack) {
@@ -311,19 +343,48 @@ class VoiceService {
     }
   }
 
+  /// Captura a tela e aproveita o áudio que vier junto.
+  ///
+  /// O pedido é literal: `getDisplayMedia` recebe `audio: true` e o Windows
+  /// devolve o que conseguir capturar. Se a captura inteira falhar por causa
+  /// do áudio, tenta de novo só com o vídeo — ficar sem som na transmissão é
+  /// decepcionante, ficar sem transmissão nenhuma é pior.
+  Future<LocalVideoTrack> _capturarFaixaDeVideo(ScreenShareCaptureOptions options) async {
+    try {
+      final faixas = await LocalVideoTrack.createScreenShareTracksWithAudio(options);
+      for (final faixa in faixas) {
+        if (faixa is LocalAudioTrack) _screenShareAudioTrack = faixa;
+      }
+      _log('Captura de tela: vídeo${_screenShareAudioTrack != null ? ' + áudio do sistema' : ' (sem áudio do sistema)'}');
+      return faixas.first as LocalVideoTrack;
+    } catch (e) {
+      _log('Captura com áudio recusada ($e); tentando só vídeo.');
+      _screenShareAudioTrack = null;
+      return LocalVideoTrack.createScreenShareTrack(options);
+    }
+  }
+
   Future<void> stopScreenShare() async {
     try {
       _log('Parando compartilhamento de tela...');
       if (_screenSharePublication != null) {
         await _room?.localParticipant?.removePublishedTrack(_screenSharePublication!.sid);
       }
+      if (_screenShareAudioPublication != null) {
+        await _room?.localParticipant
+            ?.removePublishedTrack(_screenShareAudioPublication!.sid);
+      }
       await _screenShareTrack?.stop();
       await _screenShareTrack?.dispose();
+      await _screenShareAudioTrack?.stop();
+      await _screenShareAudioTrack?.dispose();
     } catch (e) {
       _log('Erro ao parar compartilhamento de tela: $e');
     } finally {
       _screenShareTrack = null;
       _screenSharePublication = null;
+      _screenShareAudioTrack = null;
+      _screenShareAudioPublication = null;
       _safeAddScreenShareTrack(_remoteScreenShareTrack);
     }
   }
@@ -359,6 +420,14 @@ class VoiceService {
 
     _listener?.on<TrackSubscribedEvent>((event) {
       _log('Track remoto assinado: ${event.track.sid}, source: ${event.publication.source}');
+      if (event.track is AudioTrack && event.publication.source == TrackSource.screenShareAudio) {
+        _remoteScreenShareAudioTrack = event.track as AudioTrack;
+        // O volume escolhido antes de a faixa existir precisa valer agora, e a
+        // reemissão é o que faz o controle de volume aparecer na tela.
+        _aplicarVolumeDaLive();
+        _safeAddScreenShareTrack(activeScreenShareTrack);
+        return;
+      }
       if (event.track is VideoTrack && event.publication.source == TrackSource.screenShareVideo) {
         _remoteScreenShareTrack = event.track as VideoTrack;
         _remoteScreenSharePresenter = event.participant.name.isNotEmpty
@@ -371,10 +440,17 @@ class VoiceService {
 
     _listener?.on<TrackUnsubscribedEvent>((event) {
       _log('Track remoto desinscrito: ${event.track.sid}');
+      if (event.publication.source == TrackSource.screenShareAudio) {
+        if (_remoteScreenShareAudioTrack?.sid == event.track.sid) {
+          _remoteScreenShareAudioTrack = null;
+        }
+        return;
+      }
       if (event.publication.source == TrackSource.screenShareVideo) {
         if (_remoteScreenShareTrack?.sid == event.track.sid) {
           _remoteScreenShareTrack = null;
           _remoteScreenSharePresenter = null;
+          _remoteScreenShareAudioTrack = null;
           SoundService.playScreenShareStop();
           _safeAddScreenShareTrack(activeScreenShareTrack);
         }
@@ -387,6 +463,7 @@ class VoiceService {
         if (event.publication.sid == _remoteScreenShareTrack?.sid) {
           _remoteScreenShareTrack = null;
           _remoteScreenSharePresenter = null;
+          _remoteScreenShareAudioTrack = null;
           SoundService.playScreenShareStop();
           _safeAddScreenShareTrack(activeScreenShareTrack);
         }
@@ -454,13 +531,22 @@ class VoiceService {
       if (_screenSharePublication != null) {
         await _room?.localParticipant?.removePublishedTrack(_screenSharePublication!.sid);
       }
+      if (_screenShareAudioPublication != null) {
+        await _room?.localParticipant
+            ?.removePublishedTrack(_screenShareAudioPublication!.sid);
+      }
       await _screenShareTrack?.stop();
       await _screenShareTrack?.dispose();
+      await _screenShareAudioTrack?.stop();
+      await _screenShareAudioTrack?.dispose();
     } catch (_) {}
     _screenShareTrack = null;
     _screenSharePublication = null;
+    _screenShareAudioTrack = null;
+    _screenShareAudioPublication = null;
     _remoteScreenShareTrack = null;
     _remoteScreenSharePresenter = null;
+    _remoteScreenShareAudioTrack = null;
     _safeAddScreenShareTrack(null);
 
     try {

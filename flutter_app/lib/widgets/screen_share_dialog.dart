@@ -11,10 +11,11 @@ class ScreenShareDialog extends StatefulWidget {
 
   /// A escolha volta completa: a janela que abre aqui decide a fonte e também a
   /// resolução e os quadros por segundo com que a transmissão vai sair. Os
-  /// números são os mesmos que o `VoiceService` monta em `VideoParameters`.
-  static Future<({String sourceId, int width, int height, int fps})?> show(
+  /// números são os mesmos que o `VoiceService` monta em `VideoParameters`, e o
+  /// nome é o que o painel do apresentador mostra depois, em vez de um id opaco.
+  static Future<({String sourceId, String nome, int width, int height, int fps})?> show(
       BuildContext context) async {
-    return showDialog<({String sourceId, int width, int height, int fps})>(
+    return showDialog<({String sourceId, String nome, int width, int height, int fps})>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.75),
       builder: (context) => const ScreenShareDialog(),
@@ -396,6 +397,7 @@ class _ScreenShareDialogState extends State<ScreenShareDialog> with SingleTicker
                 ? () {
                     Navigator.of(context).pop((
                       sourceId: _selectedSource!.id,
+                      nome: _selectedSource!.name,
                       width: _larguraEscolhida,
                       height: _alturaEscolhida,
                       fps: _selectedFps,

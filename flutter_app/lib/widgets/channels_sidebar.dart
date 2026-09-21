@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
+import 'anel_de_fala.dart';
 import 'channel_context_menu.dart';
 
 class ChannelsSidebar extends StatelessWidget {
@@ -456,12 +457,15 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
         ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 11,
-              backgroundColor: widget.isSelf ? HudTheme.blurple : HudTheme.bgHover,
-              child: Text(
-                widget.user.initials,
-                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+            AnelDeFala(
+              falando: widget.user.isSpeaking,
+              child: CircleAvatar(
+                radius: 11,
+                backgroundColor: widget.isSelf ? HudTheme.blurple : HudTheme.bgHover,
+                child: Text(
+                  widget.user.initials,
+                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -469,7 +473,11 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
               child: Text(
                 widget.isSelf ? '${widget.user.username} (Você)' : widget.user.username,
                 style: TextStyle(
-                  color: (widget.isSelf || _isHovered) ? HudTheme.textHeader : HudTheme.textNormal,
+                  // O nome acompanha o anel: na lista estreita é a letra verde
+                  // que se percebe primeiro, antes do brilho em volta do círculo.
+                  color: widget.user.isSpeaking
+                      ? HudTheme.green
+                      : ((widget.isSelf || _isHovered) ? HudTheme.textHeader : HudTheme.textNormal),
                   fontWeight: widget.isSelf ? FontWeight.w600 : FontWeight.normal,
                   fontSize: 12,
                 ),

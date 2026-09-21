@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_layout.dart';
 import '../theme/hud_theme.dart';
+import 'anel_de_fala.dart';
 import 'member_context_menu.dart';
 
 class MembersSidebar extends StatelessWidget {
@@ -151,36 +152,39 @@ class _MemberTileState extends State<_MemberTile> {
         ),
         child: Row(
           children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: widget.isSelf
-                      ? HudTheme.blurple
-                      : (isOffline ? HudTheme.bgCard : HudTheme.bgHover),
-                  child: Text(
-                    widget.user.initials,
-                    style: TextStyle(
-                      color: isOffline ? HudTheme.textMuted : Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+            AnelDeFala(
+              falando: widget.user.isSpeaking,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: widget.isSelf
+                        ? HudTheme.blurple
+                        : (isOffline ? HudTheme.bgCard : HudTheme.bgHover),
+                    child: Text(
+                      widget.user.initials,
+                      style: TextStyle(
+                        color: isOffline ? HudTheme.textMuted : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: isOffline ? HudTheme.statusOffline : statusColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: HudTheme.bgSidebar, width: 2),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: isOffline ? HudTheme.statusOffline : statusColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: HudTheme.bgSidebar, width: 2),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(

@@ -7,6 +7,7 @@ import 'package:papocall/models/role.dart';
 import 'package:papocall/models/server.dart';
 import 'package:papocall/models/user_model.dart';
 import 'package:papocall/providers/app_state.dart';
+import 'package:papocall/widgets/anel_de_fala.dart';
 import 'package:papocall/widgets/app_left_panel.dart';
 import 'package:papocall/widgets/channels_sidebar.dart';
 
@@ -105,6 +106,25 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('quem está falando leva o anel verde na lista de ocupantes', (tester) async {
+    final state = aplicativo(naVoz: true)..currentUser = UserModel(
+      id: 'eu',
+      username: 'feps',
+      displayName: nomesLongos,
+      isSpeaking: true,
+    );
+    await montar(tester, state, const Size(1280, 800));
+
+    // A lista embaixo do canal é onde a pessoa olha primeiro; se o anel só
+    // existisse nos cartões da sala, ela não veria nada ali.
+    final aneis = find.descendant(
+      of: find.byType(ChannelsSidebar),
+      matching: find.byType(AnelDeFala),
+    );
+    expect(aneis, findsWidgets);
+    expect(tester.widget<AnelDeFala>(aneis.first).falando, isTrue);
+  });
 
   for (final entrada in resolucoes.entries) {
     testWidgets('a tela inicial se acomoda ${entrada.key}', (tester) async {

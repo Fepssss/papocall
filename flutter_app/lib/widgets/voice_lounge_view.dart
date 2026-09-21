@@ -7,6 +7,8 @@ import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
+import 'anel_de_fala.dart';
+import 'modals/live_settings_dialog.dart';
 import 'screen_share_dialog.dart';
 
 class VoiceLoungeView extends StatelessWidget {
@@ -31,13 +33,20 @@ class VoiceLoungeView extends StatelessWidget {
               if (m.currentVoiceChannelId == channel?.id) m,
           ];
 
+    // Na tela cheia a barra do canal e o dock de mutar saem de cena: o palco é
+    // a janela inteira, e os controles voltam a existir quando se sai dela.
+    final telaCheia = isConnected &&
+        hasActiveScreenShare &&
+        state.isWatchingScreenShare &&
+        state.modoDeExibicao == ModoDeExibicao.telaCheia;
+
     return Expanded(
       child: Container(
         color: HudTheme.bgChat,
         child: Column(
           children: [
             // Voice Header Bar
-            _buildHeader(state, channel?.name, isConnected, hasActiveScreenShare),
+            if (!telaCheia) _buildHeader(state, channel?.name, isConnected, hasActiveScreenShare),
 
             // Voice Main Stage (Screen Share or Member Cards Grid)
             Expanded(
@@ -51,7 +60,7 @@ class VoiceLoungeView extends StatelessWidget {
             ),
 
             // Modern Centered Floating Call Dock (When Connected)
-            if (isConnected)
+            if (isConnected && !telaCheia)
               _buildFloatingDock(context, state),
           ],
         ),
@@ -271,200 +280,263 @@ class VoiceLoungeView extends StatelessWidget {
     );
   }
 
+  /// O palco da transmissão nos três modos de exibição.
+  ///
+  /// `normal` empilha barra, vídeo e faixa de participantes. `teatro` deixa o
+  /// vídeo crescer até onde der e põe a faixa por cima dele. `telaCheia` toma a
+  /// janela inteira — o painel esquerdo e a barra de membros saem no `MainScreen`
+  /// — e os controles viram duas ilhas flutuantes, porque sem elas não haveria
+  /// como sair de onde a pessoa acabou de entrar.
   Widget _buildScreenShareStage(BuildContext context, AppState state, List<UserModel> channelMembers) {
+    final barra = _buildLiveBar(context, state);
+    final faixa = _buildParticipantStrip(state, channelMembers);
+    final palco = _buildPalco(context, state);
+
+    if (state.modoDeExibicao == ModoDeExibicao.telaCheia) {
+      return Stack(
+        children: [
+          Positioned.fill(child: Container(color: Colors.black, child: palco)),
+          Positioned(top: 10, left: 16, right: 16, child: barra),
+          Positioned(bottom: 10, left: 16, right: 16, child: faixa),
+        ],
+      );
+    }
+
+    if (state.modoDeExibicao == ModoDeExibicao.teatro) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          children: [
+            barra,
+            const SizedBox(height: 8),
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(child: Container(color: Colors.black, child: palco)),
+                  Positioned(bottom: 8, left: 8, right: 8, child: faixa),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         children: [
-          // Top Presenter Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            margin: const EdgeInsets.only(bottom: 8),
+          barra,
+          const SizedBox(height: 8),
+          Expanded(child: Container(color: Colors.black, child: palco)),
+          const SizedBox(height: 8),
+          faixa,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPalco(BuildContext context, AppState state) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: state.shouldRenderScreenShare
+          ? VideoTrackRenderer(state.activeScreenShareTrack!, fit: VideoViewFit.contain)
+          : _buildStreamerEcoPlaceholder(context, state),
+    );
+  }
+
+  /// Barra de cima da live: quem transmite configura e para; quem assiste regula
+  /// o volume e escolhe como quer ver.
+  Widget _buildLiveBar(BuildContext context, AppState state) {
+    final fullscreen = state.modoDeExibicao == ModoDeExibicao.telaCheia;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: fullscreen ? HudTheme.bgCard.withValues(alpha: 0.92) : HudTheme.bgCard,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HudTheme.divider),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.screen_share, color: HudTheme.accent, size: 18),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              state.isScreenSharing
+                  ? 'Você está compartilhando a tela'
+                  : 'Tela de ${state.activeScreenSharePresenter ?? "Participante"}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: HudTheme.textHeader,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Quem assiste ouve a transmissão pela mesma saída do resto da call,
+          // então o controle só aparece quando a faixa de áudio existe de fato.
+          if (!state.isScreenSharing && state.liveComAudio) ...[
+            const Icon(Icons.volume_down_rounded, color: HudTheme.textMuted, size: 16),
+            SizedBox(
+              width: 110,
+              child: SliderTheme(
+                data: SliderThemeData(
+                  trackHeight: 3,
+                  activeTrackColor: HudTheme.green,
+                  inactiveTrackColor: HudTheme.bgHover,
+                  thumbColor: HudTheme.green,
+                  overlayColor: HudTheme.green.withValues(alpha: 0.2),
+                ),
+                child: Slider(
+                  value: state.volumeDaLive,
+                  onChanged: state.ajustarVolumeDaLive,
+                  onChangeEnd: (v) => state.definirVolumeDaLive(v),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 34,
+              child: Text(
+                '${(state.volumeDaLive * 100).round()}%',
+                style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+
+          const Spacer(),
+
+          if (state.isScreenSharing) ...[
+            const _ChipFoco(),
+            const SizedBox(width: 10),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: HudTheme.accent,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              icon: const Icon(Icons.tune_rounded, size: 16),
+              label: const Text('Configurar transmissão', style: TextStyle(fontWeight: FontWeight.w600)),
+              onPressed: () => LiveSettingsDialog.show(context),
+            ),
+            const SizedBox(width: 6),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: HudTheme.red,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              icon: const Icon(Icons.stop_screen_share, size: 16),
+              label: const Text('Parar', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: state.stopScreenShare,
+            ),
+          ] else ...[
+            _ModoButton(
+              icone: state.modoDeExibicao == ModoDeExibicao.teatro
+                  ? Icons.crop_din_rounded
+                  : Icons.theater_comedy_outlined,
+              tooltip: state.modoDeExibicao == ModoDeExibicao.teatro
+                  ? 'Sair do modo teatro'
+                  : 'Modo teatro',
+              ativo: state.modoDeExibicao == ModoDeExibicao.teatro,
+              onPressed: () => state.definirModoDeExibicao(
+                state.modoDeExibicao == ModoDeExibicao.teatro
+                    ? ModoDeExibicao.normal
+                    : ModoDeExibicao.teatro,
+              ),
+            ),
+            const SizedBox(width: 6),
+            _ModoButton(
+              icone: state.modoDeExibicao == ModoDeExibicao.telaCheia
+                  ? Icons.fullscreen_exit
+                  : Icons.fullscreen,
+              tooltip: state.modoDeExibicao == ModoDeExibicao.telaCheia
+                  ? 'Sair da tela cheia (Esc)'
+                  : 'Tela cheia',
+              ativo: fullscreen,
+              onPressed: () => state.definirModoDeExibicao(
+                fullscreen ? ModoDeExibicao.normal : ModoDeExibicao.telaCheia,
+              ),
+            ),
+            const SizedBox(width: 6),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: HudTheme.textMuted,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              icon: const Icon(Icons.visibility_off_outlined, size: 16),
+              label: const Text('Sair da Tela', style: TextStyle(fontWeight: FontWeight.w600)),
+              onPressed: () => state.setWatchingScreenShare(false),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// A faixa de quem está na sala, a mesma nos três modos.
+  Widget _buildParticipantStrip(AppState state, List<UserModel> channelMembers) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: HudTheme.bgCard.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HudTheme.divider.withValues(alpha: 0.5)),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        itemCount: channelMembers.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final user = channelMembers[index];
+          final isSelf = user.id == state.currentUser.id;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: HudTheme.bgCard,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: HudTheme.divider),
+              color: HudTheme.bgChat,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: user.isSpeaking ? HudTheme.green : HudTheme.divider,
+                width: user.isSpeaking ? 2 : 1,
+              ),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.screen_share, color: HudTheme.accent, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  state.isScreenSharing
-                      ? 'Você está compartilhando a tela'
-                      : 'Tela de ${state.activeScreenSharePresenter ?? "Participante"}',
-                  style: const TextStyle(
-                    color: HudTheme.textHeader,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                AnelDeFala(
+                  falando: user.isSpeaking,
+                  child: CircleAvatar(
+                    radius: 12,
+                    backgroundColor: isSelf ? HudTheme.blurple : HudTheme.bgHover,
+                    child: Text(
+                      user.initials,
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
-                const Spacer(),
-                if (state.isScreenSharing) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: state.isWindowFocused
-                          ? HudTheme.green.withValues(alpha: 0.15)
-                          : Colors.amber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: state.isWindowFocused ? HudTheme.green : Colors.amber,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          state.isWindowFocused ? Icons.remove_red_eye : Icons.bolt,
-                          size: 13,
-                          color: state.isWindowFocused ? HudTheme.green : Colors.amber,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          state.isWindowFocused
-                              ? 'Prévia Ativa (Foco)'
-                              : 'Modo Eco (Sem Foco)',
-                          style: TextStyle(
-                            color: state.isWindowFocused ? HudTheme.green : Colors.amber,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(width: 8),
+                Text(
+                  isSelf ? '${user.username} (Você)' : user.username,
+                  style: const TextStyle(
+                    color: HudTheme.textHeader,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(width: 10),
+                ),
+                if (user.isMuted) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.mic_off, size: 14, color: HudTheme.red),
                 ],
-                if (state.isScreenSharing)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: HudTheme.red,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    ),
-                    icon: const Icon(Icons.stop_screen_share, size: 16),
-                    label: const Text('Parar Compartilhamento', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: state.stopScreenShare,
-                  )
-                else
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: HudTheme.textMuted,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    ),
-                    icon: const Icon(Icons.fullscreen_exit, size: 16),
-                    label: const Text('Sair da Tela', style: TextStyle(fontWeight: FontWeight.w600)),
-                    onPressed: () => state.setWatchingScreenShare(false),
-                  ),
+                if (user.isScreenSharing) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.screen_share, size: 14, color: HudTheme.accent),
+                ],
               ],
             ),
-          ),
-
-          // Center Screen Video View
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: HudTheme.divider),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: state.shouldRenderScreenShare
-                    ? VideoTrackRenderer(
-                        state.activeScreenShareTrack!,
-                        fit: VideoViewFit.contain,
-                      )
-                    : _buildStreamerEcoPlaceholder(context, state),
-              ),
-            ),
-          ),
-
-          // Bottom Participants Strip
-          Container(
-            height: 64,
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: HudTheme.bgCard.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: HudTheme.divider.withValues(alpha: 0.5)),
-            ),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              itemCount: channelMembers.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final user = channelMembers[index];
-                final isSelf = user.id == state.currentUser.id;
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: HudTheme.bgChat,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: user.isSpeaking ? HudTheme.green : HudTheme.divider,
-                      width: user.isSpeaking ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 140),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: user.isSpeaking ? HudTheme.green : Colors.transparent,
-                            width: 2,
-                          ),
-                          boxShadow: user.isSpeaking
-                              ? [
-                                  BoxShadow(
-                                    color: HudTheme.green.withValues(alpha: 0.7),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: CircleAvatar(
-                          radius: 12,
-                          backgroundColor: isSelf ? HudTheme.blurple : HudTheme.bgHover,
-                          child: Text(
-                            user.initials,
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isSelf ? '${user.username} (Você)' : user.username,
-                        style: const TextStyle(
-                          color: HudTheme.textHeader,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (user.isMuted) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.mic_off, size: 14, color: HudTheme.red),
-                      ],
-                      if (user.isScreenSharing) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.screen_share, size: 14, color: HudTheme.accent),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -661,6 +733,7 @@ class VoiceLoungeView extends StatelessWidget {
       if (escolha != null) {
         final success = await state.startScreenShare(
           escolha.sourceId,
+          nomeDaFonte: escolha.nome,
           width: escolha.width,
           height: escolha.height,
           fps: escolha.fps,
@@ -915,6 +988,98 @@ class _ParticipantCardState extends State<_ParticipantCard> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Botao quadrado de modo de exibicao da live: teatro e tela cheia.
+class _ModoButton extends StatefulWidget {
+  const _ModoButton({
+    required this.icone,
+    required this.tooltip,
+    required this.ativo,
+    required this.onPressed,
+  });
+
+  final IconData icone;
+  final String tooltip;
+  final bool ativo;
+  final VoidCallback onPressed;
+
+  @override
+  State<_ModoButton> createState() => _ModoButtonState();
+}
+
+class _ModoButtonState extends State<_ModoButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            decoration: BoxDecoration(
+              color: widget.ativo
+                  ? HudTheme.accent.withValues(alpha: 0.2)
+                  : (_hover ? HudTheme.bgHover : Colors.transparent),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: widget.ativo ? HudTheme.accent : HudTheme.divider,
+              ),
+            ),
+            child: Icon(
+              widget.icone,
+              size: 16,
+              color: widget.ativo ? HudTheme.accent : HudTheme.textNormal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// O aviso de que a previa de quem transmite depende do foco da janela.
+class _ChipFoco extends StatelessWidget {
+  const _ChipFoco();
+
+  @override
+  Widget build(BuildContext context) {
+    final emFoco = context.watch<AppState>().isWindowFocused;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: emFoco ? HudTheme.green.withValues(alpha: 0.15) : Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: emFoco ? HudTheme.green : Colors.amber),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            emFoco ? Icons.remove_red_eye : Icons.bolt,
+            size: 13,
+            color: emFoco ? HudTheme.green : Colors.amber,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            emFoco ? 'Prévia Ativa (Foco)' : 'Modo Eco (Sem Foco)',
+            style: TextStyle(
+              color: emFoco ? HudTheme.green : Colors.amber,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

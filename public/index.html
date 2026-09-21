@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.2.1</span>
+        <span class="version-tag">v1.3.0</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.2.1
+          Baixar v1.3.0
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.2.1 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
+          Versão Oficial 1.3.0 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.2.1 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.3.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.3.0', this)">
+          v1.3.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.2.1', this)">
-          v1.2.1 <span class="badge-current">ATUAL</span>
+          v1.2.1
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.2.0', this)">
           v1.2.0
@@ -962,12 +965,48 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.3.0 -->
+        <article class="release-card latest" data-version="v1.3.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.3.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">20 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A chamada mostra quem está falando em toda parte, a live ganhou volume, teatro e tela cheia, e quem transmite agora configura a transmissão sem parar.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Anel verde em quem está falando</strong>: o retorno visual que antes só existia nos cartões da sala de voz chega à lista de ocupantes embaixo do canal, à lista de membros do servidor e à sua própria barra de perfil, no canto de baixo. O nome de quem fala fica verde na lista estreita, onde o brilho quase não se percebe. A informação vem do que o motor de voz ouviu, não do que o amigo anunciou.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Volume da live</strong>: a barra da transmissão ganhou um regulador para o áudio que vem junto da tela do outro, e a escolha fica gravada para a próxima vez. Ele só aparece quando a transmissão tem áudio de verdade — sem faixa de áudio, nenhum controle falso na tela.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Teatro e tela cheia</strong>: o modo teatro deixa o vídeo crescer até onde der e põe os participantes flutuando por cima; a tela cheia toma a janela inteira, sem painel lateral nem barra de membros, com os controles em duas ilhas e a tecla Esc devolvendo tudo ao normal. Quando a transmissão acaba, os dois modos se desligam sozinhos.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Quem está ao vivo configura sem parar</strong>: um botão abre o painel da transmissão mostrando o que está no ar, com troca de janela, resolução e quadros por segundo aplicados na hora. Antes, mudar de ideia significava parar a live e recomeçar do zero.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>A transmissão pode levar o som do sistema</strong>: quando o Windows consegue capturar o áudio junto da tela, ele vai no ar; quando não consegue, a transmissão segue só com imagem e o aplicativo registra qual dos dois casos aconteceu, em vez de deixar a pessoa descobrindo no silêncio.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.2.1 -->
-        <article class="release-card latest" data-version="v1.2.1">
+        <article class="release-card" data-version="v1.2.1">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.2.1</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">20 de Setembro de 2026</span>
           </div>
@@ -1049,7 +1088,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.2.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.3.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1623,7 +1662,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.2.1</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.3.0</strong></p>
     </div>
   </footer>
 
