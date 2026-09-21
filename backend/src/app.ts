@@ -4,6 +4,7 @@ import cors from 'cors';
 import { env } from './config/env';
 import { authRoutes } from './modules/auth/auth.routes';
 import { livekitRoutes } from './modules/livekit/livekit.routes';
+import { mqttRoutes } from './modules/mqtt/mqtt.routes';
 import { errorHandler, AppError } from './middlewares/error.middleware';
 
 export const app = express();
@@ -74,6 +75,7 @@ app.get('/health', (_req, res) => {
 // =============================================================================
 app.use('/auth', authRoutes);
 app.use('/livekit', livekitRoutes);
+app.use('/mqtt', mqttRoutes);
 
 // Tratamento de Rota Não Encontrada (404)
 app.use((req, _res, next) => {

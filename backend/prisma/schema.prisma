@@ -29,11 +29,65 @@ model User {
   refresh_tokens           RefreshToken[]
   email_verification_tokens EmailVerificationToken[]
   password_reset_tokens    PasswordResetToken[]
+  mqtt_sessions            MqttSession[]
+  mqtt_grants              MqttGrant[]
 
   @@index([email])
   @@index([username])
   @@map("users")
 }
+
+// ---------------------------------------------------------
+// Credencial MQTT de curta duração
+// ---------------------------------------------------------
+// A senha entregue ao aplicativo é aleatória e guardada só como hash SHA-256, a
+// mesma regra dos refresh tokens: se o banco vazar, ninguém consegue usar as
+// linhas para se autenticar no broker. Existir aqui é o que permite revogar:
+// apagar a linha derruba a credencial na próxima reconexão, sem esperar expirar.
+model MqttSession {
+  id            String    @id @default(uuid())
+  user_id       String
+  // Hash SHA-256 da senha entregue; o valor em texto puro nunca é persistido.
+  password_hash String    @unique
+  expires_at    DateTime
+  created_at    DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("mqtt_sessions")
+}
+
+// ---------------------------------------------------------
+// Autorização consultada pelo broker
+// ---------------------------------------------------------
+// Cada linha é um prefixo de tópico que o usuário pode tocar. O broker decide
+// pub/sub por esta tabela — não pelo que o cliente afirma no CONNECT.
+//
+// `topic_prefix` nunca contém o código de convite: o que entra aqui é o
+// `topicIdFor(...)` de 32 caracteres, derivado no cliente. Ler a tabela não dá
+// a chave AES de ninguém.
+//
+// `kind` separa o que o backend deriva sozinho do que o cliente declara:
+//   inbox     - a caixa de entrada própria, calculada a partir do username real
+//   presenca  - o tópico de presença próprio, mesmo cálculo
+//   servidor  - sala em que o usuário declarou estar; reescrito por completo a
+//               cada sincronização, para que participação velha não sobreviva
+model MqttGrant {
+  id           String   @id @default(uuid())
+  user_id      String
+  topic_prefix String
+  kind         String
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, topic_prefix])
+  @@index([topic_prefix])
+  @@map("mqtt_grants")
+}
+
 
 // ---------------------------------------------------------
 // Tabela de Refresh Tokens com Rotação e Detecção de Reuso
