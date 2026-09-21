@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:http/http.dart' as http;
@@ -149,6 +150,34 @@ class VoiceService {
   bool cancelamentoDeEco = true;
   bool ganhoAutomatico = true;
   bool filtroPassaAltas = false;
+
+  /// Cancelamento de ruído por rede neural (RNNoise) no caminho nativo.
+  /// [rnnoiseAplicado] é o resultado da última vez que se tentou montar o
+  /// filtro: `null` quer dizer que ainda não se tentou nesta execução, `false`
+  /// que a máquina recusou, e aí a interface diz isso em vez de fingir um botão
+  /// que não faz nada.
+  bool rnnoise = false;
+  bool? rnnoiseAplicado;
+
+  /// Função, não chamada direta: em teste de unidade não existe canal de plugin,
+  /// e tocar em `Helper` ali abriria uma invocação sem dono. Quem testa troca.
+  static Future<bool> Function(bool) aplicarFiltroNeuralNative =
+      rtc.Helper.setNeuralNoiseSuppression;
+
+  /// Manda o estado de [rnnoise] ao nativo e registra a resposta.
+  Future<bool> aplicarRnnoise() async {
+    if (!kIsWeb && !Platform.isWindows) {
+      rnnoiseAplicado = false;
+      return false;
+    }
+    try {
+      rnnoiseAplicado = await aplicarFiltroNeuralNative(rnnoise);
+    } catch (e) {
+      _log('Aviso ao ligar o filtro neural de ruído: $e');
+      rnnoiseAplicado = false;
+    }
+    return rnnoiseAplicado!;
+  }
 
   /// Os quatro abaixo são as únicas chaves de processamento que o caminho nativo
   /// do Windows lê (`flutter_media_stream.cc` resolve `echoCancellation`,
@@ -312,6 +341,10 @@ class VoiceService {
         // Recomeçar uma call volta a usar o que a pessoa escolheu nas
         // configurações, não o padrão que o Windows impõe.
         await aplicarDispositivosEscolhidos();
+        // O slot do filtro é do processamento de áudio do processo, não da sala:
+        // sem re-aplicar aqui, uma escolha gravada antes de fechar o aplicativo
+        // ficava desligada até a pessoa mexer no botão de novo.
+        await aplicarRnnoise();
         _log('Ativando microfone local...');
         final pub = await _room!.localParticipant
             ?.setMicrophoneEnabled(true, audioCaptureOptions: _opcoesDeCaptura)

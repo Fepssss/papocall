@@ -1,5 +1,6 @@
 #include "flutter_webrtc.h"
 #include "flutter_data_channel.h"
+#include "flutter_rnnoise.h"
 
 #include "flutter_webrtc/flutter_web_r_t_c_plugin.h"
 
@@ -139,6 +140,27 @@ void FlutterWebRTC::HandleMethodCall(
         GetValue<EncodableMap>(*method_call.arguments());
     const std::string deviceId = findString(params, "deviceId");
     SelectAudioOutput(deviceId, std::move(result));
+  } else if (method_call.method_name().compare("setNeuralNoiseSuppression") == 0) {
+    const EncodableMap params =
+        GetValue<EncodableMap>(*method_call.arguments());
+    const bool enabled = findBoolean(params, "enabled");
+    // `audio_processing()` inicializa o WebRTC se ainda não foi, então funcionar
+    // igual antes ou depois de entrar na sala. A resposta é se o filtro está de
+    // pé: falso quer dizer "nada mudou no áudio", e o aplicativo trata isso como
+    // opção indisponível, continuando com o cancelamento de ruído do WebRTC.
+#if defined(_WIN32)
+    // Só o alvo Windows compila flutter_rnnoise.cc; nos outros a opção não
+    // existe e responde "indisponível", que é o que o aplicativo espera.
+    if (!InstalarRnnoise(audio_processing().get())) {
+      result->Success(EncodableValue(false));
+    } else {
+      DefinirRnnoiseAtivo(enabled);
+      result->Success(EncodableValue(true));
+    }
+#else
+    (void)enabled;
+    result->Success(EncodableValue(false));
+#endif
   } else if (method_call.method_name().compare("mediaStreamGetTracks") == 0) {
     if (!method_call.arguments()) {
       result->Error("Bad Arguments", "Null constraints arguments received");

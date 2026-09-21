@@ -950,6 +950,20 @@ class _SettingsModalState extends State<SettingsModal> {
       );
     }
 
+    String avisoRnnoise() {
+      if (state.rnnoise && state.rnnoiseAplicado == false) {
+        return 'Não está filtrando nada nesta máquina. Deixe a supressão de ruído '
+            'ligada acima se quiser o fundo cortado do jeito que existe hoje.';
+      }
+      if (state.rnnoise) {
+        return 'Rodando no próprio caminho de captura, no lugar da supressão de '
+            'ruído acima — os dois juntos mastigam a fala, por isso ela foi desligada.';
+      }
+      return 'Modelo pequeno de rede neural, treinado para voz, filtrando o fundo '
+          'dentro da própria captura. Ao ligar, a supressão de ruído acima é '
+          'desligada para não filtrar duas vezes.';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1043,6 +1057,17 @@ class _SettingsModalState extends State<SettingsModal> {
               'só vale ligar se esse ronco existir.',
           value: state.highPassFilter,
           definir: state.definirFiltroPassaAltas,
+        ),
+        _buildSwitchTile(
+          title: 'Cancelamento de ruído por rede neural (RNNoise)',
+          subtitle: avisoRnnoise(),
+          value: state.rnnoise,
+          // Não passa por `linhaProcessador`: este precisa perguntar à máquina e
+          // pode receber um não, e aí a escolha não vale até a próxima leitura.
+          onChanged: (val) async {
+            await state.definirRnnoise(val);
+            await state.voiceService.aplicarDispositivosEscolhidos();
+          },
         ),
       ],
     );

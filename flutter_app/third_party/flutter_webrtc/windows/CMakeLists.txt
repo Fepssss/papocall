@@ -30,6 +30,7 @@ add_library(${PLUGIN_NAME} SHARED
   "../common/cpp/src/flutter_webrtc.cc"
   "../common/cpp/src/flutter_webrtc_base.cc"
   "../common/cpp/src/flutter_audio_probe.cc"
+  "../common/cpp/src/flutter_rnnoise.cc"
   "application_loopback_capturer.cc"
   "loopback_capturer_factory.cc"
   "flutter_webrtc_plugin.cc"
@@ -43,6 +44,32 @@ include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libwebrtc/include"
 )
 
+# RNNoise (Xiph, BSD-3) compilado junto, como biblioteca estática de C. Vem como
+# fonte e não como DLL porque o modelo vai dentro do fonte (src/rnn_data.c): a
+# build não depende de baixar nada e o instalador não carrega DLL solta. Os
+# avisos estão desligados porque as conversões são do código do autor, e o
+# /WX deste alvo as trataria como erro nosso.
+enable_language(C)
+set(RNNOISE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/rnnoise")
+add_library(papocall_rnnoise STATIC
+  "${RNNOISE_DIR}/src/denoise.c"
+  "${RNNOISE_DIR}/src/rnn.c"
+  "${RNNOISE_DIR}/src/celt_lpc.c"
+  "${RNNOISE_DIR}/src/kiss_fft.c"
+  "${RNNOISE_DIR}/src/pitch.c"
+  "${RNNOISE_DIR}/src/rnn_data.c"
+)
+target_include_directories(papocall_rnnoise PUBLIC
+  "${RNNOISE_DIR}/include"
+  "${RNNOISE_DIR}/src"
+)
+if(MSVC)
+  target_compile_options(papocall_rnnoise PRIVATE /W0)
+  # O config.h gerado pelo autotools é que define isto no build original; sem
+  # aqui, <math.h> do MSVC não expõe M_PI e denoise.c não compila.
+  target_compile_definitions(papocall_rnnoise PRIVATE _USE_MATH_DEFINES)
+endif()
+
 apply_standard_settings(${PLUGIN_NAME})
 set_target_properties(${PLUGIN_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
@@ -55,6 +82,7 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
 target_link_libraries(${PLUGIN_NAME} PRIVATE 
   flutter
   flutter_wrapper_plugin
+  papocall_rnnoise
   "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libwebrtc/lib/libwebrtc.dll.lib"
   avrt.lib
   ksuser.lib

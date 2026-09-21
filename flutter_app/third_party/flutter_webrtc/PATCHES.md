@@ -29,12 +29,33 @@ Tudo o mais é byte por byte igual ao pacote do pub. Para conferir:
     diff -rq "$LOCALAPPDATA/Pub/Cache/hosted/pub.dev/flutter_webrtc-1.6.2+hotfix.3" \
         third_party/flutter_webrtc
 
+### Sonda de captura (diagnóstico)
+
 | Arquivo | Mudança |
 | --- | --- |
 | `common/cpp/include/flutter_audio_probe.h` | **novo** — declara `MaybeInstallAudioProbe` |
-| `common/cpp/src/flutter_audio_probe.cc` | **novo** — sonda que mede o quadro de áudio sem tocá-lo |
+| `common/cpp/src/flutter_audio_probe.cc` | **novo** — mede o quadro de áudio sem tocá-lo |
 | `common/cpp/src/flutter_webrtc_base.cc` | `#include` + chamada a `MaybeInstallAudioProbe(audio_processing_.get())` sob `#if defined(_WIN32)`, logo depois de a fábrica entregar o APM |
 | `windows/CMakeLists.txt` | adiciona `flutter_audio_probe.cc` à lista de fontes |
+
+### RNNoise no microfone
+
+O modelo vem junto como fonte (`third_party/rnnoise`, Xiph, tag **v0.1.1** — a última
+com o modelo compilado dentro; de v0.2 em diante ele é baixado à parte). Cinco arquivos,
+todos com a razão de ser escrita neles:
+
+| Arquivo | Mudança |
+| --- | --- |
+| `third_party/rnnoise/` | **novo** — fontes do RNNoise v0.1.1 + COPYING/AUTHORS, sem `example/` nem scripts de treino |
+| `third_party/rnnoise/src/pitch.c`, `src/celt_lpc.c` | **três VLAs trocadas por dimensão fixa**: o MSVC não compila array de tamanho variável (C99). As dimensões têm folga sobre o que o RNNoise pede (`len` 960, `max_pitch` 588, `maxperiod` 768) |
+| `common/cpp/include/flutter_rnnoise.h`, `common/cpp/src/flutter_rnnoise.cc` | **novo** — o `CustomProcessing` que estica 16 kHz → 48 kHz, filtra, e enxuga de volta |
+| `common/cpp/src/flutter_webrtc.cc` | método `setNeuralNoiseSuppression`, devolvendo se a máquina aceitou o filtro |
+| `lib/src/helper.dart` | `Helper.setNeuralNoiseSuppression(bool)` |
+| `windows/CMakeLists.txt` | `papocall_rnnoise` como estática de C (`/W0`, `_USE_MATH_DEFINES`), ligada ao plugin |
+
+O filtro fica instalado para o processo inteiro e decide por dentro se filtra. Desinstalá-lo
+passando `nullptr` não é opção: o adaptador do libwebrtc chama `Initialize()` no ponteiro que
+recebe sempre que a captura já está de pé, e um nulo ali seria dereferência na thread de áudio.
 
 ### A sonda
 
@@ -50,7 +71,15 @@ faixa publicada) e `SetRenderPreProcessing` (o que chegou dos outros antes de sa
   escala de ±32768 que o RNNoise espera), **rms**, **amostras recortadas** (o ceifamento que
   "som de tv de tubo" costuma ser), e o tempo médio/pior por quadro em µs.
 
-Para desligar, apaga-se a marca e reinicia-se o app.
+Para desligar, apaga-se a marca e reinicia-se o app. O despejo tem teto de 60 s por lado porque
+isto vai dentro de um build publicado.
+
+### Comparando a qualidade do filtro com a sonda
+
+Os dois disputam o **mesmo slot**: quem chamar `SetCapturePostProcessing` por último fica com ele,
+então ligar o RNNoise desinstala a sonda. Hoje isso dá a comparação *entre execuções* (sonda com
+RNNoise desligado, duas vezes, mudando só as quatro chaves), mas não a entrada e a saída do filtro
+na mesma passada — para isso teria de instrumentar o próprio `flutter_rnnoise.cc`.
 
 ## Como reaplicar em um upgrade do pacote
 

@@ -15,10 +15,12 @@ void main() {
 
   late Future<List<MediaDevice>> Function() entradasReais;
   late Future<List<MediaDevice>> Function() saidasReais;
+  late Future<bool> Function(bool) filtroNeuralReal;
 
   setUp(() {
     entradasReais = VoiceService.listarEntradasDeAudio;
     saidasReais = VoiceService.listarSaidasDeAudio;
+    filtroNeuralReal = VoiceService.aplicarFiltroNeuralNative;
     // Sem plugin de áudio no teste: a enumeração devolve lista vazia.
     VoiceService.listarEntradasDeAudio = () async => const [];
     VoiceService.listarSaidasDeAudio = () async => const [];
@@ -27,6 +29,7 @@ void main() {
   tearDown(() {
     VoiceService.listarEntradasDeAudio = entradasReais;
     VoiceService.listarSaidasDeAudio = saidasReais;
+    VoiceService.aplicarFiltroNeuralNative = filtroNeuralReal;
     // O SoundService é estático: sem devolver os avisos ao ligado, um teste
     // seguinte começaria calado por causa de um anterior.
     SoundService.definirSons(SoundService.sonsDeChamada, ativos: true);
@@ -35,6 +38,37 @@ void main() {
 
   Map<String, dynamic> configLida() =>
       jsonDecode(AppPaths.file('settings.json').readAsStringSync());
+
+  test('ligar o RNNoise tira a supressão do WebRTC do caminho', () async {
+    VoiceService.aplicarFiltroNeuralNative = (ligado) async => ligado;
+    final state = AppState();
+    expect(state.rnnoise, isFalse);
+
+    final aplicado = await state.definirRnnoise(true);
+
+    expect(aplicado, isTrue);
+    expect(state.rnnoise, isTrue);
+    // Dois filtros em série mastigam a fala: ligar um desliga o outro.
+    expect(state.noiseSuppression, isFalse);
+    expect(state.voiceService.rnnoise, isTrue);
+    expect(configLida()['rnnoise'], true);
+    expect(configLida()['noiseSuppression'], false);
+  });
+
+  test('máquina que recusa o filtro não deixa botão aceso mentindo', () async {
+    VoiceService.aplicarFiltroNeuralNative = (ligado) async => false;
+    final state = AppState();
+
+    final aplicado = await state.definirRnnoise(true);
+
+    expect(aplicado, isFalse);
+    expect(state.rnnoise, isFalse);
+    expect(state.rnnoiseAplicado, isFalse);
+    // A supressão que existia antes continua onde estava: nada foi tirado do
+    // ar em troca de um filtro que não entrou.
+    expect(state.noiseSuppression, isTrue);
+    expect(configLida()['rnnoise'], false);
+  });
 
   test('a escolha de entrada e saída sobrevive ao fechar o aplicativo', () async {
     final state = AppState();

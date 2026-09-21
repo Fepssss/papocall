@@ -171,6 +171,20 @@ class Helper {
   static Future<void> setVolume(double volume, MediaStreamTrack track) =>
       NativeAudioManagement.setVolume(volume, track);
 
+  /// Turns the RNNoise neural noise suppression on or off for the microphone
+  /// capture, in the native audio processing path (Windows).
+  ///
+  /// Returns `false` when the filter could not be wired up on this machine, in
+  /// which case the audio is untouched and WebRTC's own noise suppression stays
+  /// in charge. Safe to call before or after a call starts.
+  static Future<bool> setNeuralNoiseSuppression(bool enabled) async {
+    final aberto = await WebRTC.invokeMethod<bool, bool>(
+      'setNeuralNoiseSuppression',
+      <String, dynamic>{'enabled': enabled},
+    );
+    return aberto ?? false;
+  }
+
   /// Set the microphone mute/unmute for Flutter native
   static Future<void> setMicrophoneMute(bool mute, MediaStreamTrack track) =>
       NativeAudioManagement.setMicrophoneMute(mute, track);

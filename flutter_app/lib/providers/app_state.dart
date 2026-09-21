@@ -77,6 +77,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool autoGainControl = true;
   bool highPassFilter = false;
 
+  /// O filtro neural (RNNoise) montado no caminho nativo, e o que a máquina
+  /// respondeu na última tentativa (`null` = ainda não se tentou nesta execução).
+  /// Não é um quinto processador para somar aos outros quatro: ao ligá-lo, a
+  /// supressão de ruído do WebRTC sai de cena, porque dois filtros em série
+  /// mastigam a fala.
+  bool rnnoise = false;
+  bool? get rnnoiseAplicado => _voiceService.rnnoiseAplicado;
+
+  /// Liga ou desliga o filtro neural e devolve se está de pé. Uma recusa do
+  /// caminho nativo reverte a escolha na hora, para o botão não ficar mentindo.
+  Future<bool> definirRnnoise(bool valor) async {
+    if (!valor) {
+      rnnoise = false;
+      _voiceService.rnnoise = false;
+      await _voiceService.aplicarRnnoise();
+      await _saveSettings();
+      notifyListeners();
+      return false;
+    }
+    _voiceService.rnnoise = true;
+    final aplicado = await _voiceService.aplicarRnnoise();
+    rnnoise = aplicado;
+    if (aplicado) noiseSuppression = false;
+    _espelharConfigDeAudio();
+    await _saveSettings();
+    notifyListeners();
+    return aplicado;
+  }
+
   // Avisos sonoros, também persistidos. Quem obedece à escolha é o
   // SoundService, que verifica antes de mandar o som ao Windows.
   bool somDeChamada = true;
@@ -172,6 +201,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _voiceService.cancelamentoDeEco = echoCancellation;
     _voiceService.ganhoAutomatico = autoGainControl;
     _voiceService.filtroPassaAltas = highPassFilter;
+    _voiceService.rnnoise = rnnoise;
   }
 
   /// Troca a foto de perfil pela imagem escolhida no disco.
@@ -786,6 +816,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'echoCancellation': echoCancellation,
         'autoGainControl': autoGainControl,
         'highPassFilter': highPassFilter,
+        'rnnoise': rnnoise,
         'somDeChamada': somDeChamada,
         'somDeCompartilhamento': somDeCompartilhamento,
         'volumeDaLive': volumeDaLive,
@@ -991,6 +1022,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         echoCancellation = data['echoCancellation'] as bool? ?? true;
         autoGainControl = data['autoGainControl'] as bool? ?? true;
         highPassFilter = data['highPassFilter'] as bool? ?? false;
+        // A escolha volta ligada e é aplicada na entrada da sala. Se a máquina
+        // recusar o filtro, `rnnoiseAplicado` fica `false` e a própria linha da
+        // interface diz que não está filtrando nada — em vez de acender um botão
+        // que não faz nada ou de mexer na escolha da pessoa por trás dela.
+        rnnoise = data['rnnoise'] as bool? ?? false;
         somDeChamada = data['somDeChamada'] as bool? ?? true;
         somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
         volumeDaLive = (data['volumeDaLive'] as num?)?.toDouble() ?? 0.8;
