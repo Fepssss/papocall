@@ -38,14 +38,17 @@ Tudo o mais é byte por byte igual ao pacote do pub. Para conferir:
 
 ### A sonda
 
-Não altera áudio nenhum. Instala-se apenas se existir `%TEMP%\papocall_audio_probe.on`, e
-enquanto ela roda escreve:
+Não altera áudio nenhum. Instala-se apenas se existir `%TEMP%\papocall_audio_probe.on`, e enquanto
+ela roda mede os dois lados da chamada — `SetCapturePostProcessing` (o microfone antes de virar
+faixa publicada) e `SetRenderPreProcessing` (o que chegou dos outros antes de sair no alto-falante)
+—, escrevendo no diretório temporário, por lado (`captura`, `reproducao`):
 
-- `%TEMP%\papocall_audio_probe.f32` — o PCM bruto que o APM entregou (float 32 little-endian,
-  480 amostras por quadro), para comparar com e sem filtro;
-- `%TEMP%\papocall_audio_probe.txt` — reescrito a cada 5 s: taxa, canais, `num_bands`,
-  `buffer_size`, contagem de quadros, **pico de amplitude** (é o que responde se o WebRTC entrega
-  em ±1 ou na escala de ±32768 que o RNNoise espera), e o tempo médio/pior por quadro em µs.
+- `papocall_audio_<lado>.f32` — o PCM bruto que o APM entregou (float 32 little-endian), para
+  comparar com e sem filtro e para medir a largura de banda que realmente chegou;
+- `papocall_audio_<lado>.txt` — reescrito a cada 5 s: taxa, canais, `num_bands`, `buffer_size`,
+  contagem de quadros, **pico de amplitude** (é o que responde se o caminho entrega em ±1 ou na
+  escala de ±32768 que o RNNoise espera), **rms**, **amostras recortadas** (o ceifamento que
+  "som de tv de tubo" costuma ser), e o tempo médio/pior por quadro em µs.
 
 Para desligar, apaga-se a marca e reinicia-se o app.
 
