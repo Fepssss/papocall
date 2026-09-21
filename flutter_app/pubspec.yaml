@@ -43,7 +43,7 @@ dependencies:
   # Foto de perfil: `file_picker` abre o diálogo nativo do Windows sem DLL
   # extra, e `image` reduz e comprime em JPEG — um PNG de 128px pesa dezenas de
   # kilobytes e a foto viaja dentro de cada pacote de presença.
-  file_picker: ^10.3.10
+  file_picker: ^13.1.0
   image: ^4.5.4
 
 # O flutter_webrtc do pub não dá ao Dart nenhum acesso ao gancho de processamento
