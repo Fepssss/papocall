@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/app_state.dart';
@@ -705,38 +706,160 @@ class _SettingsModalState extends State<SettingsModal> {
     );
   }
 
+  /// O que sai deste aparelho, o que fica, e onde cada coisa é guardada.
+  ///
+  /// Cada cartão abaixo foi conferido contra o código, inclusive os que não dão
+  /// uma resposta bonita. A versão com as definições legais fica em
+  /// `public/politica-de-privacidade.html` no site.
   Widget _buildPrivacyTab() {
+    const enderecoPolitica = 'https://papocall.vercel.app/politica-de-privacidade';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildInfoCard(
           icon: Icons.lock_outline_rounded,
           iconColor: HudTheme.green,
-          title: 'Criptografia Ponta a Ponta (E2EE)',
+          title: 'Texto do chat: cifrado neste aparelho',
           description:
-              'Todas as mensagens e áudio nos servidores do PapoCall utilizam criptografia robusta (AES-256-GCM derivado do código de convite via PBKDF2 e WebRTC seguro). Nem intermediários nem brokers têm acesso às suas conversas.',
-          badge: 'ATIVO',
+              'Mensagem de servidor e conversa direta saem já cifradas (AES-256-GCM) e só abrem nos '
+              'aparelhos de quem tem a chave. A do servidor vem do código de convite, derivada com '
+              'PBKDF2-HMAC-SHA256 de 210.000 iterações; a de conversa direta é trocada par a par por '
+              'X25519, com impressão digital para você conferir por fora. Quem transporta — broker, '
+              'redes, nossa API — movem texto ilegível.',
+          badge: 'E2EE',
           badgeColor: HudTheme.green,
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(
+          icon: Icons.graphic_eq_rounded,
+          iconColor: HudTheme.red,
+          title: 'Voz e tela: cifrados no trajeto, não ponta a ponta',
+          description:
+              'Áudio e transmissão de tela passam pelo LiveKit Cloud com criptografia de transporte '
+              '(DTLS/SRTP): ninguém no meio do caminho escuta, mas o servidor da LiveKit processa o '
+              'conteúdo para distribuir para a sala. É o desenho padrão de uma chamada WebRTC, e o '
+              'PapoCall não entrega voz ponta a ponta hoje. Não gravamos chamada nenhuma: não existe '
+              'código de gravação no app nem no servidor.',
+          badge: 'HOP-BY-HOP',
+          badgeColor: HudTheme.red,
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(
+          icon: Icons.cloud_sync_outlined,
+          iconColor: const Color(0xFFA78BFA),
+          title: 'O broker público fica com um retrato cifrado',
+          description:
+              'O chat trafega por um broker MQTT público (broker.emqx.io) e cada membro publica ali, '
+              'retido, um retrato cifrado com as últimas mensagens dos canais que viu — é o que deixa '
+              'você recuperar conversa num aparelho novo quando os outros estão offline. Fica lá até ser '
+              'substituído por outro retrato ou apagado quando o servidor é excluído. Cifrado, mas '
+              'guardado por um terceiro.',
+          badge: 'RETIDO',
+          badgeColor: const Color(0xFFA78BFA),
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(
+          icon: Icons.group_off_outlined,
+          iconColor: HudTheme.red,
+          title: 'O código de convite é a chave da conversa',
+          description:
+              'Ele não é só uma senha de entrada: dele deriva a chave que abre as mensagens do servidor, '
+              'e é ele que vai no link que você compartilha. Quem entra com o convite recebe o histórico '
+              'que os membros sincronizarem, e não dá para retirar esse acesso depois — o que existe é '
+              'trocar o convite, o que reinicia a chave para todo mundo.',
+          badge: 'CUIDADO',
+          badgeColor: HudTheme.red,
         ),
         const SizedBox(height: 16),
         _buildInfoCard(
           icon: Icons.cloud_off_rounded,
           iconColor: const Color(0xFF60A5FA),
-          title: 'Política de Telemetria Zero',
+          title: 'Telemetria: nenhuma',
           description:
-              'O PapoCall não rastreia seu comportamento, não envia relatórios em segundo plano e não monetiza seus dados. A infraestrutura atua estritamente como ponte de conexão.',
-          badge: 'RESPEITADO',
+              'Sem analytics, sem relatório de erro para fora, sem SDK de rastreamento. A checagem de '
+              'atualização manda uma coisa só ao site: o número da versão. O log do programa '
+              '(papocall.log em %APPDATA%\\PapoCall) fica apenas no seu disco, e você pode abrir e apagar. '
+              'A única exceção é sua: colar um GIF por endereço faz o aplicativo buscar a imagem no site '
+              'de origem, que vê seu IP ao responder.',
+          badge: 'ZERO',
           badgeColor: const Color(0xFF60A5FA),
         ),
         const SizedBox(height: 16),
         _buildInfoCard(
-          icon: Icons.shield_moon_outlined,
-          iconColor: const Color(0xFFA78BFA),
-          title: 'Transporte Cifrado Obrigatório',
+          icon: Icons.badge_outlined,
+          iconColor: HudTheme.green,
+          title: 'O que o nosso servidor guarda da sua conta',
           description:
-              'O tráfego de rede utiliza TLS na porta 8883 e WebRTC sobre DTLS/SRTP. Conexões inseguras ou em texto puro são recusadas por projeto.',
-          badge: 'TLS 1.3',
+              'E-mail, @nome, nome de exibição, o hash da senha (Argon2id — a senha em si não fica '
+              'guardada), os tokens de sessão com validade, e o endereço IP dos eventos de conta: '
+              'registro, login, tentativa falhada, renovação, redefinição. Não existe tabela de '
+              'mensagem, servidor, canal, amizade ou presença no banco: o que você conversa não vai '
+              'para o nosso banco.',
+          badge: 'MÍNIMO NECESSÁRIO',
+          badgeColor: HudTheme.green,
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(
+          icon: Icons.cake_outlined,
+          iconColor: const Color(0xFFA78BFA),
+          title: 'Idade: a gente recomenda, não verifica',
+          description:
+              'Não há campo de data de nascimento, caixa de confirmação nem bloqueio no cadastro — dizer '
+              'que verificamos seria mentira. Recomendamos 13 anos ou mais, e menor de 18 apenas com '
+              'aval de um responsável. É sala de voz com gente que pode ser desconhecida e sem moderação '
+              'ativa.',
+          badge: '13+',
           badgeColor: const Color(0xFFA78BFA),
+        ),
+        const SizedBox(height: 16),
+        _buildInfoCard(
+          icon: Icons.delete_outline_rounded,
+          iconColor: HudTheme.red,
+          title: 'Excluir a conta ainda não existe',
+          description:
+              'Não há rota no servidor nem botão aqui. O que você faz por conta própria: apagar o '
+              'histórico e as preferências deste aparelho (a pasta %APPDATA%\\PapoCall), sair de um '
+              'servidor, excluir um servidor sendo dono, apagar mensagem sua, desfazer uma amizade. A '
+              'exclusão de conta entra antes de o PapoCall abrir ao público, e este cartão é atualizado '
+              'quando existir.',
+          badge: 'EM ABERTO',
+          badgeColor: HudTheme.red,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B26),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF222838)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.description_outlined, size: 18, color: HudTheme.textMuted),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SelectableText(
+                  enderecoPolitica,
+                  style: const TextStyle(color: HudTheme.textNormal, fontSize: 12.5),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 18, color: HudTheme.textMuted),
+                tooltip: 'Copiar endereço da política completa',
+                onPressed: () async {
+                  await Clipboard.setData(const ClipboardData(text: enderecoPolitica));
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Endereço da política copiado.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1168,10 +1291,16 @@ class _SettingsModalState extends State<SettingsModal> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(color: HudTheme.textHeader, fontSize: 14, fontWeight: FontWeight.bold),
+                    // Flexible porque o cartão passou a ter título que diz algo
+                    // específico: sem ele, título comprido e selo brigam por
+                    // espaço e o Row estoura.
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(color: HudTheme.textHeader, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidade - PapoCall</title>
+  <meta name="description" content="O que o PapoCall guarda, o que passa por terceiros, por quanto tempo fica e o que ainda não existe. Escrito contra o código, não contra a praxe.">
+  <meta property="og:title" content="PapoCall - Política de Privacidade">
+  <meta property="og:description" content="Chat cifrado ponta a ponta, voz com criptografia de transporte, telemetria zero, e a lista do que ainda está em aberto.">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0B0E14;
+      --bg-surface: #111622;
+      --bg-card: #161C2A;
+      --border-subtle: #222C3E;
+      --green-neon: #22C55E;
+      --accent-blue: #38BDF8;
+      --accent-purple: #A855F7;
+      --accent-orange: #FB923C;
+      --accent-red: #EF4444;
+      --text-header: #F8FAFC;
+      --text-body: #94A3B8;
+      --text-muted: #64748B;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-body);
+      font-family: 'Outfit', sans-serif;
+      line-height: 1.65;
+      font-size: 16px;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 80px; }
+    header.top {
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      padding: 18px 0;
+      margin-bottom: 40px;
+    }
+    header.top .wrap { padding-bottom: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .brand img { width: 26px; height: 26px; }
+    .brand-title { color: var(--text-header); font-weight: 700; letter-spacing: .5px; font-size: 17px; }
+    .back {
+      color: var(--text-muted); text-decoration: none; font-size: 13px;
+      font-family: 'JetBrains Mono', monospace; margin-left: auto;
+    }
+    .back:hover { color: var(--green-neon); }
+    h1 {
+      color: var(--text-header); font-size: 30px; font-weight: 700;
+      letter-spacing: -.4px; margin-bottom: 10px;
+    }
+    .meta {
+      font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+      color: var(--text-muted); margin-bottom: 28px;
+    }
+    .lead {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--green-neon); border-radius: 8px;
+      padding: 20px 22px; margin-bottom: 36px; color: var(--text-body); font-size: 15.5px;
+    }
+    h2 {
+      color: var(--text-header); font-size: 20px; font-weight: 600;
+      margin: 40px 0 14px; padding-top: 8px;
+    }
+    h3 { color: var(--text-header); font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; }
+    p strong { color: var(--text-header); font-weight: 600; }
+    ul { margin: 0 0 14px 20px; }
+    li { margin-bottom: 8px; }
+    code {
+      font-family: 'JetBrains Mono', monospace; font-size: 13.5px;
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      border-radius: 4px; padding: 1px 6px; color: var(--accent-blue);
+    }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 22px; font-size: 14.5px; }
+    th, td {
+      text-align: left; padding: 11px 12px;
+      border-bottom: 1px solid var(--border-subtle); vertical-align: top;
+    }
+    th {
+      color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px;
+    }
+    td:first-child { color: var(--text-header); white-space: nowrap; }
+    .flag { border-left: 3px solid var(--accent-red); }
+    .flag-h {
+      color: var(--accent-red); font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px;
+    }
+    .box {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: 8px; padding: 4px 20px 14px; margin: 16px 0 22px;
+    }
+    footer {
+      border-top: 1px solid var(--border-subtle); margin-top: 48px; padding-top: 22px;
+      font-size: 13px; color: var(--text-muted);
+    }
+    a { color: var(--accent-blue); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="index.html">
+        <img src="logo.png" alt="PapoCall">
+        <span class="brand-title">PapoCall</span>
+      </a>
+      <a class="back" href="index.html">&larr; voltar ao aplicativo</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <h1>Política de Privacidade</h1>
+    <div class="meta">vigente desde 21 de setembro de 2026 &middot; aplicada à versão 1.7.0 do aplicativo</div>
+
+    <div class="lead">
+      <p>Este texto foi escrito conferindo o código, não copiando de um modelo. Toda afirmação aqui corresponde ao que o aplicativo faz agora — inclusive as que não favorecem o produto, e as lacunas que ainda não fechamos. Onde algo ainda não existe, está dito que não existe.</p>
+      <p>O PapoCall é um aplicativo de voz e chat para Windows, feito por uma pessoa só, sem publicidade e sem monetização de dados.</p>
+    </div>
+
+    <h2>1. O que guardamos sobre você</h2>
+    <p>Existe uma tabela de usuários, e ela contém exatamente isto:</p>
+    <table>
+      <tr><th>Campo</th><th>Por que existe</th></tr>
+      <tr><td>E-mail</td><td>Entrar na conta e recuperar a senha. Não publicamos seu e-mail em lugar nenhum, e ele não aparece para outros membros.</td></tr>
+      <tr><td>Nome de usuário (<code>@voc&ecirc;</code>) e nome de exibição</td><td>Identidade dentro das salas. São visíveis para os membros dos servidores em que você entra.</td></tr>
+      <tr><td>Senha</td><td><strong>Não guardamos a senha.</strong> Guardamos o hash Argon2id calculado a partir dela e esquecemos o resto. A senha chega ao servidor em texto claro apenas dentro da conexão HTTPS, só para poder ser hasheada.</td></tr>
+      <tr><td>Sessões</td><td>Tokens de acesso (validade 15 minutos) e de renovação (validade 7 dias). Do token de renovação guardamos apenas o resumo SHA-256, nunca o token.</td></tr>
+      <tr><td>Data de criação e da última mudança de nome</td><td>Controle de frequência para troca de nome de usuário.</td></tr>
+    </table>
+
+    <h3>O que <em>não</em> existe no nosso banco</h3>
+    <p>Mensagem de chat, texto de conversa direta, histórico, servidor, canal, cargo, lista de amigos, presença, foto de perfil, impressão digital de chave. Nada disso é armazenado pelo nosso servidor. Não há uma tabela para isso, e não há rota na API que escreva nesse assumpto. O que você conversa fica nos aparelhos de quem conversa, e no broker cifrado (seção 3).</p>
+
+    <h2>2. O que fica no seu computador</h2>
+    <p>Tudo o que o aplicativo sabe sobre as suas conversas mora em <code>%APPDATA%\PapoCall</code>, em arquivos que você pode abrir e apagar:</p>
+    <ul>
+      <li><code>chat_history.json</code> — o texto das mensagens recentes dos canais e conversas diretas que você abriu, com autor, hora e anexo quando houver;</li>
+      <li><code>servers.json</code>, <code>friends.json</code>, <code>known_users.json</code>, <code>friend_requests.json</code>, <code>drafts.json</code>, <code>read_marks.json</code>, <code>deleted_messages.json</code> — estrutura dos seus servidores, amizades, rascunhos, onde você parou de ler e quais mensagens foram apagadas;</li>
+      <li><code>dm_keys.json</code> e <code>dm_identity.key</code> — as chaves das conversas diretas. O par privado <strong>nunca sai desta máquina</strong>;</li>
+      <li><code>settings.json</code> — preferências, incluindo sua foto de perfil, que é guardada como imagem pequena aqui, e não hospedada em lugar nenhum;</li>
+      <li><code>papocall.log</code> — o log do programa, local, podado por tamanho, sem senha nem token.</li>
+    </ul>
+    <p>Apagar essa pasta apaga o seu lado da conversa. Não apaga o que o outro participante tem no aparelho dele — nem o retrato cifrado que estiver retido no broker (seção 3).</p>
+
+    <h2>3. Como o texto das mensagens viaja</h2>
+    <p>O chat não passa pelo nosso servidor. Ele é publicado num <strong>broker MQTT público de terceiros</strong> (<code>broker.emqx.io</code>, conexão TLS na porta 8883, sem alternativa em texto puro), e cifrado <em>antes</em> de sair do aparelho:</p>
+    <ul>
+      <li><strong>Chat de servidor:</strong> AES-256-GCM com chave derivada do <strong>código de convite</strong> por PBKDF2-HMAC-SHA256 com 210.000 iterações. O nome do tópico é um resumo SHA-256 derivado do convite, para que o tópico em si não revele o convite. O envelope publicado contém apenas versão, <em>nonce</em>, cifra e etiqueta de autenticação — nenhum metadado legível.</li>
+      <li><strong>Conversa direta:</strong> chave própria por par, trocada por X25519 com HKDF-SHA256, também AES-256-GCM. O aplicativo mostra uma impressão digital para você conferir por outro canal, e avisa na conversa quando a chave do contato mudar.</li>
+    </ul>
+    <div class="box flag">
+      <div class="flag-h">três coisas que você precisa saber</div>
+      <p><strong>O broker guarda um retrato cifrado.</strong> Cada membro publica, na modalidade <em>retida</em>, um retrato com as últimas mensagens dos canais que viu, para que um aparelho novo recupere a conversa quando todos os outros estiverem offline. Isso significa que um texto cifrado com o seu conteúdo fica hospedado por um terceiro até ser substituído por um retrato novo ou apagado quando o servidor é excluído. Ele é ilegível sem o convite — mas persiste fora do seu aparelho.</p>
+      <p><strong>O convite é a chave.</strong> Não é só uma senha de entrada: quem tem o código tem a chave das mensagens. Ao compartilhar o link de convite você entrega a chave, e não dá para retirar esse acesso depois de quem já entrou — o que existe é trocar o convite, o que reinicia a chave para todos.</p>
+      <p><strong>O que o dono do broker consegue ver</strong>, mesmo com tudo cifrado: seu endereço IP de origem, o horário, o nome do tópico (um resumo não reversível) e o tamanho de cada mensagem cifrada.</p>
+    </div>
+
+    <h2>4. Voz e tela: o que é e o que não é ponta a ponta</h2>
+    <p>Áudio do microfone e transmissão de tela passam pelo <strong>LiveKit Cloud</strong>. A conexão é cifrada em trânsito (DTLS/SRTP), então ninguém no meio do caminho escuta — mas o servidor da LiveKit <strong>processa o conteúdo</strong> para roteá-lo para a sala. Isto é criptografia de transporte, não ponta a ponta.</p>
+    <p><strong>Não gravamos chamada.</strong> Não existe no aplicativo nem no servidor qualquer código de gravação ou de exportação de mídia. O que é transmitido existe enquanto a sala existe.</p>
+    <p>A o que é enviado para lá: seu <code>@nome</code> e seu nome de exibição como identidade na sala, o áudio do microfone e, se você iniciar, a imagem da janela escolhida com o áudio dela. O cancelamento de ruído por rede neural (RNNoise) roda <strong>dentro do seu aparelho, antes</strong> de o áudio virar faixa transmitida; nenhum trecho de áudio vai a um serviço de análise de voz.</p>
+
+    <h2>5. Terceiros que tocam nos seus dados</h2>
+    <table>
+      <tr><th>Serviço</th><th>O que faz</th><th>O que vê</th></tr>
+      <tr><td>Render</td><td>Hospeda a API de conta.</td><td>E-mail, nome de usuário, hash de senha, IP dos eventos de conta, horário. Conteúdo de conversa: não.</td></tr>
+      <tr><td>Neon</td><td>Banco PostgreSQL (região São Paulo) onde a API guarda as tabelas da seção 1.</td><td>O mesmo da seção 1, e nada além disso.</td></tr>
+      <tr><td>LiveKit Cloud</td><td>Roteia voz e tela.</td><td>Áudio e imagem em trânsito, sua identidade de sala. Não temos acesso a logs deles.</td></tr>
+      <tr><td>broker.emqx.io</td><td>Transporta o chat cifrado.</td><td>IP, horário, nome do tópico, tamanho das mensagens cifradas, e o retrato retido descrito na seção 3.</td></tr>
+      <tr><td>Vercel</td><td>Serve este site e o instalador, e responde à checagem de atualização.</td><td>IP e a versão do seu aplicativo na consulta de atualização. Nenhuma identidade de usuário é enviada.</td></tr>
+      <tr><td>Google Fonts</td><td>Tipografia desta página e do site.</td><td>Seu IP ao carregar a página. O aplicativo em si não faz essa requisição.</td></tr>
+      <tr><td>Site do GIF (opcional)</td><td>Se você enviar um GIF por endereço, o aplicativo busca a imagem naquele site.</td><td>Seu IP e o endereço da página que você abriu.</td></tr>
+    </table>
+
+    <h2>6. Por quanto tempo</h2>
+    <ul>
+      <li><strong>Registro, login, renovação e redefinição de senha</strong> viram um evento de auditoria com data/hora, identificador da conta, <code>@nome</code> e IP. Não registramos navegador nem sistema do usuário. Esses eventos ficam nos logs da plataforma de hospedagem; não temos contrato nem prazo de retenção definido com ela, e isso está listado na seção 8 como pendência.</li>
+      <li><strong>Token de verificação de e-mail</strong> vale 24 horas; <strong>token de redefinição de senha</strong>, 20 minutos. Depois disso não servem mais, mas a linha fica na tabela marcada como vencida — ainda não existe tarefa de limpeza, o que também está na seção 8.</li>
+      <li><strong>Sessão</strong> vale 7 dias a partir da renovação. Renovação reaproveitada derruba todas as sessões da conta de uma vez.</li>
+      <li><strong>Histórico de chat</strong> fica no seu aparelho até você apagar a pasta, apagar a mensagem, sair do servidor ou o servidor ser excluído; e no broker até ser substituído.</li>
+    </ul>
+
+    <h2>7. O que não fazemos</h2>
+    <ul>
+      <li><strong>Nenhum rastreamento.</strong> Não há analytics, SDK de relatório de erro, mapa de calor, pixel ou qualquer envio de comportamento. O log de erro do aplicativo é um arquivo seu, local.</li>
+      <li><strong>Nenhuma venda, aluguel ou compartilhamento comercial de dado pessoal.</strong> Não há publicidade nem monetização de dados no projeto.</li>
+      <li><strong>Nenhum acesso ao conteúdo das conversas.</strong> Não temos a chave do seu servidor, e a conversa direta usa chave que nunca sai do aparelho. Nossa API não tem rota para mensagem.</li>
+    </ul>
+
+    <h2>8. O que ainda não existe (e não vamos fingir que existe)</h2>
+    <div class="box flag">
+      <div class="flag-h">aberto</div>
+      <ul>
+        <li><strong>Excluir a conta pelo aplicativo.</strong> Não há botão nem rota. O que funciona hoje por conta própria: sair de um servidor, excluir um servidor sendo dono, apagar mensagem sua, desfazer amizade, e apagar os arquivos locais. A exclusão de conta com um toque vai entrar antes de o PapoCall abrir ao público, e esta página é atualizada quando existir.</li>
+        <li><strong>Canal formal para pedidos de privacidade.</strong> Ainda não publicamos um endereço para pedidos de acesso, correção ou eliminação, porque o projeto está em desenvolvimento e fechado. Quando ele abrir, esta seção passa a indicar o canal. Até lá, se você estiver usando o aplicativo, fale pelo mesmo meio pelo qual o recebeu.</li>
+        <li><strong>Verificação de idade.</strong> Não há campo de data de nascimento, caixa de confirmação nem bloqueio no cadastro. Recomendamos <strong>13 anos ou mais</strong>, e menor de 18 apenas com aval de um responsável. Sem verificação, essa é uma recomendação, não uma trava — e o aplicativo é sala de voz com gente que pode ser desconhecida, sem moderação ativa.</li>
+        <li><strong>Política de retenção de log firmada com os provedores</strong> e limpeza periódica dos tokens vencidos. Nenhum dos dois existe ainda.</li>
+      </ul>
+    </div>
+
+    <h2>9. Seus direitos</h2>
+    <p>Sobre os dados desta política você pode pedir confirmação de existência, acesso, correção, anonimização, portabilidade, eliminação, e revogar consentimento (Lei 13.709/2018, artigo 18). O consentimento que baseia o tratamento é a criação da conta, e a execução desse contrato é o que permite o serviço existir.</p>
+    <p>Corrigir <code>@nome</code>, nome de exibição, foto de perfil e senha você faz de dentro do aplicativo. Eliminar a conta e o que ela tem no banco, ainda não — está na seção 8.</p>
+
+    <h2>10. Segurança, resumida sem autoelogio</h2>
+    <ul>
+      <li>Hash de senha Argon2id, comparação em tempo constante e resposta de login com latência igualada para não revelar se um e-mail existe.</li>
+      <li>Todo tráfego é TLS; no chat MQTT não existe caminho de volta em texto puro — se o TLS falhar, a conexão falha.</li>
+      <li>Os tokens de sessão têm expiração curta, rotacionam a cada renovação e o reaproveitamento de um token já gasto derruba a família inteira de sessões.</li>
+      <li>O instalador publicado tem resumo SHA-256 conferido byte a byte pelo próprio aplicativo antes de instalar.</li>
+      <li>Licenças de componentes de terceiros, incluindo o modelo de rede neural, estão em <a href="licencas.txt">licencas.txt</a>.</li>
+    </ul>
+
+    <h2>11. Menores</h2>
+    <p>O serviço não é dirigido a crianças. Não verificamos idade, então cabe a quem convida para um servidor garantir que os participantes estão na faixa recomendada. Responsável que precise de remédio sobre conta de menor vai encontrar na seção 8 o que ainda não temos; o que temos hoje é a possibilidade de apagar os dados locais e a conta por intervenção manual em servidor.</p>
+
+    <h2>12. Mudanças nesta página</h2>
+    <p>Mudança material em como tratamos dado pessoal é anunciada aqui, com a data no topo, antes de entrar em vigor no aplicativo. A linha de versões do que muda no aplicativo está no <a href="index.html#changelog">histórico do site</a>.</p>
+    <p class="meta" style="margin-top:18px">última revisão desta página: 21 de setembro de 2026</p>
+
+    <footer>
+      <p>&copy; 2026 <strong>PapoCall</strong>. Este documento descreve o comportamento real do aplicativo na versão 1.7.0 e das suas dependências de rede.</p>
+    </footer>
+  </div>
+</body>
+</html>
