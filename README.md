@@ -91,7 +91,9 @@ Ou baixar diretamente o instalador oficial:
 
 ## 🧪 Testes
 
-Duas suítes rodam em PR e em push na `main`, e são o que bloqueia um merge quebrado:
+Os três checks abaixo são **obrigatórios** na `main`: PR com qualquer um
+vermelho não entra, nem para quem é admin. Push direto na `main` continua
+funcionando (o portão pega PR, não o fluxo de release).
 
 ```bash
 # Aplicativo (analyze + widgets + criptografia do chat e dos servidores)
