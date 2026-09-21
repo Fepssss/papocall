@@ -20,6 +20,9 @@ constexpr char kNomeDaMarca[] = "papocall_audio_probe.on";
 // Um quadro são 10 ms, então 500 quadros são 5 segundos de conversa.
 constexpr long long kQuadrosPorResumo = 500;
 
+// E 50 são meio segundo de despejo gravado em disco.
+constexpr long long kQuadrosPorFlush = 50;
+
 // E 6000 são 60 segundos de despejo. O teto existe porque este código vai dentro
 // de um build publicado: sem ele, uma chamada de uma hora com a marca esquecida
 // no diretório temporário gravaria centenas de megabytes. Depois do teto os
@@ -58,10 +61,19 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     recortados_ = 0;
     trocas_de_taxa_ = 0;
     falhas_de_escrita_ = 0;
-    // `out` não é padrão quando se passa um modo explícito: sem ele o arquivo
-    // abre, os contadores contam e o despejo não escreve uma linha.
+    // O APM reinicializa a captura a cada republicação da faixa — o que acontece
+    // toda vez que se mexe num dos quatro controles, e no meio de uma call. Num
+    // ofstream já aberto, open() não reabre: marca failbit e o stream fica
+    // escrevendo para lugar nenhum para sempre, silenciosamente. Foi exatamente
+    // assim que os dois despejos desta sonda saíram com 0 bytes.
+    if (despejo_.is_open()) {
+      despejo_.flush();
+      despejo_.close();
+    }
+    despejo_.clear();
     despejo_.open(caminhoDaTemporada(base_ + ".f32"),
                   std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!despejo_.is_open()) ++falhas_de_abertura_;
     escreverResumo();
   }
 
@@ -107,6 +119,12 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     num_bands_ = num_bands;
     tamanho_buffer_ = buffer_size;
 
+    if (quadros_ % kQuadrosPorFlush == 0) {
+      // 50 quadros = 0,5 s. O despejo mora no buffer do stream, e um buffer que
+      // nunca desce para o disco não sobrevive para contar o que ouviu.
+      despejo_.flush();
+    }
+
     if (quadros_ % kQuadrosPorResumo == 0) {
       escreverResumo();
     }
@@ -137,11 +155,13 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
     std::snprintf(linha, sizeof(linha),
                   "taxa_hz=%d\ncanais=%d\nnum_bands=%d\nbuffer_size=%d\n"
                   "quadros=%lld\ntrocas_de_taxa=%d\nfalhas_de_escrita=%lld\n"
+                  "reaberturas_sem_sucesso=%lld\n"
                   "pico=%.2f\nrms=%.2f\namostras_recortadas=%lld\n"
                   "media_us_por_quadro=%lld\npior_us_por_quadro=%lld\n"
                   "audio_segundos=%.2f\n",
                   taxa_hz_, canais_, num_bands_, tamanho_buffer_, quadros_,
-                  trocas_de_taxa_, falhas_de_escrita_, static_cast<double>(pico_),
+                  trocas_de_taxa_, falhas_de_escrita_, falhas_de_abertura_,
+                  static_cast<double>(pico_),
                   rms, recortados_, media, pior_us_,
                   static_cast<double>(quadros_) / 100.0);
     resumo << linha;
@@ -159,6 +179,7 @@ class AudioProbe : public libwebrtc::RTCAudioProcessing::CustomProcessing {
   long long recortados_ = 0;
   int trocas_de_taxa_ = 0;
   long long falhas_de_escrita_ = 0;
+  long long falhas_de_abertura_ = 0;
   double soma_quadrateiras_ = 0.0;
   float pico_ = 0.0f;
 };
