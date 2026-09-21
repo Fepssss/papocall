@@ -133,10 +133,12 @@
       <tr><td>Senha</td><td><strong>Não guardamos a senha.</strong> Guardamos o hash Argon2id calculado a partir dela e esquecemos o resto. A senha chega ao servidor em texto claro apenas dentro da conexão HTTPS, só para poder ser hasheada.</td></tr>
       <tr><td>Sessões</td><td>Tokens de acesso (validade 15 minutos) e de renovação (validade 7 dias). Do token de renovação guardamos apenas o resumo SHA-256, nunca o token.</td></tr>
       <tr><td>Data de criação e da última mudança de nome</td><td>Controle de frequência para troca de nome de usuário.</td></tr>
+      <tr><td>Em quais servidores você está <em>(desde a v1.8.0)</em></td><td>Uma linha por servidor, guardando só o <strong>identificador opaco</strong> derivado do código de convite com SHA-256. Não guarda o convite, nem o nome do servidor, nem a lista de membros, nem qualquer mensagem. Serve para o broker de mensagens poder recusar publicar onde você não entra. Sem a chave da sala, a linha não diz o que a sala é.</td></tr>
+      <tr><td>Credenciais do broker de mensagens <em>(desde a v1.8.0)</em></td><td>A senha do MQTT é gerada por sessão, tem validade e <strong>só o resumo SHA-256 dela fica guardado</strong> — o mesmo tratamento do token de renovação acima. Apagar a linha derruba a credencial.</td></tr>
     </table>
 
     <h3>O que <em>não</em> existe no nosso banco</h3>
-    <p>Mensagem de chat, texto de conversa direta, histórico, servidor, canal, cargo, lista de amigos, presença, foto de perfil, impressão digital de chave. Nada disso é armazenado pelo nosso servidor. Não há uma tabela para isso, e não há rota na API que escreva nesse assumpto. O que você conversa fica nos aparelhos de quem conversa, e no broker cifrado (seção 3).</p>
+    <p>Mensagem de chat, texto de conversa direta, histórico, nome de servidor, canal, cargo, lista de amigos, presença, foto de perfil, impressão digital de chave. Nada disso é armazenado pelo nosso servidor. Não há uma tabela para isso, e não há rota na API que escreva nesse assunto. O que você conversa fica nos aparelhos de quem conversa, e no broker cifrado (seção 3).</p>
 
     <h2>2. O que fica no seu computador</h2>
     <p>Tudo o que o aplicativo sabe sobre as suas conversas mora em <code>%APPDATA%\PapoCall</code>, em arquivos que você pode abrir e apagar:</p>
@@ -150,16 +152,16 @@
     <p>Apagar essa pasta apaga o seu lado da conversa. Não apaga o que o outro participante tem no aparelho dele — nem o retrato cifrado que estiver retido no broker (seção 3).</p>
 
     <h2>3. Como o texto das mensagens viaja</h2>
-    <p>O chat não passa pelo nosso servidor. Ele é publicado num <strong>broker MQTT público de terceiros</strong> (<code>broker.emqx.io</code>, conexão TLS na porta 8883, sem alternativa em texto puro), e cifrado <em>antes</em> de sair do aparelho:</p>
+    <p>O chat não passa pelo nosso servidor de contas. Ele é publicado num <strong>broker MQTT dedicado</strong>, hospedado por nós: ninguém entra ali sem uma credencial de sessão emitida pela nossa API, e cada publicação e assinatura é conferida contra a sua lista de participação (seção 1). A conexão é TLS na porta 8883, com alternativa em WebSocket seguro, <strong>sem nenhuma alternativa em texto puro</strong>; e o conteúdo é cifrado <em>antes</em> de sair do aparelho:</p>
     <ul>
       <li><strong>Chat de servidor:</strong> AES-256-GCM com chave derivada do <strong>código de convite</strong> por PBKDF2-HMAC-SHA256 com 210.000 iterações. O nome do tópico é um resumo SHA-256 derivado do convite, para que o tópico em si não revele o convite. O envelope publicado contém apenas versão, <em>nonce</em>, cifra e etiqueta de autenticação — nenhum metadado legível.</li>
       <li><strong>Conversa direta:</strong> chave própria por par, trocada por X25519 com HKDF-SHA256, também AES-256-GCM. O aplicativo mostra uma impressão digital para você conferir por outro canal, e avisa na conversa quando a chave do contato mudar.</li>
     </ul>
     <div class="box flag">
       <div class="flag-h">três coisas que você precisa saber</div>
-      <p><strong>O broker guarda um retrato cifrado.</strong> Cada membro publica, na modalidade <em>retida</em>, um retrato com as últimas mensagens dos canais que viu, para que um aparelho novo recupere a conversa quando todos os outros estiverem offline. Isso significa que um texto cifrado com o seu conteúdo fica hospedado por um terceiro até ser substituído por um retrato novo ou apagado quando o servidor é excluído. Ele é ilegível sem o convite — mas persiste fora do seu aparelho.</p>
+      <p><strong>O broker guarda um retrato cifrado.</strong> Cada membro publica, na modalidade <em>retida</em>, um retrato com as últimas mensagens dos canais que viu, para que um aparelho novo recupere a conversa quando todos os outros estiverem offline. Isso significa que um texto cifrado com o seu conteúdo fica hospedado fora do seu aparelho até ser substituído por um retrato novo ou apagado quando o servidor é excluído. Ele é ilegível sem o convite — mas persiste fora do seu aparelho, e quem hospeda o broker é uma empresa de infraestrutura que você não escolheu.</p>
       <p><strong>O convite é a chave.</strong> Não é só uma senha de entrada: quem tem o código tem a chave das mensagens. Ao compartilhar o link de convite você entrega a chave, e não dá para retirar esse acesso depois de quem já entrou — o que existe é trocar o convite, o que reinicia a chave para todos.</p>
-      <p><strong>O que o dono do broker consegue ver</strong>, mesmo com tudo cifrado: seu endereço IP de origem, o horário, o nome do tópico (um resumo não reversível) e o tamanho de cada mensagem cifrada.</p>
+      <p><strong>O que quem hospeda o broker consegue ver</strong> (hoje, nós, sobre a infraestrutura de um fornecedor que você não escolheu), mesmo com tudo cifrado: seu endereço IP de origem, o horário, o nome do tópico (um resumo não reversível) e o tamanho de cada mensagem cifrada. Desde a v1.8.0 isso se acrescenta de uma coisa: a credencial com que você entrou diz em quais tópicos você publica.</p>
     </div>
 
     <h2>4. Voz e tela: o que é e o que não é ponta a ponta</h2>
@@ -173,7 +175,7 @@
       <tr><td>Render</td><td>Hospeda a API de conta.</td><td>E-mail, nome de usuário, hash de senha, IP dos eventos de conta, horário. Conteúdo de conversa: não.</td></tr>
       <tr><td>Neon</td><td>Banco PostgreSQL (região São Paulo) onde a API guarda as tabelas da seção 1.</td><td>O mesmo da seção 1, e nada além disso.</td></tr>
       <tr><td>LiveKit Cloud</td><td>Roteia voz e tela.</td><td>Áudio e imagem em trânsito, sua identidade de sala. Não temos acesso a logs deles.</td></tr>
-      <tr><td>broker.emqx.io</td><td>Transporta o chat cifrado.</td><td>IP, horário, nome do tópico, tamanho das mensagens cifradas, e o retrato retido descrito na seção 3.</td></tr>
+      <tr><td>Broker MQTT dedicado</td><td>Transporta o chat cifrado, exige credencial de sessão e confere cada publicação contra a sua lista de participação (seções 1 e 3).</td><td>IP, horário, nome do tópico, tamanho das mensagens cifradas, o retrato retido descrito na seção 3, e a credencial com que você entrou. Roda em uma máquina alugada de um fornecedor de infraestrutura, que por sua vez vê o tráfego cifrado chegar.</td></tr>
       <tr><td>Vercel</td><td>Serve este site e o instalador, e responde à checagem de atualização.</td><td>IP e a versão do seu aplicativo na consulta de atualização. Nenhuma identidade de usuário é enviada.</td></tr>
       <tr><td>Google Fonts</td><td>Tipografia desta página e do site.</td><td>Seu IP ao carregar a página. O aplicativo em si não faz essa requisição.</td></tr>
       <tr><td>Site do GIF (opcional)</td><td>Se você enviar um GIF por endereço, o aplicativo busca a imagem naquele site.</td><td>Seu IP e o endereço da página que você abriu.</td></tr>

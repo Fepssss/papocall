@@ -102,3 +102,44 @@ Se ainda assim a janela de perda incomodar, o remédio é barato e não exige pa
 - Se o plano gratuito do gerenciado tem auth/ACL dinâmica: só se confirma no cadastro. Sem isso, a recomendação do §2 vira self-hosted por necessidade, e o domínio passa a ser pré-requisito.
 - Se você aceita o grafo de participação no backend (B) ou se a ofuscação cifrada basta (A).
 - Se o `broker.emqx.io` continua acessível a versões antigas do app depois do corte — tecnicamente sim, e é isso que faz a versão mínima obrigatória ser parte do plano, não um detalhe.
+
+---
+
+## 8. Decisão registrada (2026-09-21) e o que ela custou de verdade
+
+As três escolhas, feitas por quem manda no projeto:
+
+1. **Self-hosted (EMQX 5.8 numa VPS).** Não por preferência de controle: você
+   confirmou na documentação que o EMQX Cloud Serverless não tem autenticação por
+   HTTP nem por JWT — só senha e certificado — e que o HiveMQ Free não tem ACL por
+   tópico de nenhum tipo. O gerenciado gratuito ficou restrito a autenticar, sem
+   autorizar, o que quebra o requisito 2. Isto **revoga a recomendação do §2**, que
+   estava condicionada justamente a esse ponto.
+2. **Roster por hash opaco** (saída B do §3).
+3. **Corte direto com reenvio dos pedidos de amizade pendentes** (variante do §5).
+
+### O que a implementação revelou além do documento
+
+**A ACL por sala é auto-declarada, e não poderia ser diferente neste modelo.** O §3
+chamou a saída B de "autorização real"; escrito assim, foi generoso demais. Para o
+backend conferir que o usuário conhece um convite, ele precisaria saber o convite —
+e o convite **é** a chave AES-256 da sala. O que existe, então, é: o cliente declara
+o `topicIdFor(convite)`, o backend autoriza aquele prefixo. Um membro que queira
+continua podendo escrever naquela sala (e hoje já consegue, sem ACL nenhuma); o que
+a migração fecha de fato é a **conexão anônima**, a **leitura da caixa de entrada
+alheia** e o **escritório em qualquer tópico do mundo com uma única senha**. Isso é
+defesa em profundidade, não controle de acesso discricionário, e está dito em
+`AGENTS.md` e nos comentários de `acl.sql` para ninguém descobrir lendo o código
+tarde demais.
+
+**A autorização não passa por webhook.** O plano pedia auth por HTTP; o broker
+consulta o Postgres direto. Motivo medido: cada publish/subscribe viraria uma ida a
+um Render free que acorda frio, e o sintoma de backend frio já é conhecido da tarefa
+#30 — o app parece morto. No caminho quente do chat isso seria indistinguível de
+pane.
+
+**Disponibilidade ficou melhor do que o documento previa de forma não óbvia**: o
+estado retido (estrutura do servidor, presença, histórico) é republicado por cada
+cliente ao conectar, então um broker perdido ou recém-criado se refaz sozinho — cópia
+de segurança do broker não é cópia de conversa. Está no runbook porque alguém ia
+perguntar.
