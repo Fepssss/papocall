@@ -56,4 +56,18 @@ void main() {
     await state.definirVolumeDaLive(-2);
     expect(state.volumeDaLive, 0.0);
   });
+
+  test('ensurdecer silencia o que entra, e não só o próprio microfone', () {
+    final state = AppState();
+
+    state.toggleDeafen();
+    expect(state.currentUser.isDeafened, isTrue);
+    expect(state.currentUser.isMuted, isTrue, reason: 'quem ensurdece também emudece');
+    expect(state.voiceService.ensurdecido, isTrue,
+        reason: 'o serviço precisa saber, para desligar cada faixa que chegar');
+
+    state.toggleDeafen();
+    expect(state.currentUser.isDeafened, isFalse);
+    expect(state.voiceService.ensurdecido, isFalse);
+  });
 }

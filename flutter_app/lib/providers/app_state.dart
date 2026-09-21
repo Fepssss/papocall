@@ -2888,6 +2888,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void toggleDeafen() {
     currentUser.isDeafened = !currentUser.isDeafened;
+    // Ensurdecer tem de silenciar o que entra. Até aqui o botão só mutava o
+    // microfone, que é o que sai: o ícone trocava e a pessoa continuava ouvindo
+    // a sala inteira.
+    _voiceService.definirEnsurdecido(currentUser.isDeafened);
     if (currentUser.isDeafened) {
       currentUser.isMuted = true;
       _voiceService.setMuted(true);
@@ -3693,6 +3697,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         connectedVoiceChannelId = channelId;
         currentUser.currentVoiceChannelId = channelId;
         voiceErrorMessage = null;
+        // A pessoa pode ter saído da sala ensurdecida e voltar assim: a faixa
+        // de cada amigo já chega desligada, sem esperar por um clique no botão.
+        await _voiceService.definirEnsurdecido(currentUser.isDeafened);
         SoundService.playJoinCall();
       } else {
         connectedVoiceChannelId = null;

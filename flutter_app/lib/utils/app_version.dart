@@ -3,7 +3,7 @@
 /// O `installer/build_installer.ps1` lê exatamente esta linha para numerar o
 /// setup.iss, o instalador e o `version.json` que o atualizador consulta. Assim
 /// o número que o aplicativo carrega é sempre o número do pacote que o originou.
-const String kAppVersionLabel = '1.3.0';
+const String kAppVersionLabel = '1.3.1';
 
 /// Versão do aplicativo como três números: `MAJOR.MINOR.PATCH`.
 ///

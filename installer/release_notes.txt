@@ -1,5 +1,3 @@
-• Quem está falando na chamada de voz agora aparece com um anel verde também na lista embaixo do canal, na lista de membros e na sua própria barra de perfil — antes o retorno só existia nos cartões da sala.
-• A live de outra pessoa ganhou regulador de volume na barra da transmissão, e o controle só aparece quando a transmissão tem áudio de verdade.
-• Modo teatro e tela cheia para a live: o vídeo cresce, os participantes ficam flutuando por cima, e Esc devolve a janela ao normal.
-• Quem está ao vivo tem um painel para configurar a transmissão sem parar: trocar de janela, mudar resolução e quadros por segundo, tudo aplicado na hora.
-• O áudio do sistema passa a ir junto na transmissão quando o Windows consegue capturá-lo; sem isso a live continua só com imagem, e o aplicativo diz qual dos dois casos aconteceu.
+• Ensurdecer agora silencia de verdade a sala. O botão só mutava o próprio microfone — o ícone trocava e você continuava ouvindo todo mundo. Cada faixa de áudio que chega dos amigos é desligada ao ensurdecer e reativada ao voltar a ouvir, inclusive as de quem entrar depois ou de uma transmissão com som.
+• A escolha sobrevive a sair e voltar para a chamada: quem sai ensurdecido reentra sem ouvir ninguém até querer.
+• O volume regulado da live é reaplicado quando você volta a ouvir.

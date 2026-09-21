@@ -85,6 +85,40 @@ class VoiceService {
         (Object e) => _log('Não foi possível regular o volume da transmissão: $e'));
   }
 
+  bool _ensurdecido = false;
+
+  /// Se a pessoa está ensurdecida agora, independentemente de haver sala.
+  bool get ensurdecido => _ensurdecido;
+
+  /// Ensurdecer é parar de ouvir a sala, não é só emudecer o próprio microfone.
+  ///
+  /// Cada faixa de áudio remota é desligada na renderização local; as que ainda
+  /// vão chegar entram desligadas pelo mesmo caminho, no evento de assinatura.
+  /// O número fica entre uma entrada e outra na sala, porque é uma escolha da
+  /// pessoa, não um estado da conexão.
+  Future<void> definirEnsurdecido(bool valor) async {
+    _ensurdecido = valor;
+    final room = _room;
+    if (room == null) return;
+    var tocadas = 0;
+    for (final p in room.remoteParticipants.values) {
+      for (final pub in p.audioTrackPublications) {
+        final faixa = pub.track;
+        if (faixa == null) continue;
+        tocadas++;
+        if (valor) {
+          await faixa.disable();
+        } else {
+          await faixa.enable();
+          if (faixa.sid == _remoteScreenShareAudioTrack?.sid) _aplicarVolumeDaLive();
+        }
+      }
+    }
+    _log(valor
+        ? 'Ensurdecido: $tocadas faixa(s) de áudio da sala desligadas.'
+        : 'De volta ao áudio: $tocadas faixa(s) reativadas.');
+  }
+
   bool get isScreenSharing => _screenSharePublication != null;
   VideoTrack? get activeScreenShareTrack => _screenShareTrack ?? _remoteScreenShareTrack;
   String? get activeScreenSharePresenter => isScreenSharing ? 'Você' : _remoteScreenSharePresenter;
@@ -420,12 +454,18 @@ class VoiceService {
 
     _listener?.on<TrackSubscribedEvent>((event) {
       _log('Track remoto assinado: ${event.track.sid}, source: ${event.publication.source}');
-      if (event.track is AudioTrack && event.publication.source == TrackSource.screenShareAudio) {
-        _remoteScreenShareAudioTrack = event.track as AudioTrack;
-        // O volume escolhido antes de a faixa existir precisa valer agora, e a
-        // reemissão é o que faz o controle de volume aparecer na tela.
-        _aplicarVolumeDaLive();
-        _safeAddScreenShareTrack(activeScreenShareTrack);
+      if (event.track is AudioTrack) {
+        final faixa = event.track as AudioTrack;
+        // Quem está ensurdecido não ouve ninguém que chegar depois: a faixa já
+        // entra desligada no instante em que é assinada.
+        if (_ensurdecido) faixa.disable();
+        if (event.publication.source == TrackSource.screenShareAudio) {
+          _remoteScreenShareAudioTrack = faixa;
+          // O volume escolhido antes de a faixa existir precisa valer agora, e a
+          // reemissão é o que faz o controle de volume aparecer na tela.
+          _aplicarVolumeDaLive();
+          _safeAddScreenShareTrack(activeScreenShareTrack);
+        }
         return;
       }
       if (event.track is VideoTrack && event.publication.source == TrackSource.screenShareVideo) {

@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.3.0</span>
+        <span class="version-tag">v1.3.1</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.3.0
+          Baixar v1.3.1
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.3.0 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
+          Versão Oficial 1.3.1 • Instalador Nativo (~17.9 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.3.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.3.1 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.3.1', this)">
+          v1.3.1 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.3.0', this)">
-          v1.3.0 <span class="badge-current">ATUAL</span>
+          v1.3.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.2.1', this)">
           v1.2.1
@@ -965,12 +968,36 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.3.1 -->
+        <article class="release-card latest" data-version="v1.3.1">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.3.1</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">20 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O ensurdecer silencia a sala de verdade. Era um botão que só mutava o próprio microfone.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Ensurdecer não ensurdecia</strong>: o botão mudava o ícone, mutava o seu microfone e deixava você ouvindo a sala inteira, porque nada tocava no áudio que chega. Agora cada faixa de áudio dos amigos é desligada no momento em que se ensurdece, e reativada ao voltar a ouvir. Quem entra na sala enquanto você está ensurdecido já chega silencioso, e o mesmo vale para o som de uma transmissão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>A escolha sobrevive à sala</strong>: sair de uma chamada ensurdecido e entrar em outra mantém o silêncio, em vez de reabrir o áudio como se nada tivesse acontecido. Ao voltar a ouvir, o volume regulado para a live é reaplicado.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.3.0 -->
-        <article class="release-card latest" data-version="v1.3.0">
+        <article class="release-card" data-version="v1.3.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.3.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">20 de Setembro de 2026</span>
           </div>
@@ -1088,7 +1115,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.3.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.3.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1662,7 +1689,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.3.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.3.1</strong></p>
     </div>
   </footer>
 
