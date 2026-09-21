@@ -1,6 +1,9 @@
 # Node & Dependencies
 node_modules/
-package-lock.json
+
+# Os dois package-lock.json do repositório são versionados de propósito: sem
+# lockfile o `npm ci` do CI não roda, e o Dependabot não consegue abrir PR de
+# atualização porque não tem com que comparar a árvore de dependências.
 
 # Ambiente e Segredos (NUNCA commitar no git)
 .env
@@ -9,6 +12,8 @@ package-lock.json
 backend/.env
 backend/.env.*
 !backend/.env.example
+# O exemplo das variáveis de teste é documentação, não segredo.
+!backend/.env.test.example
 .agents/mcp_config.json
 !.agents/mcp_config.example.json
 
