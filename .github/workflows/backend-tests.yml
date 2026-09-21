@@ -1,0 +1,101 @@
+name: Testes do backend
+
+# A suíte de `backend/tests/` cobre registro, login, rotação de refresh token e
+# detecção de reuso contra um Postgres de verdade. Ela é o que impede que uma
+# mudança na autenticação chegue em produção sem ninguém ver.
+#
+# Nada aqui usa credencial real:
+#   - o banco é um container que nasce e morre com o job;
+#   - o par RSA do RS256 é gerado a cada execução (ver o passo `chaves`);
+#   - LiveKit e SMTP ficam nos placeholders que `config/env.ts` só aceita fora
+#     de produção, então o job prova sem querer que o fail-fast continua de pé.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  NODE_ENV: test
+  # A mesma string do arquivo `docker-compose.test.yml`, para que o fluxo local
+  # e o do CI não se pareçam sem ser iguais.
+  DATABASE_URL: postgresql://papocall:papocall@localhost:5433/papocall_test?schema=public
+  TEST_DATABASE_URL: postgresql://papocall:papocall@localhost:5433/papocall_test?schema=public
+  # Os links de verificação impressos no log do mock de e-mail apontam para cá.
+  # Se ficasse o valor padrão, o log mostraria um link plausível do produto.
+  FRONTEND_URL: http://frontend.inexistente.test
+
+jobs:
+  testes:
+    name: npm test (Postgres efêmero)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        # 16 é a maior major estável que o Prisma 6 suporta sem ressalva e a que
+        # mais perto fica do Neon atual. Trocar aqui exige trocar no compose local.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: papocall
+          POSTGRES_PASSWORD: papocall
+          POSTGRES_DB: papocall_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U papocall -d papocall_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          # nodemailer@10 declara engines ">=20.0.0". Manter o CI na major que o
+          # Render usa; conferir em qual versão o serviço está antes de baixar.
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências exatamente do lockfile
+        working-directory: backend
+        run: npm ci
+
+      - name: Gerar par RSA descartável para o RS256
+        id: chaves
+        run: |
+          openssl genrsa -out /tmp/jwt-private.pem 2048 2>/dev/null
+          openssl rsa -in /tmp/jwt-private.pem -pubout -out /tmp/jwt-public.pem 2>/dev/null
+          {
+            echo "private=$(base64 -w0 /tmp/jwt-private.pem)"
+            echo "public=$(base64 -w0 /tmp/jwt-public.pem)"
+          } >> "$GITHUB_OUTPUT"
+          rm -f /tmp/jwt-private.pem /tmp/jwt-public.pem
+
+      # O projeto não usa migrations: o schema é aplicado com `db push`, o mesmo
+      # caminho do `npm run prisma:push`. Um `migrate deploy` falharia aqui porque
+      # `backend/prisma/migrations/` não existe no repositório.
+      - name: Aplicar o schema no banco efêmero
+        working-directory: backend
+        run: npx prisma generate && npx prisma db push
+
+      - name: Verificação de tipos
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      - name: Suíte de testes
+        working-directory: backend
+        env:
+          # Exercita o leitor de chave em base64 de `config/keys.ts`, que é o
+          # formato usado no Render. Sem elas o código cairia no par efêmero e o
+          # caminho de produção ficaria sem cobertura.
+          JWT_PRIVATE_KEY: ${{ steps.chaves.outputs.private }}
+          JWT_PUBLIC_KEY: ${{ steps.chaves.outputs.public }}
+        run: npm test

@@ -1,0 +1,115 @@
+# Dependabot do PapoCall
+#
+# O objetivo não é ter o repositório sempre na última versão: é que a atualização
+# deixe de ser um salto de um ano com dez dependências quebrando juntas, e que as
+# CVEs saiam sozinhas do `npm audit`. Cada PR continua sendo revisado por uma
+# pessoa, e o CI (backend-tests + flutter-tests + secret-scan) é quem prova antes
+# do merge.
+#
+# Depois de habilitar, confirme em Settings → Code security and planning que
+# "Dependabot alerts" e "Dependabot security updates" estão ligados: os PRs de
+# version update abaixo não consertam nada que já foi divulgado — quem faz isso é
+# o security update, e ele só abre se os alerts estiverem ativos.
+#
+# Os labels precisam existir no repositório (Settings → Labels). Sem eles o
+# Dependabot abre o PR mesmo, só que sem a etiqueta, e loga um aviso.
+
+version: 2
+
+updates:
+  # -------------------------------------------------------------------------
+  # Backend: Express, Prisma, nodemailer, jsonwebtoken…
+  # -------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      # Patch e minor viram um PR único por ecossistema; major continua
+      # individual, porque é o único caso em que a quebra de contrato merece
+      # leitura separada (foi assim que o nodemailer 9 → 10 apareceu).
+      menores-e-patches:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # -------------------------------------------------------------------------
+  # Raiz: a camada serverless da Vercel (api/livekit-token.js) e o server.js
+  # -------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - site
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      menores-e-patches:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # -------------------------------------------------------------------------
+  # Aplicativo Flutter
+  #
+  # `flutter_webrtc` fica de fora de propósito: o vendor em
+  # `flutter_app/third_party/flutter_webrtc` está patcheado em C++ (RNNoise e o
+  # `dependency_overrides` do pubspec aponta para lá). Um PR automático no
+  # manifest não re-aplica o `PATCHES.md`, e o resultado é um fork silencioso
+  # que perdeu os patches. Upgrade dele é manual, seguindo o procedimento no
+  # próprio arquivo.
+  # -------------------------------------------------------------------------
+  - package-ecosystem: pub
+    directory: /flutter_app
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - aplicativo
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    ignore:
+      - dependency-name: flutter_webrtc
+
+  # -------------------------------------------------------------------------
+  # Os próprios workflows
+  # -------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    labels:
+      - dependencies
+      - infraestrutura
+    commit-message:
+      prefix: chore(ci)
+      include: scope

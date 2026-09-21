@@ -89,6 +89,38 @@ Ou baixar diretamente o instalador oficial:
 
 ---
 
+## 🧪 Testes
+
+Duas suítes rodam em PR e em push na `main`, e são o que bloqueia um merge quebrado:
+
+```bash
+# Aplicativo (analyze + widgets + criptografia do chat e dos servidores)
+cd flutter_app
+flutter pub get
+flutter analyze
+flutter test
+
+# Backend (autenticação completa contra um Postgres descartável)
+cd backend
+docker compose -f docker-compose.test.yml up -d
+export DATABASE_URL="postgresql://papocall:papocall@localhost:5433/papocall_test?schema=public"
+export TEST_DATABASE_URL="$DATABASE_URL"
+npm ci && npx prisma generate && npx prisma db push
+npm test
+```
+
+As duas exportações não são decoração: sem elas o `prisma db push` lê o `.env`
+local, que aponta para o Neon, e aplica o schema no banco operacional. No
+PowerShell, troque `export X=...` por `$env:X = "..."`.
+
+O passo a passo do backend, com as variáveis que precisam ser exportadas e o
+motivo histórico de nunca rodar a suíte contra o banco de produção, está em
+[`backend/README.md`](backend/README.md). Os workflows correspondentes estão em
+[`.github/workflows/`](.github/workflows), e o Dependabot em
+[`.github/dependabot.yml`](.github/dependabot.yml).
+
+---
+
 ## 📜 Licença
 
 Este projeto está licenciado sob os termos da licença [MIT](LICENSE).

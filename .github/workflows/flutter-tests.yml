@@ -1,0 +1,66 @@
+name: Testes do aplicativo
+
+# `flutter analyze` + `flutter test` sobre `flutter_app/`. A suíte cobre o que o
+# olho não pega em build: criptografia de ponta a ponta do chat e dos servidores,
+# persistência de sessão, o chat abrindo na marca de leitura e a aba de
+# privacidade, que não pode prometer o que o código não faz.
+#
+# O job não usa segredo nenhum. Não é descuido: o binário entregue ao usuário é
+# extraível, então nenhuma credencial vive no aplicativo — o token de voz vem do
+# backend e o `_espelho` do MQTT é criptografado no cliente. Se um dia este
+# workflow precisar de um secret, isso é sinal de que o segredo entrou no app.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  estaticos-e-testes:
+    name: analyze + test (Windows)
+    # Windows porque a suíte depende disso de verdade, não por conforto:
+    # `session_persistence_test.dart` grava a sessão pelo `SecureStorage`, que é
+    # DPAPI (`crypt32.dll`) e retorna false fora do Windows — em Linux o teste
+    # quebra sem que nada esteja errado no produto. O artefato publicado também
+    # é Windows.
+    #
+    # O plano desta conta é GitHub Free com repositório privado, e runner Windows
+    # em privado é o que depende de plano pago. Se este job nunca sair da fila, o
+    # CI do aplicativo não existe: a alternativa honesta é manter `flutter analyze`
+    # em `ubuntu-latest` e a suíte de testes só nesta máquina, e dizer isso no
+    # README em vez de deixar um X vermelho permanentemente.
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: flutter_app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Fechado com a versão da máquina que gera o instalador publicado
+          # (Flutter 3.47.4 / Dart 3.13.3). Sem pinar, o runner pode acordar com
+          # um canal diferente e quebrar um build que está certo.
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+
+      # `flutter_app/third_party/flutter_webrtc` é o fork vendorizado e vai no
+      # repositório; o `dependency_overrides` do pubspec aponta para lá. Não há
+      # passo extra: o pub get resolve o caminho relativo normal.
+      - name: Resolver dependências
+        run: flutter pub get
+
+      - name: Análise estática
+        run: flutter analyze
+
+      - name: Suíte de widgets e serviços
+        run: flutter test

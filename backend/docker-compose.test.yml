@@ -1,0 +1,35 @@
+# Banco descartável para rodar a suíte de testes do backend nesta máquina.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#
+# A senha deste arquivo não é segredo porque não protege nada: o banco só existe
+# no seu Docker, e a única coisa que entra nele são as contas de fixture com
+# domínio @papocall.test. Nunca aponte DATABASE_URL para o Neon com este compose
+# de pé — o `prisma db push` aplicaria o schema no banco operacional.
+#
+# Para apagar tudo, inclusive os dados:
+#
+#   docker compose -f docker-compose.test.yml down -v
+
+services:
+  postgres-teste:
+    image: postgres:16-alpine
+    container_name: papocall-postgres-teste
+    environment:
+      POSTGRES_USER: papocall
+      POSTGRES_PASSWORD: papocall
+      POSTGRES_DB: papocall_test
+    # 5433 para não brigar com um Postgres seu que já ocupe o 5432. É a mesma
+    # porta usada no CI, para o comando da documentação ser o comando real.
+    ports:
+      - '5433:5432'
+    volumes:
+      - papocall-teste-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U papocall -d papocall_test']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  papocall-teste-dados:
