@@ -67,11 +67,29 @@ O **PapoCall** é uma aplicação desktop nativa para Windows desenvolvida com *
    - **Tema HUD Sóbrio (`flutter_app/lib/theme/hud_theme.dart`)**: Estética militar/tática moderna, paleta escura (slate/zinc, fundo `#0B0E14`, acentos verde neon `#22C55E` e `#4ADE80`).
    - **Gerenciamento de Estado (`flutter_app/lib/providers/app_state.dart`)**: Baseado em `Provider` (`ChangeNotifier`). Orquestra a sessão do usuário, lista de canais, mensagens, estado das conexões de voz e controle da visualização ativa (`isHomePageActive`).
    - **Chat em Tempo Real (`flutter_app/lib/services/mqtt_service.dart`)**:
-     - Utiliza broker público EMQX (`broker.emqx.io`), tratado como **transporte hostil**.
-     - **Transporte cifrado**: TLS na porta 8883, com fallback para WebSocket seguro (`wss://broker.emqx.io/mqtt:8084`). **Não existe fallback em texto puro (1883)**.
+     - Broker MQTT **dedicado e self-hosted** (`infra/emqx/`, EMQX 5.8), não mais o
+       público anônimo. Cada aparelho entra com credencial de sessão emitida pelo
+       backend (`POST /mqtt/credentials`) e **o broker autoriza cada publish/subscribe
+       lendo `mqtt_grants`/`mqtt_sessions` no mesmo Postgres** — sem webhook no
+       caminho quente, porque o Render acorda frio e o chat não pode depender disso.
+     - **Continua sendo transporte hostil.** A ACL tirou alcance, não confiança: o
+       próprio operador do broker ainda pode publicar lixo, e é a verificação de MAC
+       do AES-GCM que descarta. Remover a criptografia "porque agora tem ACL" é erro.
+     - **Endereço do broker não mora no código**: vem na resposta de credencial
+       (`MQTT_HOST`/`MQTT_PORT`/`MQTT_WSS_URL` no servidor), com
+       `--dart-define=PAPOCALL_MQTT_*` como default de desenvolvimento. Transporte
+       cifrado: TLS na 8883 com fallback WebSocket seguro na 8084. **Não existe porta
+       em texto puro, nem no aplicativo nem no broker.**
+     - Sem credencial válida o app **não tenta conectar**: um CONNECT recusado por
+       senha e uma rede caída produzem o mesmo silêncio do lado do cliente, e
+       confundir os dois custa uma manhã de caça a fantasma. O backoff continua o
+       mesmo; `subscribe()` passou a reenviar mesmo o tópico já conhecido, porque
+       assinatura negada não gera erro nenhum para o cliente.
      - **Criptografia ponta a ponta (`server_crypto.dart`)**: o payload é cifrado com AES-256-GCM usando chave derivada do código de convite do servidor via PBKDF2 (210k iterações). O broker nunca vê conteúdo legível.
      - **Tópicos opacos**: `papocall/v2/r/<hash-do-convite>/{chat,presence,info}`, mais um compartimento retido por membro em `presence/<hash-do-membro>` e a caixa de entrada pessoal em `papocall/v2/u/<hash-do-usuário>/inbox/<hash-do-remetente>`.
      - **Curinga proibido na posição do identificador de servidor ou de usuário** — é ali que fica a fronteira de autorização, e foi essa a falha da v1.0.0f (`srv/+/chat`). O app assina apenas os servidores que o usuário integra, sempre pelo nome exato. Existe **um único** curinga em todo o app, inteiramente abaixo da fronteira: `papocall/v2/u/<hash-do-usuário>/inbox/#`, que percorre só os compartimentos de remetentes dentro da caixa do próprio usuário. Sem ele não há como receber uma solicitação de amizade de alguém ainda desconhecido enviada enquanto o destinatário estava offline. A presença não usa curinga algum.
+     - **Autorização no broker** (`infra/emqx/acl.sql`, com a mesma regra espelhada em `backend/src/utils/mqttTopics.ts` e as duas comparadas caso a caso por `backend/tests/mqtt-sql.test.ts` contra Postgres real): cada credencial só toca os próprios prefixos; **ler a caixa de entrada de outra pessoa é negado**, escrever num compartimento da caixa alheia continua aberto (é o caminho do pedido de amizade) e ler presença de amigo também. Sala só é tocada por quem a declarou.
+     - A declaração de sala é **auto-declarada**: o cliente informa ao backend o `topicIdFor(convite)`, nunca o convite — verificar o conhecimento do convite exigiria que o backend tivesse a chave AES da sala. Então a ACL limita *quem pode escrever onde*, e quem garante o conteúdo é a cifra. Não descreva a ACL como se provasse participação.
      - **Estrutura do servidor replicada** (`action: server_info`, retida): só o dono publica. Quem entra por convite adota nome, cor e — principalmente — os IDs de canal reais. Como o nome da sala do LiveKit é o ID do canal, inventar canais localmente colocava cada membro numa sala de voz diferente. O payload carrega também o roster (`memberIds`), única forma de um recém-chegado saber de quem assinar presença e histórico.
      - **Histórico compartilhado** (`action: history_snapshot`, retido): cada membro publica no seu próprio compartimento um retrato das mensagens recentes que conhece (60 por canal, teto de 300 e de 160 KB); quem chega intercala os retratos de todos por `id` e ordena por `sentAt`. Um tópico único e compartilhado não serviria — o broker guarda só a última mensagem retida de cada tópico, então o último a publicar apagaria o histórico dos demais.
      - **Marcações** (`flutter_app/lib/utils/mentions.dart`): o `@fulano` vive no texto da mensagem, não numa lista paralela no envelope, para continuar funcionando no histórico alheio e em mensagens de versões anteriores. A regex exige fronteira dos dois lados — sem a da direita, um @ longo demais casaria pelos 20 primeiros caracteres e marcaria outra pessoa.

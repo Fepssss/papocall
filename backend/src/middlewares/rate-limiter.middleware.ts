@@ -34,8 +34,11 @@ export function createRateLimiter(options: {
   }, 5 * 60 * 1000).unref();
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    // A suíte automatizada exercita dezenas de registros e logins a partir do
-    // mesmo IP; o limitador é validado explicitamente em tests/security.test.ts.
+    // O limitador é desligado em teste porque a suíte exercita dezenas de
+    // registros e logins a partir do mesmo endereço, e 429 no meio da suíte
+    // pareceria bug de negócio. Consequência honesta: nenhuma das rotas deste
+    // arquivo tem proteção de taxa verificada por teste hoje — o que é validado
+    // ali é o comportamento de negócio, não o limitador.
     if (env.NODE_ENV === 'test') {
       return next();
     }

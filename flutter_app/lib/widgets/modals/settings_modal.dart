@@ -748,13 +748,13 @@ class _SettingsModalState extends State<SettingsModal> {
         _buildInfoCard(
           icon: Icons.cloud_sync_outlined,
           iconColor: const Color(0xFFA78BFA),
-          title: 'O broker público fica com um retrato cifrado',
+          title: 'O broker fica com um retrato cifrado',
           description:
-              'O chat trafega por um broker MQTT público (broker.emqx.io) e cada membro publica ali, '
-              'retido, um retrato cifrado com as últimas mensagens dos canais que viu — é o que deixa '
-              'você recuperar conversa num aparelho novo quando os outros estão offline. Fica lá até ser '
-              'substituído por outro retrato ou apagado quando o servidor é excluído. Cifrado, mas '
-              'guardado por um terceiro.',
+              'O chat trafega por um broker MQTT próprio, onde ninguém entra sem credencial, e cada '
+              'membro publica ali, retido, um retrato cifrado com as últimas mensagens dos canais que '
+              'viu — é o que deixa você recuperar conversa num aparelho novo quando os outros estão '
+              'offline. Fica lá até ser substituído por outro retrato ou apagado quando o servidor é '
+              'excluído. Cifrado, mas guardado por uma infraestrutura nossa que você não pode auditar.',
           badge: 'RETIDO',
           badgeColor: const Color(0xFFA78BFA),
         ),
@@ -792,9 +792,12 @@ class _SettingsModalState extends State<SettingsModal> {
           title: 'O que o nosso servidor guarda da sua conta',
           description:
               'E-mail, @nome, nome de exibição, o hash da senha (Argon2id — a senha em si não fica '
-              'guardada), os tokens de sessão com validade, e o endereço IP dos eventos de conta: '
-              'registro, login, tentativa falhada, renovação, redefinição. Não existe tabela de '
-              'mensagem, servidor, canal, amizade ou presença no banco: o que você conversa não vai '
+              'guardada), os tokens de sessão com validade, o endereço IP dos eventos de conta: '
+              'registro, login, tentativa falhada, renovação, redefinição. Desde a v1.8.0 também fica '
+              'uma lista de em quais servidores você está — mas só o identificador opaco tirado do '
+              'convite, que não diz o nome de nenhum servidor e não abre mensagem nenhuma sem a chave '
+              'da sala. Serve para o broker poder negar a você publicar onde não entra. Não existe '
+              'tabela de mensagem, canal, amizade ou presença no banco: o que você conversa não vai '
               'para o nosso banco.',
           badge: 'MÍNIMO NECESSÁRIO',
           badgeColor: HudTheme.green,

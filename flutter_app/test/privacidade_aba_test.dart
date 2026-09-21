@@ -54,11 +54,28 @@ void main() {
     expect(textoHonesto('AES-256-GCM'), findsWidgets);
     expect(textoHonesto('210.000'), findsOneWidget);
     expect(textoHonesto('X25519'), findsOneWidget);
-    // A parte que a versão antiga omitia: o retrato cifrado retido no broker
-    // público, e o convite sendo a própria chave.
-    expect(textoHonesto('broker.emqx.io'), findsOneWidget);
+    // A parte que a versão antiga omitia: o retrato cifrado retido no broker, e o
+    // convite sendo a própria chave.
+    expect(textoHonesto('broker MQTT próprio'), findsOneWidget);
     expect(textoHonesto('RETIDO'), findsOneWidget);
     expect(textoHonesto('O código de convite é a chave da conversa'), findsOneWidget);
+    // Não podem voltar. Era verdade enquanto o chat passava pelo broker público
+    // anônimo; deixou de ser na migração para o broker dedicado, e uma frase de
+    // privacidade que sobrevive à mudança dela é o pior tipo de texto morto.
+    expect(textoHonesto('broker.emqx.io'), findsNothing);
+    expect(textoHonesto('broker MQTT público'), findsNothing);
+  });
+
+  testWidgets('a lista de participação que o broker passou a exigir está dita',
+      (tester) async {
+    await abrirAba(tester);
+
+    expect(textoHonesto('identificador opaco tirado do convite'), findsOneWidget);
+    expect(
+      textoHonesto('Não existe tabela de mensagem, canal, amizade ou presença no banco'),
+      findsOneWidget,
+    );
+    expect(textoHonesto('Não existe tabela de servidor'), findsNothing);
   });
 
   testWidgets('o que não existe ainda está escrito como não existindo',

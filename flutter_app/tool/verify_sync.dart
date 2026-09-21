@@ -24,8 +24,13 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:papocall/services/server_crypto.dart';
 
-const _host = 'broker.emqx.io';
-const _port = 8883;
+// Broker alvo. Antes estas duas linhas diziam `broker.emqx.io`, e era verdade;
+// agora o destino é o broker dedicado, informado por argumento ou ambiente, e a
+// conexão leva a credencial de sessão que `POST /mqtt/credentials` devolve.
+String _host = '';
+int _port = 8883;
+String _usuario = '';
+String _senha = '';
 
 var _falhas = 0;
 
@@ -40,7 +45,12 @@ Future<MqttServerClient> _conectar(String id) async {
   client.secure = true;
   client.keepAlivePeriod = 20;
   client.logging(on: false);
-  client.connectionMessage = MqttConnectMessage().withClientIdentifier(id).startClean();
+
+  final mensagem = MqttConnectMessage().withClientIdentifier(id).startClean();
+  if (_usuario.isNotEmpty && _senha.isNotEmpty) {
+    mensagem.authenticateAs(_usuario, _senha);
+  }
+  client.connectionMessage = mensagem;
 
   final status = await client.connect().timeout(const Duration(seconds: 12));
   if (status?.state != MqttConnectionState.connected) {
@@ -335,9 +345,34 @@ Future<void> _cenarioHistorico(String sufixo) async {
   novato.disconnect();
 }
 
-Future<void> main() async {
+Future<void> main(List<String> argv) async {
+  for (var i = 0; i < argv.length - 1; i++) {
+    switch (argv[i]) {
+      case '--host':
+        _host = argv[++i];
+      case '--port':
+        _port = int.tryParse(argv[++i]) ?? _port;
+      case '--user':
+        _usuario = argv[++i];
+      case '--pass':
+        _senha = argv[++i];
+    }
+  }
+  _host = _host.isNotEmpty ? _host : (Platform.environment['PAPOCALL_MQTT_HOST'] ?? '');
+  _usuario = _usuario.isNotEmpty ? _usuario : (Platform.environment['PAPOCALL_MQTT_USER'] ?? '');
+  _senha = _senha.isNotEmpty ? _senha : (Platform.environment['PAPOCALL_MQTT_PASS'] ?? '');
+
+  if (_host.isEmpty) {
+    stderr.writeln('falta o broker: --host <broker> (ou PAPOCALL_MQTT_HOST), '
+        'e --user/--pass com a credencial saída de POST /mqtt/credentials.');
+    exit(2);
+  }
+
   final sufixo = DateTime.now().millisecondsSinceEpoch.toString().substring(6);
   stdout.writeln('Verificando a malha de sincronizacao do PapoCall em $_host:$_port');
+  if (_usuario.isEmpty) {
+    stdout.writeln('sem credencial: o broker dedicado recusa tudo, e é isto que vai aparecer aqui.');
+  }
 
   try {
     await _cenarioAmizadeOffline(sufixo);

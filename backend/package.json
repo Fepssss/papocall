@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
-    "test": "cross-env NODE_ENV=test tsx --test tests/**/*.test.ts",
+    "test": "cross-env NODE_ENV=test tsx --test --test-concurrency=1 tests/**/*.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },

@@ -35,6 +35,23 @@ const envSchema = z.object({
   SMTP_PORT: z.string().default('587').transform((v) => parseInt(v, 10)),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  // Broker MQTT dedicado.
+  //
+  // A credencial é de sessão e expira: curta duração é o que limita o estrago de
+  // uma senha arrancada de um aparelho emprestado, e o aplicativo renova junto do
+  // access token, então doze horas é folga e não afrouxamento.
+  MQTT_CREDENTIAL_TTL_MINUTES: z.string().default('720').transform((v) => parseInt(v, 10)),
+  // Onde o broker fica. Entregar isto pela API — e não só pelo --dart-define do
+  // build — é o que permite trocar de broker sem publicar versão nova.
+  //
+  // Diferente de SMTP_HOST, estes NÃO são obrigatórios em produção ainda: o
+  // broker self-hosted só existe depois de provisionado, e uma validação nova que
+  // abortasse a inicialização hoje derrubaria o login inteiro por um recurso que
+  // ainda não foi ligado. Passam a ser exigidos no dia em que a versão do
+  // aplicativo que exige credencial for a publicada — ver o runbook do broker.
+  MQTT_HOST: z.string().default(''),
+  MQTT_PORT: z.string().default('8883').transform((v) => parseInt(v, 10)),
+  MQTT_WSS_URL: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

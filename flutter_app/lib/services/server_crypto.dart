@@ -7,10 +7,11 @@ import 'package:crypto/crypto.dart' as classic;
 /// Criptografia ponta a ponta das mensagens trafegadas pelo broker MQTT.
 ///
 /// POR QUE ISSO EXISTE:
-/// O PapoCall usa um broker MQTT público e anônimo como transporte. Qualquer
-/// pessoa na internet pode se inscrever nos tópicos e publicar neles. Portanto o
-/// transporte é tratado como hostil: o broker é apenas um repetidor burro que
-/// nunca vê conteúdo legível.
+/// O PapoCall usa um broker MQTT dedicado como transporte: ninguém entra sem
+/// credencial de sessão, e cada publicação é conferida contra a lista de
+/// participação. Mesmo assim o transporte é tratado como hostil — o broker é um
+/// repetidor que pode ser compilado errado, preenchido por script ou mandado embora
+/// por um operador de má fé, e nunca vê conteúdo legível.
 ///
 /// COMO FUNCIONA:
 /// 1. O código de convite do servidor (ex: 'papo-1a2b3c4d') é o segredo

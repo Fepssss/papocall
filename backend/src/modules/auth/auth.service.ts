@@ -10,6 +10,7 @@ import {
 } from '../../utils/token';
 import { emailService } from '../../utils/email';
 import { logSecurityEvent } from '../../utils/logger';
+import { syncOwnGrants } from '../mqtt/mqtt.grants';
 import { normalizeUsername } from './auth.schemas';
 
 export interface UserResponse {
@@ -347,6 +348,12 @@ export class AuthService {
       data: { revoked: true, revoked_at: new Date() },
     });
 
+    // A credencial do broker é de sessão e vale por horas, então "sair de todos os
+    // aparelhos" sem apagar estas linhas deixaria o aparelho de quem foi embora
+    // conectado e publicando até expirar. Quem continua aberto pega uma nova na
+    // próxima renovação.
+    await prisma.mqttSession.deleteMany({ where: { user_id: userId } });
+
     logSecurityEvent({
       event: 'LOGOUT_ALL_SESSIONS',
       userId,
@@ -542,12 +549,20 @@ export class AuthService {
       );
     }
 
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        username: newUsername,
-        last_username_change_at: new Date(),
-      },
+    // O @username é a semente dos tópicos próprios no broker, então trocar o nome
+    // e reescrever os prefixos têm de ser uma coisa só. Em duas etapas separadas o
+    // dono continuaria autenticado no MQTT e ainda assim negado na própria caixa
+    // de entrada — o sintoma seria "chat mudo", sem erro em lugar nenhum.
+    const updated = await prisma.$transaction(async (tx) => {
+      const novo = await tx.user.update({
+        where: { id: userId },
+        data: {
+          username: newUsername,
+          last_username_change_at: new Date(),
+        },
+      });
+      await syncOwnGrants(tx, novo.id, novo.username);
+      return novo;
     });
 
     logSecurityEvent({
