@@ -24,6 +24,17 @@ class _ChatViewState extends State<ChatView> {
   final FocusNode _inputFocus = FocusNode();
   String? _lastChannelId;
 
+  /// Chaves de medição: a moldura da área do chat e o balão da última mensagem.
+  /// É da diferença entre o pé uma e o pé do outro que se precisa para saber
+  /// quanto puxar a conversa para baixo.
+  final GlobalKey _chaveDaLista = GlobalKey(debugLabel: 'área do chat');
+  final GlobalKey _chaveDoFim = GlobalKey(debugLabel: 'última mensagem');
+
+  /// Índice da primeira mensagem ainda não vista deste canal, resolvido quando
+  /// a pessoa troca de canal. `null` quer dizer "abrir no fim".
+  String? _canalAncorado;
+  int? _indiceAncora;
+
   /// Estado do autocompletar de marcações.
   List<UserModel> _mentionSuggestions = const [];
   MentionQuery? _mentionQuery;
@@ -213,6 +224,7 @@ class _ChatViewState extends State<ChatView> {
       // O texto só sai do campo quando a mensagem saiu do aparelho: no respiro
       // entre envios o que a pessoa digitou continua ali, esperando.
       if (!state.sendMessage(text)) return;
+      // Quem acabou de falar quer ver a própria fala, não a marca antiga.
       state.clearDraft(channelId);
       _textController.clear();
       _closeMentions();
@@ -220,15 +232,56 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
+  Widget _tile(
+    ChatMessage msg, {
+    required int indice,
+    required int total,
+    required Set<String> knownHandles,
+    required String selfHandle,
+    required AppState state,
+  }) {
+    return _ChatMessageTile(
+      key: indice == total - 1 ? _chaveDoFim : null,
+      msg: msg,
+      knownHandles: knownHandles,
+      selfHandle: selfHandle,
+      isMentioningMe: msg.authorId != state.currentUser.id &&
+          !msg.isSystem &&
+          mentionsUser(msg.text, selfHandle),
+      canDelete: !msg.isSystem && state.canDeleteMessage(state.activeServerId, msg),
+      onDelete: () => _confirmDeleteMessage(state, msg),
+    );
+  }
+
+  /// Solta a marca de leitura e cola o fim da conversa no pé da área do chat.
   void _scrollToBottom() {
+    _indiceAncora = null;
+    _alinharComOFim();
+  }
+
+  /// Puxa a conversa para baixo até a última mensagem encostar no pé da área
+  /// do chat.
+  ///
+  /// O sliver da marca de leitura está no topo da tela, então o offset zero é a
+  /// própria marca: tudo o que ainda não foi visto aparece a partir dela. Quando
+  /// o que falta ver é curto — e quando não falta nada — é o fim da conversa que
+  /// deve ficar encostado embaixo, e para isso se desce a linha da marca pela
+  /// sobra de tela que ficou embaixo dela. Nunca se sobe: a marca fica sempre no
+  /// lugar ou mais abaixo, nunca rolada para fora.
+  void _alinharComOFim() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!mounted || !_scrollController.hasClients) return;
+      final lista = _chaveDaLista.currentContext?.findRenderObject();
+      final fim = _chaveDoFim.currentContext?.findRenderObject();
+      if (lista is! RenderBox || fim is! RenderBox) return;
+      if (!lista.hasSize || !fim.hasSize) return;
+
+      final peDaLista = lista.localToGlobal(Offset.zero).dy + lista.size.height;
+      final peDoFim = fim.localToGlobal(Offset.zero).dy + fim.size.height;
+      final sobra = peDaLista - peDoFim;
+      if (sobra <= 0.5) return;
+
+      _scrollController.jumpTo(_scrollController.position.pixels - sobra);
     });
   }
 
@@ -242,6 +295,17 @@ class _ChatViewState extends State<ChatView> {
 
     final knownHandles = state.knownMentionHandles();
     final selfHandle = normalizeHandle(state.currentUser.username);
+
+    // A posição de abertura é resolvida uma vez por canal. Depois disso a
+    // pessoa manda a lista para onde quiser e o chat não se mexe mais atrás.
+    if (_canalAncorado != channel?.id) {
+      _canalAncorado = channel?.id;
+      final aberta = state.aberturaDoCanal;
+      _indiceAncora =
+          (aberta != null && aberta.canal == channel?.id) ? aberta.indice : null;
+      _alinharComOFim();
+    }
+    final marca = (_indiceAncora ?? messages.length).clamp(0, messages.length);
 
     return Expanded(
       child: Container(
@@ -296,28 +360,64 @@ class _ChatViewState extends State<ChatView> {
             // para arrastar o texto de uma mensagem para dentro de outra, como
             // se copia de um documento, sem que soltar o botão no meio de uma
             // frase deixe metade da seleção para trás.
+            //
+            // A conversa é dividida em dois slivers na marca de leitura, e o
+            // segundo é declarado o centro do `CustomScrollView` — o que coloca
+            // a marca no topo da tela no offset zero, com o histórico acessível
+            // acima dela e o que ainda não foi visto abaixo, sem calcular pixel
+            // nenhum. O bloco antigo cresce para cima a partir da marca, então
+            // ele é alimentado de trás para frente: é assim que a leitura sai em
+            // ordem cronológica. Sem nada novo o bloco da marca fica vazio e o
+            // `_alinharComOFim` cola a última mensagem no pé da área.
             Expanded(
               child: messages.isEmpty
                   ? _EmptyChannelHint(channelName: channel?.name ?? 'geral')
                   : SelectionArea(
-                      child: ListView.builder(
+                      child: CustomScrollView(
+                        key: _chaveDaLista,
                         controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = messages[index];
-                          return _ChatMessageTile(
-                            msg: msg,
-                            knownHandles: knownHandles,
-                            selfHandle: selfHandle,
-                            isMentioningMe: msg.authorId != state.currentUser.id &&
-                                !msg.isSystem &&
-                                mentionsUser(msg.text, selfHandle),
-                            canDelete: !msg.isSystem &&
-                                state.canDeleteMessage(state.activeServerId, msg),
-                            onDelete: () => _confirmDeleteMessage(state, msg),
-                          );
-                        },
+                        center: const ValueKey('marca-de-leitura'),
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final i = marca - 1 - index;
+                                  return _tile(
+                                    messages[i],
+                                    indice: i,
+                                    total: messages.length,
+                                    knownHandles: knownHandles,
+                                    selfHandle: selfHandle,
+                                    state: state,
+                                  );
+                                },
+                                childCount: marca,
+                              ),
+                            ),
+                          ),
+                          SliverPadding(
+                            key: const ValueKey('marca-de-leitura'),
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final i = marca + index;
+                                  return _tile(
+                                    messages[i],
+                                    indice: i,
+                                    total: messages.length,
+                                    knownHandles: knownHandles,
+                                    selfHandle: selfHandle,
+                                    state: state,
+                                  );
+                                },
+                                childCount: messages.length - marca,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
             ),
@@ -533,6 +633,7 @@ class _ChatMessageTile extends StatefulWidget {
   final VoidCallback onDelete;
 
   const _ChatMessageTile({
+    super.key,
     required this.msg,
     required this.knownHandles,
     required this.selfHandle,

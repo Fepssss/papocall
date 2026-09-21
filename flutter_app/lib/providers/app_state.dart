@@ -2750,7 +2750,34 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// Onde o chat de um canal deve abrir: o índice da primeira mensagem que
+  /// ainda não tinha sido vista, ou null para abrir no fim da conversa.
+  ///
+  /// Precisava ser calculado aqui, no instante da troca, e não na tela: a
+  /// próxima linha move a marca de leitura para agora, e depois disso não existe
+  /// mais como saber onde a pessoa tinha parado.
+  ({String canal, int? indice})? aberturaDoCanal;
+
+  /// Índice da primeira mensagem ainda não vista do canal, ou null quando não
+  /// há nada pendente.
+  ///
+  /// Canal nunca aberto devolve null de propósito: "nada lido" ali são duzentas
+  /// mensagens para trás, e o lugar certo para abrir é o fim, não o começo.
+  int? primeiroNaoLidoDe(String channelId) {
+    final desde = _lastReadAt[channelId];
+    if (desde == null || desde <= 0) return null;
+    final mensagens = _messages[channelId];
+    if (mensagens == null || mensagens.isEmpty) return null;
+    for (var i = 0; i < mensagens.length; i++) {
+      if (mensagens[i].sentAt > desde) return i;
+    }
+    return null;
+  }
+
   void selectChannel(String channelId) {
+    if (channelId != activeChannelId) {
+      aberturaDoCanal = (canal: channelId, indice: primeiroNaoLidoDe(channelId));
+    }
     activeChannelId = channelId;
     markChannelRead(channelId);
     notifyListeners();

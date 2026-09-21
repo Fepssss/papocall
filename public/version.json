@@ -1,8 +1,8 @@
 {
-    "version":  "1.5.1",
+    "version":  "1.5.2",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "86c7e3a4f5e4025f2556e57eaa596c4cfae56a91987b6df753f85eb6c373daea",
-    "sizeBytes":  18250931,
-    "notes":  "• Atualizar não abre mais a janela do PowerShell na sua frente. O handoff continua precisando do console — sem ele a instalação morria junto com o aplicativo —, mas a primeira coisa que o script faz agora é esconder a própria janela, e o instalador trabalha em silêncio.\n• A barra de voz no painel esquerdo ganhou a fileira de controles: compartilhar tela, configurar a transmissão enquanto ela está no ar, mutar o microfone e ensurdecer. Apertar ensurdecer ali silencia a sala de verdade, do mesmo jeito que no dock da chamada.\n• A linha de status da voz agora diz \"servidor / canal\", com o servidor e o canal que sustentam a conexão, em vez do nome fixo de antes.",
-    "publishedAt":  "2026-09-21T03:01:01Z"
+    "sha256":  "70a3796af119e9432d0a9d300b0b58dc0c62b0a79c74027c3d78eb16dc391fe6",
+    "sizeBytes":  18254445,
+    "notes":  "• Abrir um canal agora te deixa na primeira mensagem que você ainda não viu, e não no começo da conversa. O que passou antes da marca continua logo acima, acessível subindo a lista.\n• Sem nada novo, o canal abre no fim, com a última mensagem encostada no pé da tela — e é ali que as que chegam vão aparecendo enquanto você está olhando.\n• Mandar uma mensagem solta a marca e te devolve ao fim da conversa, em cima do que você acabou de escrever.",
+    "publishedAt":  "2026-09-21T04:24:00Z"
 }

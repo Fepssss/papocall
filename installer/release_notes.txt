@@ -1,3 +1,3 @@
-• Atualizar não abre mais a janela do PowerShell na sua frente. O handoff continua precisando do console — sem ele a instalação morria junto com o aplicativo —, mas a primeira coisa que o script faz agora é esconder a própria janela, e o instalador trabalha em silêncio.
-• A barra de voz no painel esquerdo ganhou a fileira de controles: compartilhar tela, configurar a transmissão enquanto ela está no ar, mutar o microfone e ensurdecer. Apertar ensurdecer ali silencia a sala de verdade, do mesmo jeito que no dock da chamada.
-• A linha de status da voz agora diz "servidor / canal", com o servidor e o canal que sustentam a conexão, em vez do nome fixo de antes.
+• Abrir um canal agora te deixa na primeira mensagem que você ainda não viu, e não no começo da conversa. O que passou antes da marca continua logo acima, acessível subindo a lista.
+• Sem nada novo, o canal abre no fim, com a última mensagem encostada no pé da tela — e é ali que as que chegam vão aparecendo enquanto você está olhando.
+• Mandar uma mensagem solta a marca e te devolve ao fim da conversa, em cima do que você acabou de escrever.
