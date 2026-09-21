@@ -21,6 +21,23 @@ void main() {
     return img.encodePng(imagem);
   }
 
+  /// Um GIF de verdade, com vários quadros e durações — é o que o aplicativo
+  /// recebe quando a pessoa escolhe um perfil que se mexe. O codificador aqui
+  /// usa octree sem dithering porque o padrão (neural + Floyd-Steinberg) gastava
+  /// mais tempo montando a massa do teste do que o código testado.
+  Uint8List gifAnimado(int quadros, {int lado = 300, int duracaoCent = 10}) {
+    final codificador = img.GifEncoder(
+      quantizerType: img.QuantizerType.octree,
+      dither: img.DitherKernel.none,
+    );
+    for (var i = 0; i < quadros; i++) {
+      final quadro = img.Image(width: lado, height: lado);
+      img.fill(quadro, color: img.ColorRgb8(20 + i * 8, 90, 200 - i * 6));
+      codificador.addFrame(quadro, duration: duracaoCent);
+    }
+    return codificador.finish()!;
+  }
+
   Map<String, dynamic> configLida() =>
       jsonDecode(AppPaths.file('settings.json').readAsStringSync());
 
@@ -43,6 +60,37 @@ void main() {
     expect(resultado.avatar, isNull);
     expect(resultado.erro, isNotNull);
     expect(resultado.erro, isNotEmpty);
+  });
+
+  test('um GIF animado continua animado, reduzido e dentro do teto', () {
+    final resultado = prepararFotoDePerfil(gifAnimado(6));
+
+    expect(resultado.erro, isNull);
+    final avatar = resultado.avatar!;
+    expect(avatar, startsWith('data:image/gif;base64,'));
+    expect(avatar.length, lessThanOrEqualTo(tetoDeBytesDoGif));
+
+    final deVolta = img.decodeGif(base64Decode(avatar.split(',').last))!;
+    expect(deVolta.hasAnimation, isTrue);
+    expect(deVolta.numFrames, greaterThan(1));
+    expect(deVolta.width, ladoDoGif);
+    expect(deVolta.height, ladoDoGif);
+  });
+
+  test('GIF grande demais é recusado pelo cabeçalho, sem decodificar nada', () {
+    // 40 quadros de 700 px estouram o orçamento de pixels: a recusa tem de
+    // vir do cabeçalho, rápida, e não de 13 segundos de decodificação.
+    final resultado = prepararFotoDePerfil(gifAnimado(40, lado: 700, duracaoCent: 20));
+
+    expect(resultado.avatar, isNull);
+    expect(resultado.erro, contains('grande demais'));
+  });
+
+  test('GIF de um quadro só vira JPEG, que é menor', () {
+    final resultado = prepararFotoDePerfil(gifAnimado(1));
+
+    expect(resultado.erro, isNull);
+    expect(resultado.avatar, startsWith('data:image/jpeg;base64,'));
   });
 
   test('a foto aceita entra no modelo, no disco e na próxima presença', () async {

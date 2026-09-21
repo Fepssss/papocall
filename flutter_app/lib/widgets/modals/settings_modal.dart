@@ -45,7 +45,10 @@ class _SettingsModalState extends State<SettingsModal> {
     setState(() => _escolhendoFoto = true);
     try {
       final escolhida = await FilePicker.platform.pickFiles(
-        type: FileType.image,
+        type: FileType.custom,
+        // GIF entra na lista de propósito: é o formato que permite um perfil
+        // que se mexe, e o `FileType.image` de alguns sistemas o deixa de fora.
+        allowedExtensions: const ['png', 'jpg', 'jpeg', 'gif'],
         withData: true,
         dialogTitle: 'Escolher foto de perfil',
       );
@@ -518,7 +521,9 @@ class _SettingsModalState extends State<SettingsModal> {
                       ),
                       onPressed: _escolhendoFoto ? null : () => _escolherFoto(state),
                       child: Text(
-                        _escolhendoFoto ? '...' : (user.avatar.isEmpty ? 'Foto' : 'Trocar'),
+                        _escolhendoFoto
+                            ? '...'
+                            : (user.avatar.isEmpty ? 'Foto ou GIF' : 'Trocar'),
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),

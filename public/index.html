@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.4.0</span>
+        <span class="version-tag">v1.5.0</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.4.0
+          Baixar v1.5.0
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.4.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
+          Versão Oficial 1.5.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.4.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.5.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.5.0', this)">
+          v1.5.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.4.0', this)">
-          v1.4.0 <span class="badge-current">ATUAL</span>
+          v1.4.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.3.1', this)">
           v1.3.1
@@ -971,12 +974,40 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.5.0 -->
+        <article class="release-card latest" data-version="v1.5.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.5.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">20 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A foto de perfil agora pode ser um GIF animado, do jeito que a rede aguenta.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Perfil que se mexe</strong>: em Configurações &gt; Conta você pode escolher um GIF animado, e ele continua animado na lista de membros, no chat, nos cartões da chamada de voz, na sua barra de perfil e no mini perfil. O diálogo de escolha já lista o formato entre as opções, e uma imagem parada continua funcionando normalmente.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>O GIF é reduzido antes de entrar no perfil</strong>: recorte central quadrado, 96 pixels e no máximo 12 quadros, com teto de 16 KB. Isso não é preciosismo — o retrato de cada pessoa viaja dentro de cada pacote de presença, para cada servidor e cada amigo, a cada batimento de dez segundos. Um GIF de meme do jeito que vem da internet custaria dezenas de vezes isso e a conta chegaria na sua conexão.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Arquivo grande demais é recusado na hora, e não depois de decodificado</strong>: o tamanho e a contagem de quadros são lidos do cabeçalho do arquivo. Antes, um GIF de 40 quadros a 700 pixels era decodificado inteiro para descobrir no fim que não cabia — treze segundos de espera por nada. Agora a recusa vem com aviso imediato, e o seu perfil fica exatamente como estava.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.4.0 -->
-        <article class="release-card latest" data-version="v1.4.0">
+        <article class="release-card" data-version="v1.4.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.4.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
+              <span class="release-badge badge-stable">Estável</span>
             </div>
             <span class="release-date">20 de Setembro de 2026</span>
           </div>
@@ -1154,7 +1185,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.4.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.5.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1728,7 +1759,7 @@
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.4.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.5.0</strong></p>
     </div>
   </footer>
 

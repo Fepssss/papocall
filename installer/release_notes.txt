@@ -1,5 +1,3 @@
-• Mini perfil: clique em alguém na lista de membros e abre o cartão com a foto, o @, o cargo que a pessoa tem naquele servidor, se ela está em algum canal de voz, quando foi vista por último e em quantos servidores de vocês os dois estão. Os botões são os que já funcionam: mensagem direta, adicionar ou remover amigo e, para quem tem permissão, gerenciar membro.
-• Foto de perfil: escolha uma imagem do seu computador em Configurações > Conta. Ela é recortada no quadrado, reduzida a 128 pixels e comprimida antes de entrar no perfil, e aparece para quem conversa com você. Dá para remover quando quiser.
-• O botão de GIF estava mandando um único endereço fixo que hoje não existe mais — por isso aparecia "[GIF não carregado]". Agora você cola o link, vê a prévia de verdade, e o envio só libera com a imagem carregando.
-• Respiro ao mandar mensagem, sem cronômetro na tela: um intervalo curto entre uma mensagem e outra e um teto para rajadas, no canal e na conversa privada. O texto continua no campo até poder sair.
-• Um arquivo escolhido por engano, que não seja uma imagem legível, agora é recusado com aviso em vez de travar no meio do caminho.
+• A foto de perfil agora pode ser um GIF animado: escolha o arquivo em Configurações > Conta e ele continua se mexendo na lista de membros, no chat, nos cartões da chamada de voz, na sua barra de perfil e no mini perfil de quem abrir o seu.
+• Como o retrato viaja dentro de cada pacote de presença, o GIF é recortado no quadrado, reduzido a 96 pixels e amostrado em até 12 quadros, com teto de 16 KB. O que não couber é recusado na hora, com aviso, e o perfil fica exatamente como estava.
+• GIFs enormes são recusados já pelo cabeçalho do arquivo, sem gastar tempo decodificando o que não ia caber.
