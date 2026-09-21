@@ -1,0 +1,68 @@
+Licenças de terceiros — PapoCall
+=================================
+
+Este arquivo acompanha a instalação e é a "documentação que acompanha a
+distribuição" que as licenças abaixo exigem. Última atualização: v1.7.0.
+
+RNNoise (filtra o ruído de fundo do microfone, compilado dentro do aplicativo)
+-----------------------------------------------------------------------------
+Direitos autorais (c) 2017, Mozilla
+Direitos autorais (c) 2007-2017, Jean-Marc Valin
+Direitos autorais (c) 2005-2017, Xiph.Org Foundation
+Direitos autorais (c) 2003-2004, Mark Borgerding
+
+Redistribuição e uso em fontes e binário, com ou sem modificação, são
+permitidos desde que as seguintes condições sejam atendidas:
+
+- Redistribuições de fonte devem manter o aviso de direitos autorais acima,
+  esta lista de condições e o disclaimer a seguir.
+
+- Redistribuições em binário devem reproduzir o aviso de direitos autorais
+  acima, esta lista de condições e o disclaimer a seguir na documentação e/ou
+  em outros materiais que acompanhem a distribuição.
+
+- Nem o nome da Xiph.Org Foundation nem o nome de colaboradores podem ser usados
+  para endossar ou promover produtos derivados deste software sem permissão
+  prévia específica por escrito.
+
+ESTE SOFTWARE É FORNECIDO "COMO ESTÁ", SEM QUALQUER GARANTIA EXPRESSA OU
+IMPLÍCITA, INCLUINDO, SEM LIMITAÇÃO, AS GARANTIAS IMPLÍCITAS DE COMERCIALIZAÇÃO
+E ADEQUAÇÃO A UM DETERMINADO FIM. EM NENHUMA HIPÓTESE A FUNDAÇÃO OU OS
+COLABORADORES SERÃO RESPONSÁVEIS POR QUAISQUER DANOS DIRETOS, INDIRETOS,
+INCIDENTAIS, ESPECIAIS, EXEMPLARES OU CONSEQUENCIAIS (INCLUINDO, MAS NÃO SE
+LIMITANDO A, AQUISIÇÃO DE BENS OU SERVIÇOS SUBSTITUTOS; PERDA DE USO, DADOS OU
+LUCROS; OU INTERRUPÇÃO DE ATIVIDADE) CAUSADOS POR QUALQUER TEORIA DE
+RESPONSABILIDADE, SEJA EM CONTRATO, RESPONSABILIDADE OBJETIVA OU ATO ILÍCITO
+(INCLUINDO NEGLIGÊNCIA OU OUTROS), DECORRENTES DO USO DESTE SOFTWARE, AINDA QUE
+AVISADOS DA POSSIBILIDADE DE TAIS DANOS.
+
+Licença: BSD-3-cláusulas. O que o PapoCall usa é a versão 0.1.1 do repositório
+https://github.com/xiph/rnnoise, que traz o modelo dentro do fonte. Este trabalho
+inclui software derivado do RNNoise, com alterações para compilar no MSVC (três
+arrays de tamanho variável trocados por dimensão fixa), e o filtro de reamostragem
+em torno dele é nosso.
+
+WebRTC / libwebrtc (o motor de voz e tela)
+------------------------------------------
+Direitos autorais (c) 2011, Google Inc.; (c) 1994-2006, Sun Microsystems Inc.;
+demais detentores listados no LICENSE do pacote. Licença BSD-3-cláusulas,
+https://webrtc.org. O binário empacotado aqui vem da distribuição
+https://github.com/webrtc-sdk/libwebrtc (tag m150.7871.02).
+
+flutter_webrtc (a ponte Flutter <-> WebRTC, que também traz o RNNoise acima)
+-----------------------------------------------------------------------------
+Direitos autorais (c) 2018, Flutter-webrtc community. Licença BSD-3-cláusulas.
+Este projeto usa uma cópia própria e modificada do pacote; o que foi alterado
+está descrito em flutter_app/third_party/flutter_webrtc/PATCHES.md.
+
+LiveKit Client para Dart
+------------------------
+Direitos autorais (c) 2021, LiveKit Inc. Licença Apache-2.0,
+https://github.com/livekit/client-sdk-flutter.
+
+Flutter SDK
+-----------
+Direitos autorais 2014 The Flutter Authors. Licença BSD-3-cláusulas,
+https://flutter.dev. O runtime do Flutter (flutter_windows.dll) e os pacotes que
+ele puxa são distribuídos com este aplicativo sob suas próprias licenças, que
+acompanham o SDK.

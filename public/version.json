@@ -1,8 +1,8 @@
 {
-    "version":  "1.6.0",
+    "version":  "1.7.0",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "96abcbbfcf525ddbc1c8e2cf38be97bafc2fde27295836153d65d31d9d65bfd7",
-    "sizeBytes":  18265756,
-    "notes":  "• O microfone ganhou quatro controles: em Configurações → Voz e Áudio agora dá para ligar e desligar, um por um, o cancelamento de eco, o ganho automático, a supressão de ruído e o filtro passa-altas. Essas são as quatro chaves de processamento que o Windows realmente aplica no áudio que sai do seu aparelho — as outras opções do motor não passam do caminho nativo no desktop, e por isso não têm botão.\n• Ninguém acorda com a voz diferente: os três controles que não tinham interface começam exatamente como o Windows já aplicava sozinho (eco ligado, ganho ligado, passa-altas desligado).\n• Se a sua voz soar apertada, oca ou com cara de rádio para os outros, agora dá para tirar um processador por vez e ouvir a diferença. Com fone no ouvido, o cancelamento de eco quase sempre sobra; e ganho automático é o que mais comprime a voz quando trabalha demais. Vale mudar no meio da conversa: a faixa do microfone é recriada na hora.",
-    "publishedAt":  "2026-09-21T16:45:37Z"
+    "sha256":  "f036077968baf59cd2cb948d6a45cce3419a8f74e95bc0b18e9e3c17a2dbe47d",
+    "sizeBytes":  18366496,
+    "notes":  "• O microfone ganhou um cancelamento de ruído por rede neural: em Configurações → Voz e Áudio, a opção \"Cancelamento de ruído por rede neural (RNNoise)\" filtra o fundo de ruído com um modelo pequeno treinado para voz, dentro do próprio caminho de captura — antes do áudio virar faixa publicada, não depois de comprimido. Ao ligar, a supressão de ruído comum se desliga sozinha, porque dois filtros em série mastigam a fala.\n• Ele trabalha onde o áudio realmente está: a captura chega a 16 kHz, e o modelo só entende 48 kHz, então o filtro estica, filtra e enxuga o quadro de volta, na thread de áudio, sem alocação e sem fila extra. O custo é uma fração do tempo de um quadro.\n• Se a máquina não aceitar o filtro, ele não finge: o áudio passa intacto, a própria linha diz que não está filtrando nada ali, e o cancelamento de ruído de antes continua no comando. A escolha fica guardada e volta sozinha quando você entra numa sala.",
+    "publishedAt":  "2026-09-21T19:25:18Z"
 }

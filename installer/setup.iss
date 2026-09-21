@@ -58,6 +58,10 @@ Source: "..\flutter_app\build\windows\x64\runner\Release\papocall.exe"; DestName
 Source: "..\flutter_app\build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\flutter_app\build\windows\x64\runner\Release\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\assets\icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
+; O RNNoise compilado dentro do aplicativo está sob BSD-3, que pede que o aviso
+; de direitos autorais acompanhe a distribuição em binário. É o que este arquivo
+; faz aqui, e no mesmo endereço público: https://papocall.vercel.app/licencas.txt
+Source: "..\public\licencas.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\assets\icon.ico"

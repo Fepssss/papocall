@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.6.0</span>
+        <span class="version-tag">v1.7.0</span>
       </a>
 
       <nav class="nav-links">
@@ -733,7 +733,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.6.0
+          Baixar v1.7.0
         </a>
       </div>
     </div>
@@ -759,7 +759,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.6.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
+          Versão Oficial 1.7.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -770,7 +770,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.6.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.7.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -897,8 +897,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.7.0', this)">
+          v1.7.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.6.0', this)">
-          v1.6.0 <span class="badge-current">ATUAL</span>
+          v1.6.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.5.2', this)">
           v1.5.2
@@ -983,12 +986,43 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.7.0 -->
+        <article class="release-card latest" data-version="v1.7.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.7.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">21 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O microfone passou a poder filtrar o ruído com uma rede neural treinada para voz, dentro do próprio caminho de captura.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>RNNoise no microfone</strong>: em Configurações → Voz e Áudio, a opção &quot;Cancelamento de ruído por rede neural (RNNoise)&quot; troca o filtro comum por um modelo pequeno do Xiph (BSD-3), que trabalha no quadro de áudio cru, antes de ele virar faixa publicada — não sobre o áudio já comprimido. Ele é treinado para calcular a chance de cada pedaço do quadro ser fala, e por isso ataca o fundo (ventilador, teclado, rua) em vez de abaixar o microfone inteiro nos intervalos da fala. Ao ligar, a supressão de ruído comum se desliga sozinha: dois filtros em série mastigam a fala.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Trabalha na taxa em que o áudio chega</strong>: a captura no Windows chega a 16 kHz e o modelo só entende 48 kHz, então o filtro estica o quadro, filtra e enxuga de volta pela média das amostras — tudo dentro do próprio quadro de 10 ms, na thread de áudio, sem reserva de memória por quadro, sem fila e sem espera extra. Medimos o caminho de ponta a ponta para achar as taxas; o custo do modelo em si ainda está sendo medido com o aplicativo em chamada.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Se a máquina recusar, ele avisa em vez de fingir</strong>: quando o filtro não pode ser montado, o áudio passa intacto, a própria linha diz que não está filtrando nada ali, e a supressão de ruído de antes continua no comando. A escolha fica guardada e volta sozinha quando você entra numa sala.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">NOTA</span>
+              <span><strong>O que ele não faz</strong>: RNNoise tira ruído, não devolve agudo. Medimos a sua captura e a voz já sobe sem energia acima de ~2 kHz — o que limita isso é o microfone e o formato de gravação do Windows (deixe em 48000 Hz em Configurações → Sistema → Som → Propriedades de entrada), não o software de conversa.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.6.0 -->
-        <article class="release-card latest" data-version="v1.6.0">
+        <article class="release-card" data-version="v1.6.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.6.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">21 de Setembro de 2026</span>
           </div>
@@ -1276,7 +1310,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.6.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.7.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1848,9 +1882,10 @@
         <a href="#features">Recursos</a>
         <a href="#changelog">Changelog</a>
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
+        <a href="licencas.txt">Licenças de terceiros</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.6.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.7.0</strong></p>
     </div>
   </footer>
 
