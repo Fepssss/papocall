@@ -29,7 +29,6 @@ add_library(${PLUGIN_NAME} SHARED
   "../common/cpp/src/flutter_screen_capture.cc"
   "../common/cpp/src/flutter_webrtc.cc"
   "../common/cpp/src/flutter_webrtc_base.cc"
-  "../common/cpp/src/flutter_audio_probe.cc"
   "../common/cpp/src/flutter_rnnoise.cc"
   "application_loopback_capturer.cc"
   "loopback_capturer_factory.cc"

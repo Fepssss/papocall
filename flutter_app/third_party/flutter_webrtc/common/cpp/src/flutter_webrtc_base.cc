@@ -2,7 +2,6 @@
 
 #include "flutter_data_channel.h"
 #include "flutter_peerconnection.h"
-#include "flutter_audio_probe.h"
 
 #include <vector>
 
@@ -85,11 +84,6 @@ void FlutterWebRTCBase::EnsureWebRTCInitialized(bool enable_warp,
   video_device_ = factory_->GetVideoDevice();
   desktop_device_ = factory_->GetDesktopDevice();
   audio_processing_ = factory_->GetAudioProcessing();
-#if defined(_WIN32)
-  // Só mede, e só quando a marca existe no diretório temporário: sem ela o
-  // caminho de áudio continua o do pub. Ver flutter_audio_probe.cc.
-  MaybeInstallAudioProbe(audio_processing_.get());
-#endif
 
   audio_device_->OnDeviceChange([&] {
     EncodableMap info;

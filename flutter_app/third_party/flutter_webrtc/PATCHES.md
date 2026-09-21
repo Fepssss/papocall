@@ -29,74 +29,59 @@ Tudo o mais é byte por byte igual ao pacote do pub. Para conferir:
     diff -rq "$LOCALAPPDATA/Pub/Cache/hosted/pub.dev/flutter_webrtc-1.6.2+hotfix.3" \
         third_party/flutter_webrtc
 
-### Sonda de captura (diagnóstico)
+O modelo vem junto como fonte (`third_party/rnnoise`, Xiph, tag **v0.1.1** — a última com o
+modelo compilado dentro; de v0.2 em diante ele é baixado à parte, o que não serve para uma
+build reprodutível).
 
 | Arquivo | Mudança |
 | --- | --- |
-| `common/cpp/include/flutter_audio_probe.h` | **novo** — declara `MaybeInstallAudioProbe` |
-| `common/cpp/src/flutter_audio_probe.cc` | **novo** — mede o quadro de áudio sem tocá-lo |
-| `common/cpp/src/flutter_webrtc_base.cc` | `#include` + chamada a `MaybeInstallAudioProbe(audio_processing_.get())` sob `#if defined(_WIN32)`, logo depois de a fábrica entregar o APM |
-| `windows/CMakeLists.txt` | adiciona `flutter_audio_probe.cc` à lista de fontes |
-
-### RNNoise no microfone
-
-O modelo vem junto como fonte (`third_party/rnnoise`, Xiph, tag **v0.1.1** — a última
-com o modelo compilado dentro; de v0.2 em diante ele é baixado à parte). Cinco arquivos,
-todos com a razão de ser escrita neles:
-
-| Arquivo | Mudança |
-| --- | --- |
-| `third_party/rnnoise/` | **novo** — fontes do RNNoise v0.1.1 + COPYING/AUTHORS, sem `example/` nem scripts de treino |
+| `third_party/rnnoise/` | **novo** — fontes do RNNoise v0.1.1 + `COPYING`/`AUTHORS`, sem `example/` nem scripts de treino |
 | `third_party/rnnoise/src/pitch.c`, `src/celt_lpc.c` | **três VLAs trocadas por dimensão fixa**: o MSVC não compila array de tamanho variável (C99). As dimensões têm folga sobre o que o RNNoise pede (`len` 960, `max_pitch` 588, `maxperiod` 768) |
 | `common/cpp/include/flutter_rnnoise.h`, `common/cpp/src/flutter_rnnoise.cc` | **novo** — o `CustomProcessing` que estica 16 kHz → 48 kHz, filtra, e enxuga de volta |
 | `common/cpp/src/flutter_webrtc.cc` | método `setNeuralNoiseSuppression`, devolvendo se a máquina aceitou o filtro |
 | `lib/src/helper.dart` | `Helper.setNeuralNoiseSuppression(bool)` |
-| `windows/CMakeLists.txt` | `papocall_rnnoise` como estática de C (`/W0`, `_USE_MATH_DEFINES`), ligada ao plugin |
+| `windows/CMakeLists.txt` | `flutter_rnnoise.cc` na lista de fontes + `papocall_rnnoise` como estática de C (`/W0`, `_USE_MATH_DEFINES`), ligada ao plugin |
 
 O filtro fica instalado para o processo inteiro e decide por dentro se filtra. Desinstalá-lo
 passando `nullptr` não é opção: o adaptador do libwebrtc chama `Initialize()` no ponteiro que
 recebe sempre que a captura já está de pé, e um nulo ali seria dereferência na thread de áudio.
 
-### A sonda
+## O que a medição anterior estabeleceu (e por que a sonda saiu)
 
-Não altera áudio nenhum. Instala-se apenas se existir `%TEMP%\papocall_audio_probe.on`, e enquanto
-ela roda mede os dois lados da chamada — `SetCapturePostProcessing` (o microfone antes de virar
-faixa publicada) e `SetRenderPreProcessing` (o que chegou dos outros antes de sair no alto-falante)
-—, escrevendo no diretório temporário, por lado (`captura`, `reproducao`):
+Este fork já carregou uma sonda que media o quadro de áudio sem tocá-lo, ligada por um arquivo
+de marca no diretório temporário. Ela respondeu três coisas que nenhuma documentação respondia,
+e o filtro foi desenhado em cima delas:
 
-- `papocall_audio_<lado>.f32` — o PCM bruto que o APM entregou (float 32 little-endian), para
-  comparar com e sem filtro e para medir a largura de banda que realmente chegou;
-- `papocall_audio_<lado>.txt` — reescrito a cada 5 s: taxa, canais, `num_bands`, `buffer_size`,
-  contagem de quadros, **pico de amplitude** (é o que responde se o caminho entrega em ±1 ou na
-  escala de ±32768 que o RNNoise espera), **rms**, **amostras recortadas** (o ceifamento que
-  "som de tv de tubo" costuma ser), e o tempo médio/pior por quadro em µs.
+- a captura chega a **16 kHz, mono, 160 amostras por quadro de 10 ms** — daí o reamostrador;
+- os floats vêm na **escala de short (±32768)** — pico medido 31073 numa fala normal. A
+  documentação do `webrtc::CustomProcessing` diz ±1; quem acreditasse nela multiplicaria por
+  32768 e entregaria o microfone ceifado. Por isso não há conversão de escala no filtro;
+- o custo do callback vazio é de **~1 µs por quadro** (pior 19 µs). A sonda também mostrou o que
+  não se deve fazer ahí: abrir arquivo na thread de áudio emperrava um quadro em 85 ms na captura
+  e ~1 s na reprodução.
 
-Para desligar, apaga-se a marca e reinicia-se o app. O despejo tem teto de 60 s por lado porque
-isto vai dentro de um build publicado.
-
-### Comparando a qualidade do filtro com a sonda
-
-Os dois disputam o **mesmo slot**: quem chamar `SetCapturePostProcessing` por último fica com ele,
-então ligar o RNNoise desinstala a sonda. Hoje isso dá a comparação *entre execuções* (sonda com
-RNNoise desligado, duas vezes, mudando só as quatro chaves), mas não a entrada e a saída do filtro
-na mesma passada — para isso teria de instrumentar o próprio `flutter_rnnoise.cc`.
+Foi retirada em setembro de 2026 porque não servia para o que veio depois: a sonda e o filtro
+disputam o **mesmo slot** (`SetCapturePostProcessing`), então medir o custo do RNNoise com ela
+instalaria um no lugar do outro. Para esse número, o lugar certo é um contador dentro do próprio
+`flutter_rnnoise.cc`, e ele não existe ainda. Quem precisar medir de novo o caminho de áudio
+recria a sonda a partir do histórico deste diretório no Git.
 
 ## Como reaplicar em um upgrade do pacote
 
 1. Trocar a versão no `pubspec.yaml` e rodar `flutter pub get` para baixar o pacote novo.
 2. Copiar o pacote novo por cima desta pasta, **menos** `example/`, `.github/` e o conteúdo de
    `third_party/libwebrtc/` e `third_party/downloads/` (binários baixados pelo CMake, fora do Git).
-3. Reaplicar os quatro itens da tabela: os dois arquivos novos são autocontidos; nas mudanças em
-   `flutter_webrtc_base.cc` procure por `MaybeInstallAudioProbe` e em `windows/CMakeLists.txt` por
-   `flutter_audio_probe.cc`.
-4. `flutter build windows --release` e conferir com o `diff -rq` acima que só restam essas quatro
+3. Reaplicar as seis linhas da tabela: os arquivos novos são autocontidos; em
+   `flutter_webrtc.cc` procure por `setNeuralNoiseSuppression`, em `lib/src/helper.dart` por
+   `setNeuralNoiseSuppression` e em `windows/CMakeLists.txt` por `rnnoise`.
+4. `flutter build windows --release` e conferir com o `diff -rq` acima que só restam essas
    diferenças.
-
-Se o `libwebrtc_version.ini` mudar de major (m150 → m1xx), conferir no repositório do
-`webrtc-sdk/libwebrtc` se `SetCapturePostProcessing` e a assinatura de `Process` continuam as
-mesmas antes de assumir que o patch ainda vale.
+5. Se o `libwebrtc_version.ini` mudou de major (m150 → m1xx), conferir no repositório do
+   `webrtc-sdk/libwebrtc` se `SetCapturePostProcessing` e a assinatura de `Process` continuam as
+   mesmas antes de assumir que o patch ainda vale.
 
 ## Licenças
 
 Este diretório mantém a licença BSD-3 do original (`LICENSE`, `NOTICE` do pacote). O que for
-adicionado aqui precisa continuar compatível com isso — RNNoise, do Xiph, é BSD-3 e é.
+adicionado aqui precisa continuar compatível com isso — RNNoise, do Xiph, é BSD-3, e o aviso que
+acompanha a distribuição em binário está em `../../../../public/licencas.txt`.
