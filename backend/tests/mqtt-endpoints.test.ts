@@ -71,6 +71,32 @@ async function grantsDe(userId: string, kind?: string) {
   });
 }
 
+// O servidor e o banco vivem pelo arquivo inteiro, não por um describe: os três
+// grupos abaixo falam todos com a mesma instância, e fechar a porta no `after` do
+// primeiro cancelava os testes dos outros dois com
+// "test did not finish before its parent and was cancelled".
+before(async () => {
+  server = app.listen(0);
+  const endereco = server.address() as AddressInfo;
+  baseUrl = `http://127.0.0.1:${endereco.port}`;
+
+  contasReaisAntes = await contarContasReais();
+  await limparFixtures();
+});
+
+after(async () => {
+  const contasReaisDepois = await contarContasReais();
+  await prisma.$disconnect();
+  server.close();
+  if (contasReaisDepois !== contasReaisAntes) {
+    throw new Error(
+      `Esta suíte alterou contas reais (${contasReaisAntes} -> ${contasReaisDepois}). ` +
+        'Nada aqui pode tocar em linha fora do domínio de fixture.'
+    );
+  }
+  await limparFixtures();
+});
+
 describe('11. POST /mqtt/credentials', () => {
   let token: string;
   let userId: string;
@@ -78,13 +104,6 @@ describe('11. POST /mqtt/credentials', () => {
   let refreshToken: string;
 
   before(async () => {
-    server = app.listen(0);
-    const endereco = server.address() as AddressInfo;
-    baseUrl = `http://127.0.0.1:${endereco.port}`;
-
-    contasReaisAntes = await contarContasReais();
-    await limparFixtures();
-
     const registro = await chamar('POST', '/auth/register', {
       email: 'credencial@papocall.test',
       username: '@credencial_teste',
@@ -96,19 +115,6 @@ describe('11. POST /mqtt/credentials', () => {
     refreshToken = registro.body.data.refreshToken;
     userId = registro.body.data.user.id as string;
     accessToken = token;
-  });
-
-  after(async () => {
-    const contasReaisDepois = await contarContasReais();
-    await prisma.$disconnect();
-    server.close();
-    if (contasReaisDepois !== contasReaisAntes) {
-      throw new Error(
-        `Esta suíte alterou contas reais (${contasReaisAntes} -> ${contasReaisDepois}). ` +
-          'Nada aqui pode tocar em linha fora do domínio de fixture.'
-      );
-    }
-    await limparFixtures();
   });
 
   it('exige sessão autenticada', async () => {
