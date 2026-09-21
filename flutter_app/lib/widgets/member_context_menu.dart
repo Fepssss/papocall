@@ -5,6 +5,8 @@ import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
+import 'member_profile_card.dart';
+import 'modals/add_friend_dialog.dart';
 
 /// Menu do botão direito sobre um membro da lista lateral.
 ///
@@ -324,6 +326,174 @@ class _MemberMenuItemState extends State<_MemberMenuItem> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Menu do botão direito sobre um participante da chamada de voz.
+///
+/// A lista lateral de membros já tinha menu, mas ele só abria para quem pode
+/// gerenciar alguém — para o resto das pessoas o botão direito na call não fazia
+/// nada. Aqui a ação principal é humana: ver quem é a pessoa e chamar no
+/// particular.
+///
+/// Só entra linha que o aplicativo tem de verdade. Nota de amigo, apelido,
+/// bloquear/ignorar, volume por participante e silenciar o microfone do outro não
+/// existem no PapoCall; um item que não faz nada dentro de um menu de contexto é
+/// a mesma coisa que um botão morto na tela.
+class VoiceMemberMenu {
+  static const double _menuWidth = 236;
+
+  static Future<void> show(
+    BuildContext context,
+    Server server,
+    UserModel member,
+    Offset globalPosition,
+  ) {
+    final state = context.read<AppState>();
+    // Não existe ação minha sobre mim mesmo neste menu: o que se faz consigo é
+    // pelos controles da própria chamada.
+    if (member.id == state.currentUser.id) return Future.value();
+
+    return showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Opções de ${member.displayNameOrUsername}',
+      barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      pageBuilder: (ctx, _, _) => _VoiceMemberMenu(
+        parentContext: context,
+        server: server,
+        member: member,
+        anchor: globalPosition,
+      ),
+    );
+  }
+}
+
+class _VoiceMemberMenu extends StatelessWidget {
+  const _VoiceMemberMenu({
+    required this.parentContext,
+    required this.server,
+    required this.member,
+    required this.anchor,
+  });
+
+  final BuildContext parentContext;
+  final Server server;
+  final UserModel member;
+  final Offset anchor;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final ehAmigo = state.friends.any((f) => f.id == member.id);
+    final podeGerir = !server.isOwnedBy(member.id) &&
+        (state.can(server.id, Permissions.manageRoles) ||
+            state.can(server.id, Permissions.kickMembers));
+
+    final rows = <Widget>[
+      _MemberMenuItem(
+        label: 'Perfil',
+        color: HudTheme.textNormal,
+        icon: Icons.badge_outlined,
+        onTap: () {
+          Navigator.of(context).pop();
+          MemberProfileCard.show(parentContext, server, member, anchor);
+        },
+      ),
+      if (ehAmigo)
+        _MemberMenuItem(
+          label: 'Mensagem direta',
+          color: HudTheme.green,
+          icon: Icons.forum_outlined,
+          onTap: () {
+            Navigator.of(context).pop();
+            state.openDirectChat(member.id);
+          },
+        )
+      else
+        _MemberMenuItem(
+          label: 'Adicionar amigo',
+          color: HudTheme.green,
+          icon: Icons.person_add_alt_1,
+          onTap: () {
+            Navigator.of(context).pop();
+            AddFriendDialog.show(parentContext, handleInicial: member.username);
+          },
+        ),
+      if (podeGerir) ...[
+        const _MemberMenuDivider(),
+        _MemberMenuItem(
+          label: 'Gerenciar membro',
+          color: HudTheme.accent,
+          icon: Icons.tune_rounded,
+          onTap: () {
+            Navigator.of(context).pop();
+            // O menu de gestão já sabe o que a permissão permite; este não
+            // duplica essa regra.
+            MemberContextMenu.show(parentContext, server, member, anchor);
+          },
+        ),
+      ],
+    ];
+
+    final altura = (30 + rows.length * 32 + 16).toDouble();
+    final tela = MediaQuery.of(context).size;
+    var dx = anchor.dx;
+    var dy = anchor.dy;
+    if (dx + VoiceMemberMenu._menuWidth + 8 > tela.width) {
+      dx = tela.width - VoiceMemberMenu._menuWidth - 8;
+    }
+    if (dy + altura + 8 > tela.height) dy = tela.height - altura - 8;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned(
+          left: dx < 8 ? 8 : dx,
+          top: dy < 8 ? 8 : dy,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: VoiceMemberMenu._menuWidth,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: HudTheme.bgSidebar,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: HudTheme.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                    child: Text(
+                      member.displayNameOrUsername,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: HudTheme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  ...rows,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

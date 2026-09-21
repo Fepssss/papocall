@@ -844,6 +844,11 @@ class _HomePageViewState extends State<HomePageView> {
               itemBuilder: (context, index) {
                 final friend = friends[index];
                 final inCall = friend.currentVoiceChannelId != null;
+                // O atalho só entra na call de um canal que é meu. Um amigo pode
+                // estar em servidor que eu nunca vi, e o id do canal dele é o nome
+                // da sala no LiveKit — oferecer o botão seria oferecer a porta.
+                final podeEntrarNaCall =
+                    inCall && state.servidorDoCanal(friend.currentVoiceChannelId) != null;
                 final isOffline = friend.status == UserStatus.offline;
 
                 Color statusBadgeColor;
@@ -945,7 +950,7 @@ class _HomePageViewState extends State<HomePageView> {
                         ),
 
                         // Ações Rápidas
-                        if (inCall)
+                        if (podeEntrarNaCall)
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: HudTheme.green,

@@ -3850,12 +3850,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// O servidor cujo catálogo contém este canal — ou `null` se nenhum dos meus
+  /// servidores o tem.
+  ///
+  /// É a checagem de participação que a interface precisava: a presença de um amigo
+  /// traz o id do canal em que ele está, e o id do canal é o nome da sala no
+  /// LiveKit. Sem perguntar "esse canal é meu?", qualquer presença de amigo vira
+  /// convite para entrar e ouvir.
+  Server? servidorDoCanal(String? canalId) {
+    if (canalId == null || canalId.isEmpty) return null;
+    for (final srv in servers) {
+      if (srv.channels.any((c) => c.id == canalId)) return srv;
+    }
+    return null;
+  }
+
   /// Entra num canal de voz e devolve o motivo quando não conseguiu, para o
   /// chamador mostrar na tela. Sem isso a falha era silenciosa: o ícone
   /// simplesmente voltava para o estado desconectado.
   Future<String?> connectVoice(String channelId) async {
     if (isConnectingVoice) return null;
     if (connectedVoiceChannelId == channelId) return null;
+
+    // Só se entra no canal de voz de um servidor em que se está. O nome da sala no
+    // LiveKit é o id do canal e o backend assina token para qualquer sala, então
+    // sem esta guarda bastava conhecer o id de um canal alheio — a presença de um
+    // amigo entrega o dele — para ouvir a conversa de gente que não te chamou.
+    if (servidorDoCanal(channelId) == null) {
+      return 'Você não faz parte do servidor desse canal de voz.';
+    }
 
     isConnectingVoice = true;
     voiceErrorMessage = null;

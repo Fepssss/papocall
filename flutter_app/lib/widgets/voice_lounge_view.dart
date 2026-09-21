@@ -8,6 +8,7 @@ import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
 import 'acao_compartilhar_tela.dart';
+import 'member_context_menu.dart';
 import 'anel_de_fala.dart';
 import 'modals/live_settings_dialog.dart';
 import 'retrato_usuario.dart';
@@ -493,7 +494,8 @@ class VoiceLoungeView extends StatelessWidget {
         itemBuilder: (context, index) {
           final user = channelMembers[index];
           final isSelf = user.id == state.currentUser.id;
-          return Container(
+          final servidor = state.servidorDoCanal(state.connectedVoiceChannelId);
+          final pill = Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: HudTheme.bgChat,
@@ -534,6 +536,19 @@ class VoiceLoungeView extends StatelessWidget {
                 ],
               ],
             ),
+          );
+          // Botão direito no nome de quem está na sala. Sem isto o único menu de
+          // membro do aplicativo vivia na lista lateral e só abria para quem pode
+          // gerenciar alguém — na chamada, o clique direito não fazia nada.
+          if (isSelf || servidor == null) return pill;
+          return GestureDetector(
+            onSecondaryTapUp: (detalhes) => VoiceMemberMenu.show(
+              context,
+              servidor,
+              user,
+              detalhes.globalPosition,
+            ),
+            child: pill,
           );
         },
       ),
@@ -935,12 +950,31 @@ class _ParticipantCardState extends State<_ParticipantCard> {
                         const Icon(Icons.graphic_eq, color: HudTheme.green, size: 14),
                         const SizedBox(width: 6),
                       ],
-                      Text(
-                        widget.isSelf ? '${user.username} (Você)' : user.username,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      GestureDetector(
+                        // O mesmo menu da faixa de participantes, agora no cartão
+                        // de vídeo: é onde o nome da pessoa aparece quando ela está
+                        // em teatro ou tela cheia.
+                        onSecondaryTapUp: widget.isSelf
+                            ? null
+                            : (detalhes) {
+                                final state = context.read<AppState>();
+                                final servidor =
+                                    state.servidorDoCanal(state.connectedVoiceChannelId);
+                                if (servidor == null) return;
+                                VoiceMemberMenu.show(
+                                  context,
+                                  servidor,
+                                  user,
+                                  detalhes.globalPosition,
+                                );
+                              },
+                        child: Text(
+                          widget.isSelf ? '${user.username} (Você)' : user.username,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
