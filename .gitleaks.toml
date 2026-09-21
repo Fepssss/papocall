@@ -1,0 +1,56 @@
+# Configuração do gitleaks para o PapoCall
+#
+# Por que este arquivo existe: a varredura de fábrica, nos 79 commits deste
+# histórico, não achou nada — e um secret da LiveKit de 43 caracteres está lá no
+# commit fe394eb, escrito como string solta dentro de um teste. As regras padrão
+# não conhecem o formato de credencial da LiveKit Cloud, então o portão que se
+# supunha ligado estava cego para o único vazamento que aconteceu de verdade.
+#
+# `useDefault = true` é o que mantém as ~150 regras de fábrica. Sem essa linha,
+# declarar `[[rules]]` aqui derruba todas elas e o scan passa a valer menos que
+# antes — armadilha documentada no README do gitleaks, e o tipo de "melhora" que
+# piora a segurança sem ninguém perceber.
+#
+# LIMITE HONESTO DESTA CONFIG: as duas regras abaixo só disparam quando o valor
+# vem rotulado (`LIVEKIT_API_SECRET=…`, `LIVEKIT_API_KEY=…`) ou no formato de
+# identificador `AP…`. Foi justamente o caso do vazamento de `fe394eb`: o secret
+# estava solto, dentro de um `content.includes('…')`, sem nada ao lado indicando
+# o que era — e nem a regra abaixo nem nenhuma regex genérica de alta entropia
+# pega isso sem virar chuva de falso positivo num repositório que tem um plugin
+# C++ vendorizado dentro. Quem cobre esse caso é o teste de árvore em
+# `backend/tests/security.test.ts`, que conhece os prefixos das credenciais
+# *deste* projeto e não precisa adivinhar nada.
+
+title = "Gitleaks do PapoCall"
+
+[extend]
+useDefault = true
+
+# ------------------------------------------------------------------------------
+# Credencial da LiveKit Cloud atribuída em arquivo
+# ------------------------------------------------------------------------------
+[[rules]]
+id = "livekit-api-credential"
+description = "API key ou secret da LiveKit Cloud atribuído no código"
+regex = '''(?i)LIVEKIT_API_(KEY|SECRET)\s*[=:]\s*["']?([A-Za-z0-9_\-]{16,})["']?'''
+secretGroup = 2
+keywords = ["livekit_api_key", "livekit_api_secret"]
+
+# Os placeholders documentados em `.env.example` têm exatamente a forma que a
+# regra procura — `your_api_key_here` tem 17 caracteres. Sem suprimi-los, todo
+# commit que encosta num exemplo de ambiente fica vermelho, e o próximo
+# desenvolvimento passa a ignorar o aviso.
+[[rules.allowlists]]
+stopwords = ["your_api_key_here", "your_api_secret_here"]
+
+# ------------------------------------------------------------------------------
+# O formato do identificador de chave da LiveKit Cloud
+# ------------------------------------------------------------------------------
+# "AP" + 18 a 40 alfanuméricos. O identificador sozinho não forja token — o que
+# vale é o secret — mas ele não tem o que fazer em código-fonte, então disparar
+# aqui é sempre uma pergunta válida.
+[[rules]]
+id = "livekit-api-key-id"
+description = "Identificador de API key da LiveKit Cloud (AP…)"
+regex = '''\bAP[A-Za-z0-9]{18,40}\b'''
+keywords = ["AP"]

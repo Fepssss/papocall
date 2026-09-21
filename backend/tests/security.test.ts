@@ -1,7 +1,70 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+
+/**
+ * Famílias de credencial que este projeto já usou na LiveKit Cloud.
+ *
+ * Só o prefixo de 8 caracteres entra aqui de propósito: ele não forja token
+ * nenhum, e é o que permite procurar o valor inteiro sem ter que copiá-lo para
+ * dentro de um teste — que era exatamente como o `fe394eb` vazar um secret de 43
+ * caracteres. Ver `project-secret-exposto-historico` na memória do projeto.
+ */
+const FAMILIAS_CONHECIDAS = ['APInwQYa', 'APIdzjus', 'MEvhqw63'];
+
+/**
+ * A partir daqui um prefixo deixou de ser o prefixo documentado e passou a ser
+ * um valor real: as chaves da LiveKit têm 20 e os secrets ~43 caracteres.
+ */
+const COMPRIMENTO_DE_VALOR = 16;
+
+describe('8. Nenhuma credencial inteira no que está versionado', () => {
+  const raizDoRepositorio = path.resolve(__dirname, '..', '..');
+
+  it('nenhum arquivo versionado carrega o valor completo de uma credencial conhecida', () => {
+    // `git ls-files` lista o índice, não a história: funciona com checkout rasa,
+    // que é o que o CI usa. Uma lista vazia é falha, não sucesso — senão o teste
+    // passaria por não ter varrido nada.
+    const saida = execFileSync('git', ['ls-files','-z'], { cwd: raizDoRepositorio, encoding: 'utf8' });
+    const arquivos = saida.split('\0').filter(Boolean);
+    assert.ok(arquivos.length > 100, `esperava varrer os arquivos versionados, vieram ${arquivos.length}`);
+
+    const encontrados: string[] = [];
+
+    for (const relativo of arquivos) {
+      const absoluto = path.join(raizDoRepositorio, relativo);
+      let conteudo: string;
+      try {
+        // latin1 porque aqui o que importa é achar ASCII dentro de qualquer
+        // arquivo; decodificar UTF-8 de um binário daria erro antes disso.
+        conteudo = fs.readFileSync(absoluto, 'latin1');
+      } catch {
+        continue; // submódulo ausente ou link quebrado: nada a varrer
+      }
+
+      conteudo.split('\n').forEach((linha, indice) => {
+        for (const bruto of linha.match(/[A-Za-z0-9_-]+/g) ?? []) {
+          for (const familia of FAMILIAS_CONHECIDAS) {
+            if (bruto.startsWith(familia) && bruto.length >= COMPRIMENTO_DE_VALOR) {
+              encontrados.push(`${relativo}:${indice + 1} → família ${familia}… com ${bruto.length} caracteres`);
+            }
+          }
+        }
+      });
+    }
+
+    assert.deepEqual(
+      encontrados,
+      [],
+      'Um valor de credencial está versionado. O arquivo continua no disco depois ' +
+        'do commit, então o que resolve é revogar a credencial no painel da LiveKit ' +
+        '— apagar a linha não desfaz o que já foi publicado.'
+    );
+  });
+});
+
 
 describe('7. Salvaguardas de Seguranca e Sanitizacao de Arquivos de Exemplo', () => {
   const rootExamplePath = path.resolve(__dirname, '../../.env.example');

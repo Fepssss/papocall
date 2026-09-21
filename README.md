@@ -126,6 +126,26 @@ motivo histórico de nunca rodar a suíte contra o banco de produção, está em
 [`.github/workflows/`](.github/workflows), e o Dependabot em
 [`.github/dependabot.yml`](.github/dependabot.yml).
 
+### Credencial que não pode vazar
+
+Três camadas, cada uma pegando o que a outra não vê:
+
+- `backend/tests/security.test.ts` varre **tudo que está versionado** atrás do
+  valor inteiro das credenciais que este projeto já usou. É a que pega secret
+  solto dentro de arquivo de código, o formato que realmente vazou uma vez.
+- [`.gitleaks.toml`](.gitleaks.toml) ensina o gitleaks — que de fábrica é cego ao
+  formato da LiveKit Cloud — a reconhecer credencial atribuída em arquivo, e roda
+  em cada PR e push, e no `pre-commit` do git desta máquina.
+- O job `Varredura do histórico inteiro` roda semanalmente (e sob
+  `workflow_dispatch`) sobre os commits antigos. É o único que enxerga o que já
+  está enterrado na história: `git log` não mente para quem clona.
+
+Para rodar a varredura de história localmente:
+
+```bash
+gitleaks detect --source . --config .gitleaks.toml --log-opts=--all --redact
+```
+
 ---
 
 ## 📜 Licença
