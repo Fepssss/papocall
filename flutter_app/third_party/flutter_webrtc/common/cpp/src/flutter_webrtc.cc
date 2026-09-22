@@ -1,4 +1,5 @@
 #include "flutter_webrtc.h"
+#include "flutter_audio_endpoints.h"
 #include "flutter_data_channel.h"
 #include "flutter_rnnoise.h"
 
@@ -140,6 +141,11 @@ void FlutterWebRTC::HandleMethodCall(
         GetValue<EncodableMap>(*method_call.arguments());
     const std::string deviceId = findString(params, "deviceId");
     SelectAudioOutput(deviceId, std::move(result));
+  } else if (method_call.method_name().compare("getAudioEndpointStatus") == 0) {
+    // O que o conserto do ducking conseguiu fazer neste aparelho, em uma linha,
+    // para o log do aplicativo responder "desligado" ou "não achei com o que
+    // comparar" sem depender de alguém ouvir o volume do PC.
+    result->Success(EncodableValue(StatusoDoFixDeEndpoints()));
   } else if (method_call.method_name().compare("setNeuralNoiseSuppression") == 0) {
     const EncodableMap params =
         GetValue<EncodableMap>(*method_call.arguments());

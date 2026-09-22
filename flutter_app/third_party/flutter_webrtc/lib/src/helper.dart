@@ -171,6 +171,16 @@ class Helper {
   static Future<void> setVolume(double volume, MediaStreamTrack track) =>
       NativeAudioManagement.setVolume(volume, track);
 
+  /// O que o fork fez com os endpoints de áudio do Windows, em uma linha, para o
+  /// log responder se o ducking está desligado nesta máquina ou se o conserto
+  /// rodou sem achar com o que comparar.
+  static Future<String> getAudioEndpointStatus() async {
+    final status = await WebRTC.invokeMethod<String, String>(
+      'getAudioEndpointStatus',
+    );
+    return status ?? 'sem resposta do nativo';
+  }
+
   /// Turns the RNNoise neural noise suppression on or off for the microphone
   /// capture, in the native audio processing path (Windows).
   ///

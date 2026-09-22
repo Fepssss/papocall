@@ -112,4 +112,33 @@ void main() {
     expect(find.text('Apagar canal'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('a pessoa lista embaixo do canal de voz abre o menu dela', (tester) async {
+    // É o clique direito que faltava: a linha existia, tinha cursor de clique e
+    // não fazia nada. O menu é o mesmo do cartão da chamada — volume, silenciar,
+    // ocultar o vídeo — e ele não pede permissão nenhuma para abrir.
+    final srv = buildServer();
+    final state = await montar(tester, srv, 'dono');
+    state.processFriendPresencePayload({
+      'action': 'user_presence',
+      'userId': 'alvo',
+      'username': 'alvo',
+      'displayName': 'Alvo',
+      'status': 'online',
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'voiceChannelId': 'c-voz',
+      'voiceServerId': srv.id,
+    });
+    await tester.pumpAndSettle();
+
+    final linha = find.text('alvo');
+    expect(linha, findsOneWidget);
+    await tester.tap(linha, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Perfil'), findsOneWidget);
+    expect(find.text('Volume de alvo'), findsOneWidget);
+    expect(find.text('Silenciar'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

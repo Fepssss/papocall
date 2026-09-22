@@ -14,6 +14,8 @@ using libwebrtc::RTCAudioDevice;
 
 namespace {
 
+std::string g_status;
+
 /// ID do endpoint que o Windows marca como dispositivo padrão de mídia
 /// (`eConsole`), em UTF-8 — o mesmo formato em que o ADM devolve os seus.
 /// String vazia significa "não consegui perguntar", e aí nada é mudado.
@@ -58,11 +60,22 @@ std::string IdDoEndpointPadraoDeMidia(EDataFlow fluxo) {
 void SelecionarEndpointPadrao(RTCAudioDevice* audio_device,
                               EDataFlow fluxo,
                               bool render) {
+  const char* papel = render ? "saida" : "microfone";
   const std::string alvo = IdDoEndpointPadraoDeMidia(fluxo);
-  if (alvo.empty()) return;
+  if (alvo.empty()) {
+    g_status += std::string(papel) + "=o Windows nao respondeu; ";
+    return;
+  }
 
   const int16_t total =
       render ? audio_device->PlayoutDevices() : audio_device->RecordingDevices();
+  if (total <= 0) {
+    // Foi aqui que o conserto se perdeu uma vez: o ADM ainda não tinha listado
+    // aparelho nenhum, o laço abaixo não girou, e nada foi mudado — com o
+    // ducking de volta e sem uma linha em lugar nenhum contando isso.
+    g_status += std::string(papel) + "=ADM sem aparelhos na hora; ";
+    return;
+  }
 
   char nome[RTCAudioDevice::kAdmMaxDeviceNameSize];
   char guid[RTCAudioDevice::kAdmMaxGuidSize];
@@ -83,17 +96,29 @@ void SelecionarEndpointPadrao(RTCAudioDevice* audio_device,
       } else {
         audio_device->SetRecordingDevice(i);
       }
+      g_status += std::string(papel) + "=indice " + std::to_string(i) +
+                  " (" + nome + ") fora do papel comunicacoes; ";
       return;
     }
   }
+  g_status += std::string(papel) + "=" + std::to_string(total) +
+              ": nenhum e o padrao de midia; ";
 }
 
 }  // namespace
 
 void FixarEndpointsPadraoDeMidia(RTCAudioDevice* audio_device) {
-  if (audio_device == nullptr) return;
+  g_status.clear();
+  if (audio_device == nullptr) {
+    g_status = "sem ADM";
+    return;
+  }
   SelecionarEndpointPadrao(audio_device, eRender, /*render=*/true);
   SelecionarEndpointPadrao(audio_device, eCapture, /*render=*/false);
+}
+
+std::string StatusoDoFixDeEndpoints() {
+  return g_status.empty() ? std::string("o conserto ainda nao rodou") : g_status;
 }
 
 }  // namespace flutter_webrtc_plugin
@@ -105,6 +130,8 @@ namespace flutter_webrtc_plugin {
 // Fora do Windows não há ducking de comunicação nem endpoint COM: o WebRTC usa
 // outro caminho de áudio e isto aqui não tem o que fazer.
 void FixarEndpointsPadraoDeMidia(libwebrtc::RTCAudioDevice* audio_device) {}
+
+std::string StatusoDoFixDeEndpoints() { return "fora do Windows nao ha ducking"; }
 
 }  // namespace flutter_webrtc_plugin
 

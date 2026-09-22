@@ -1,6 +1,8 @@
 #ifndef FLUTTER_AUDIO_ENDPOINTS_HXX
 #define FLUTTER_AUDIO_ENDPOINTS_HXX
 
+#include <string>
+
 #include "rtc_audio_device.h"
 
 namespace flutter_webrtc_plugin {
@@ -24,6 +26,12 @@ namespace flutter_webrtc_plugin {
 /// endpoint padrão não estiver na lista do ADM, nada é alterado e o
 /// comportamento continua o de antes.
 void FixarEndpointsPadraoDeMidia(libwebrtc::RTCAudioDevice* audio_device);
+
+/// O que a função acima conseguiu fazer, em uma linha, para ir para o log do
+/// aplicativo. Sem isto não há como distinguir "o ducking foi desligado" de
+/// "o conserto rodou e não achou com o que comparar" — e a segunda frase tem
+/// cara de primeira na boca de quem usa.
+std::string StatusoDoFixDeEndpoints();
 
 }  // namespace flutter_webrtc_plugin
 

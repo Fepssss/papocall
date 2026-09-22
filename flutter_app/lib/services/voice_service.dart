@@ -400,6 +400,12 @@ class VoiceService {
       );
 
       _log('Conectado com sucesso ao LiveKit! Estado: ${_room?.connectionState}');
+      // O ducking do Windows não tem como ser medido do Dart: o que o fork fez
+      // com os endpoints é o que decide se o resto do computador abaixa durante a
+      // chamada, e a resposta vem em uma linha para o log — porque "está tudo
+      // certo" e "o conserto rodou sem achar com o que comparar" soam iguais na
+      // boca de quem usa, e não são a mesma coisa.
+      _log('ducking: ${await rtc.Helper.getAudioEndpointStatus()}');
       _notifyParticipants();
       _startPingMeasurement();
 

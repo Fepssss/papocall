@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.10.1</span>
+        <span class="version-tag">v1.10.2</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.10.1
+          Baixar v1.10.2
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.10.1 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.10.2 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.10.1 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.10.2 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.10.2', this)">
+          v1.10.2 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.10.1', this)">
-          v1.10.1 <span class="badge-current">ATUAL</span>
+          v1.10.1
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.10.0', this)">
           v1.10.0
@@ -1011,12 +1014,35 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.10.2 -->
+        <article class="release-card latest" data-version="v1.10.2">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.10.2</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">22 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O botão direito que faltava: na lista de gente embaixo do canal de voz. E o ducking do Windows ganhou medidor no log, para a próxima vez que ele voltar não ser palavra de quem usa contra palavra de quem programa.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORRE&Ccedil;&Atilde;O</span>
+              <span><strong>Botão direito na lista da sala, na barra esquerda</strong>: a linha de quem está no canal de voz existia, tinha cursor de clique e não fazia nada. Agora o botão direito abre o menu daquela pessoa &mdash; perfil, mensagem direta, o volume dela, silenciar, ocultar o v&iacute;deo &mdash; e o clique simples abre o mini perfil, que &eacute; o que o cursor j&aacute; estava prometendo. Vale para quem est&aacute; na sala agora e para quem aparece pela presen&ccedil;a, e n&atilde;o depende de voc&ecirc; administrar nada.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>O ducking agora diz em que ficou</strong>: ao entrar numa sala, o log do aplicativo registra o que o conserto do Windows conseguiu fazer naquele instante &mdash; se achou o dispositivo padr&atilde;o de m&iacute;dia e tirou o &aacute;udio da classe &quot;comunica&ccedil;&otilde;es&quot; (&eacute; isso que impede o resto do computador de abaixar), ou se rodou sem achar com o que comparar: aparelho desconectado no meio, Bluetooth trocando de perfil, o Windows sem responder. N&atilde;o &eacute; conserto no escuro &eacute; a resposta para &quot;voltou mesmo, e por qu&ecirc;&quot;, que at&eacute; agora ningu&eacute;m podia responder de fora.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.10.1 -->
-        <article class="release-card latest" data-version="v1.10.1">
+        <article class="release-card" data-version="v1.10.1">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.10.1</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">22 de Setembro de 2026</span>
           </div>
@@ -1595,7 +1621,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.10.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.10.2 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -2171,7 +2197,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.1</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.2</strong></p>
     </div>
   </footer>
 

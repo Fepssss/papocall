@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/channel.dart';
 import '../models/role.dart';
+import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
 import '../utils/voice_feedback.dart';
 import 'anel_de_fala.dart';
 import 'channel_context_menu.dart';
+import 'member_context_menu.dart';
+import 'member_profile_card.dart';
 import 'retrato_usuario.dart';
 
 class ChannelsSidebar extends StatelessWidget {
@@ -280,7 +283,13 @@ class ChannelsSidebar extends StatelessWidget {
               padding: const EdgeInsets.only(left: 20, top: 2, bottom: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: voiceUsers.map((user) => _VoiceUserRow(user: user, isSelf: user.id == state.currentUser.id)).toList(),
+                children: voiceUsers
+                    .map((user) => _VoiceUserRow(
+                          user: user,
+                          isSelf: user.id == state.currentUser.id,
+                          servidor: state.servidorDoCanal(channel.id),
+                        ))
+                    .toList(),
               ),
             ),
         ],
@@ -426,9 +435,14 @@ class _VoiceUserRow extends StatefulWidget {
   final UserModel user;
   final bool isSelf;
 
+  /// O servidor dono desta sala: é o que o menu da pessoa precisa para saber o
+  /// que se pode fazer com ela aqui.
+  final Server? servidor;
+
   const _VoiceUserRow({
     required this.user,
     required this.isSelf,
+    this.servidor,
   });
 
   @override
@@ -444,7 +458,7 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
         ? HudTheme.bgHover
         : (widget.isSelf ? HudTheme.bgCard.withValues(alpha: 0.4) : Colors.transparent);
 
-    return MouseRegion(
+    Widget linha = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -501,6 +515,28 @@ class _VoiceUserRowState extends State<_VoiceUserRow> {
           ],
         ),
       ),
+    );
+
+    final servidor = widget.servidor;
+    if (servidor == null) return linha;
+    // O cursor de clique já prometia alguma coisa e a linha não fazia nada. Agora
+    // o clique abre o mini perfil e o botão direito abre o menu da pessoa — o
+    // mesmo menu do cartão da chamada, com volume, silêncio e vídeo dela.
+    return GestureDetector(
+      onTapUp: (detalhes) => MemberProfileCard.show(
+        context,
+        servidor,
+        widget.user,
+        detalhes.globalPosition,
+      ),
+      onSecondaryTapUp: (detalhes) => VoiceMemberMenu.show(
+        context,
+        servidor,
+        widget.user,
+        detalhes.globalPosition,
+        naChamada: true,
+      ),
+      child: linha,
     );
   }
 }
