@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.9.2</span>
+        <span class="version-tag">v1.9.3</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.9.2
+          Baixar v1.9.3
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.9.2 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.9.3 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.9.2 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.9.3 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.9.3', this)">
+          v1.9.3 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.2', this)">
-          v1.9.2 <span class="badge-current">ATUAL</span>
+          v1.9.2
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.1', this)">
           v1.9.1
@@ -999,12 +1002,59 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.9.3 -->
+        <article class="release-card latest" data-version="v1.9.3">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.9.3</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">22 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Uma passada de lupa no código atrás de falha e risco: o achado mais grave estava na conversa privada, e o resto é o aplicativo parando de tomar decisão errada em cima de dúvida.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>A chave do contato é conferida</strong>: a conversa privada é cifrada ponta a ponta, mas o envelope que chega trazia junto a chave pública de quem escreveu &mdash; e o aplicativo aceitava aquela chave sem conferir. Como a caixa de entrada de cada pessoa é cifrada por uma chave que se calcula a partir do apelido dela, qualquer um que soubesse o seu apelido e o do seu amigo podia publicar lá uma mensagem assinada como se viesse dele: ela aparecia na conversa como fala do amigo, e as suas respostas passavam a ser cifradas para o estranho. Agora a primeira chave vista fica fixada e envelope aberto com outra chave é recusado, sem entrar na conversa. A troca real &mdash; amigo que reinstala o aplicativo &mdash; continua acontecendo pela presença dele, com o aviso que já aparecia na conversa.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-seguranca">SEGURANÇA</span>
+              <span><strong>Nada de sair da conta por especulação</strong>: qualquer recusa do servidor à renovação de sessão derrubava o login. Só três respostas dizem que o seu token de renovação morreu, e agora só elas fazem isso. As outras ficam registradas como dúvida: nenhum token é reenviado (reenviar é o que o servidor lê como reuso e pune revogando tudo) e a sessão continua no disco. Queda de conexão também passou a ser lida pelo motivo &mdash; conexão recusada é antes de o pedido sair da sua máquina; conexão cortada pode ser depois.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Cair no meio de uma gravação não custa a conversa</strong>: todo arquivo de dado agora é escrito num temporário e trocado no lugar do antigo. Antes, uma queda de energia no meio de salvar o histórico deixava para trás um arquivo truncado &mdash; e arquivo truncado é o que o programa lê como lista vazia.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Servidor grande não perde membro</strong>: a lista de membros que o Dono publica tem teto de tamanho. Numa lista cortada nesse teto, quem recebia tratava o pedaço como se fosse a lista inteira e sumia com quem passou do limite. Agora vem junto o total real, e lista incompleta não substitui nada.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>&quot;Mensagem direta&quot; abre a conversa</strong>: clicado no menu de alguém enquanto você estava num servidor, a conversa ficava selecionada atrás da tela do canal e nada acontecia à vista. Agora o clique leva até ela.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Ao sair, sobra menos na máquina</strong>: o e-mail que pré-preenche a tela de login é apagado junto com a sessão. E na primeira troca de conta do dia, a identidade da conversa privada é lida da pasta de quem entra &mdash; antes, uma leitura atrasada podia entregar a chave errada a quem acabou de chegar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Menu da pessoa cabe na janela</strong>: numa janela pequena ele passava do pé da tela e a última linha ficava fora do alcance do clique. Agora ele para onde a janela para, e o que não couber rola.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">NOTA</span>
+              <span><strong>Sala de voz, dois cantos que falavam sozinhos</strong>: ao sair da sala, se a câmera não respondesse ao comando de desligar, o resto da limpeza &mdash; incluindo a transmissão de tela &mdash; era pulado; agora cada uma tem sua tentativa e a câmera que não desligou fica registrada. E ao entrar na sala com o ensurdecimento salvo, uma falha ao regular o áudio declarava a chamada como falha na tela, mesmo com ela de pé.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.9.2 -->
-        <article class="release-card latest" data-version="v1.9.2">
+        <article class="release-card" data-version="v1.9.2">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.9.2</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">22 de Setembro de 2026</span>
           </div>
@@ -1463,7 +1513,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.2 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.3 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -2039,7 +2089,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.2</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.3</strong></p>
     </div>
   </footer>
 

@@ -117,7 +117,7 @@
 
   <div class="wrap">
     <h1>Política de Privacidade</h1>
-    <div class="meta">vigente desde 21 de setembro de 2026 &middot; aplicada à versão 1.9.2 do aplicativo</div>
+    <div class="meta">vigente desde 21 de setembro de 2026 &middot; aplicada à versão 1.9.3 do aplicativo</div>
 
     <div class="lead">
       <p>Este texto foi escrito conferindo o código, não copiando de um modelo. Toda afirmação aqui corresponde ao que o aplicativo faz agora — inclusive as que não favorecem o produto, e as lacunas que ainda não fechamos. Onde algo ainda não existe, está dito que não existe.</p>
@@ -146,7 +146,8 @@
       <li><code>dm_keys.json</code> e <code>dm_identity.key</code> — as chaves das conversas diretas. O par privado <strong>nunca sai desta máquina</strong>, e desde a v1.9.1 também não sai da pasta da conta que o criou;</li>
       <li><code>preferencias.json</code> — o volume que você escolheu para cada pessoa, quem você silenciou, de quem você não quer ver o vídeo e quais servidores você silenciou;</li>
       <li><code>settings.json</code> (na raiz) — preferências do aparelho: microfone, saída, câmera, volume da live, e a sua foto de perfil, que é guardada como imagem pequena aqui, e não hospedada em lugar nenhum;</li>
-      <li><code>session.dat</code> e <code>papocall.log</code> (na raiz) — a sua sessão, cifrada com a chave do Windows para o seu usuário, e o log do programa, local, podado por tamanho, sem senha nem token.</li>
+      <li><code>session.dat</code> e <code>papocall.log</code> (na raiz) — a sua sessão, cifrada com a chave do Windows para o seu usuário, e o log do programa, local, podado por tamanho, sem senha nem token;</li>
+      <li><code>last_login.txt</code> (na raiz) — o e-mail que você digitou por último, usado só para pré-preencher a tela de login. Desde a v1.9.3 ele é apagado junto com a sessão quando você sai da conta, e não é lido por nada além da tela de entrada.</li>
     </ul>
     <p>Apagar a pasta da sua conta apaga o seu lado da conversa. Não apaga o que o outro participante tem no aparelho dele — nem o retrato cifrado que estiver retido no broker (seção 3). Voltar o aplicativo para uma versão anterior não recupera nada: os dados continuam na pasta da conta, e a versão antiga, que não sabe dela, mostra o aplicativo vazio.</p>
 
@@ -154,7 +155,7 @@
     <p>O chat não passa pelo nosso servidor. Ele é publicado num <strong>broker MQTT público de terceiros</strong> (<code>broker.emqx.io</code>, conexão TLS na porta 8883, sem alternativa em texto puro), e cifrado <em>antes</em> de sair do aparelho:</p>
     <ul>
       <li><strong>Chat de servidor:</strong> AES-256-GCM com chave derivada do <strong>código de convite</strong> por PBKDF2-HMAC-SHA256 com 210.000 iterações. O nome do tópico é um resumo SHA-256 derivado do convite, para que o tópico em si não revele o convite. O envelope publicado contém apenas versão, <em>nonce</em>, cifra e etiqueta de autenticação — nenhum metadado legível.</li>
-      <li><strong>Conversa direta:</strong> chave própria por par, trocada por X25519 com HKDF-SHA256, também AES-256-GCM. O aplicativo mostra uma impressão digital para você conferir por outro canal, e avisa na conversa quando a chave do contato mudar.</li>
+      <li><strong>Conversa direta:</strong> chave própria por par, trocada por X25519 com HKDF-SHA256, também AES-256-GCM. O aplicativo mostra uma impressão digital para você conferir por outro canal, e avisa na conversa quando a chave do contato mudar. Desde a v1.9.3 a primeira chave vista fica <strong>fixada</strong>: uma mensagem que chegar cifrada com outra chave não entra na conversa. Isso fecha o buraco de o envelope trazer a própria chave pública &mdash; como a caixa de entrada de cada pessoa é cifrada por uma chave que se calcula a partir do nome dela, qualquer um que soubesse os dois apelidos podia escrever na sua conversa e desviar as suas respostas. A troca de chave real, anunciada pela presença do próprio contato, continua valendo e continua avisada.</li>
     </ul>
     <div class="box flag">
       <div class="flag-h">três coisas que você precisa saber</div>
@@ -227,7 +228,7 @@
     <p class="meta" style="margin-top:18px">última revisão desta página: 21 de setembro de 2026</p>
 
     <footer>
-      <p>&copy; 2026 <strong>PapoCall</strong>. Este documento descreve o comportamento real do aplicativo na versão 1.9.2 e das suas dependências de rede.</p>
+      <p>&copy; 2026 <strong>PapoCall</strong>. Este documento descreve o comportamento real do aplicativo na versão 1.9.3 e das suas dependências de rede.</p>
     </footer>
   </div>
 </body>
