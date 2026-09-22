@@ -22,7 +22,7 @@
   "dependencies": {
     "jsonwebtoken": "^9.0.3",
     "livekit-server-sdk": "^2.19.0",
-    "mqtt": "^5.15.2",
+    "mqtt": "^5.16.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {
