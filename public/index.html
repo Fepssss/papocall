@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.9.4</span>
+        <span class="version-tag">v1.10.0</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.9.4
+          Baixar v1.10.0
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.9.4 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.10.0 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.9.4 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.10.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.10.0', this)">
+          v1.10.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.4', this)">
-          v1.9.4 <span class="badge-current">ATUAL</span>
+          v1.9.4
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.3', this)">
           v1.9.3
@@ -1005,12 +1008,39 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.10.0 -->
+        <article class="release-card latest" data-version="v1.10.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.10.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">22 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Fechar a janela agora guarda o PapoCall na bandeja do Windows, com voz e chat funcionando. O ícone devolve a janela; o menu dele é que sai de verdade.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">RECURSO</span>
+              <span><strong>Fechar virou esconder</strong>: o X da janela tira o PapoCall da tela e deixa o aplicativo tocando a vida na bandeja &mdash; quem está numa sala de voz continua ouvindo e falando, mensagem continua entrando, presença continua no ar. Clique no ícone da bandeja e a janela volta do jeito que estava: mesmo lugar, mesmo tamanho, maximizada se você tinha deixado assim. Botão direito no ícone abre o menu, e &quot;Sair do PapoCall&quot; ali é o caminho que encerra o aplicativo de vez. Na primeira vez que a janela se esconde, a própria bandeja avisa para onde o PapoCall foi.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">DETALHE QUE IMPORTA</span>
+              <span><strong>Se o Windows recusar o ícone, fechar volta a ser fechar.</strong> Esconder um aplicativo sem deixar porta de volta não é recurso &mdash; é sumi&ccedil;o. O aplicativo tenta colocar o desenho na bandeja antes de prometer esconder a janela, e se a bandeja negar, o X faz o que fazia antes: encerra.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">ATEN&Ccedil;&Atilde;O</span>
+              <span><strong>Microfone aberto continua aberto</strong>: fechar a janela no meio de uma chamada n&atilde;o desliga ningu&eacute;m. &Eacute; o que faz o PapoCall servir para ouvir gente enquanto se trabalha em outra janela, e &eacute; por isso que desligar de verdade &eacute; sair da sala ou usar o &quot;Sair&quot; do menu da bandeja.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.9.4 -->
-        <article class="release-card latest" data-version="v1.9.4">
+        <article class="release-card" data-version="v1.9.4">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.9.4</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">22 de Setembro de 2026</span>
           </div>
@@ -1539,7 +1569,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.4 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.10.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -2115,7 +2145,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.4</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.0</strong></p>
     </div>
   </footer>
 

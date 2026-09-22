@@ -117,7 +117,7 @@
 
   <div class="wrap">
     <h1>Política de Privacidade</h1>
-    <div class="meta">vigente desde 21 de setembro de 2026 &middot; aplicada à versão 1.9.4 do aplicativo</div>
+    <div class="meta">vigente desde 21 de setembro de 2026 &middot; aplicada à versão 1.10.0 do aplicativo</div>
 
     <div class="lead">
       <p>Este texto foi escrito conferindo o código, não copiando de um modelo. Toda afirmação aqui corresponde ao que o aplicativo faz agora — inclusive as que não favorecem o produto, e as lacunas que ainda não fechamos. Onde algo ainda não existe, está dito que não existe.</p>
@@ -166,6 +166,7 @@
 
     <h2>4. Voz, câmera e tela: o que é e o que não é ponta a ponta</h2>
     <p>Áudio do microfone, vídeo da câmera e transmissão de tela passam pelo <strong>LiveKit Cloud</strong>. A conexão é cifrada em trânsito (DTLS/SRTP), então ninguém no meio do caminho escuta — mas o servidor da LiveKit <strong>processa o conteúdo</strong> para roteá-lo para a sala. Isto é criptografia de transporte, não ponta a ponta.</p>
+    <p><strong>Fechar a janela não fecha o aplicativo.</strong> Desde a v1.10.0 o X esconde a janela e o PapoCall continua vivo na bandeja do Windows: a sala de voz em que você estava continua com o seu microfone aberto, e o chat continua recebendo. O &quot;Sair&quot; no menu do ícone da bandeja é o que encerra o processo. Se o Windows recusar o ícone, o X volta a encerrar o aplicativo em vez de escondê-lo sem porta de volta.</p>
     <p><strong>Não gravamos chamada.</strong> Não existe no aplicativo nem no servidor qualquer código de gravação ou de exportação de mídia. O que é transmitido existe enquanto a sala existe.</p>
     <p>O que é enviado para lá: seu <code>@nome</code> e seu nome de exibição como identidade na sala, o áudio do microfone, e — apenas enquanto você mantém o botão de vídeo ligado — a imagem da sua câmera. Quem inicia uma chamada não manda vídeo nenhum por padrão: a captura começa no clique do botão e para quando você o desliga ou sai da sala, e é o próprio aparelho que apaga a luz da câmera nesse momento. Se você escolher uma câmera no aplicativo e ela estiver desplugada, nenhuma outra é ligada no lugar dela. O cancelamento de ruído por rede neural (RNNoise) roda <strong>dentro do seu aparelho, antes</strong> de o áudio virar faixa transmitida; nenhum trecho de áudio ou quadro de vídeo vai a um serviço de análise ou de visão computacional.</p>
 
@@ -228,7 +229,7 @@
     <p class="meta" style="margin-top:18px">última revisão desta página: 21 de setembro de 2026</p>
 
     <footer>
-      <p>&copy; 2026 <strong>PapoCall</strong>. Este documento descreve o comportamento real do aplicativo na versão 1.9.4 e das suas dependências de rede.</p>
+      <p>&copy; 2026 <strong>PapoCall</strong>. Este documento descreve o comportamento real do aplicativo na versão 1.10.0 e das suas dependências de rede.</p>
     </footer>
   </div>
 </body>

@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "tray_icon.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -23,8 +24,22 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  // Esconde a janela e explica, uma vez só, onde o aplicativo foi morar.
+  void EsconderNaBandeja();
+
+  // Devolve a janela ao estado de antes de esconder: mesmo lugar, mesmo
+  // tamanho, maximizada se estava assim.
+  void TrazDeVolta();
+
   // The project to run.
   flutter::DartProject project_;
+
+  // O ícone que segura o aplicativo na bandeja depois de fechada a janela.
+  TrayIcon bandeja_;
+
+  // Só true depois de "Sair" no menu: é o que distingue o fechar que esconde do
+  // fechar que encerra.
+  bool saindo_ = false;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;

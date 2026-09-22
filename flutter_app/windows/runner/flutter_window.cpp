@@ -36,10 +36,20 @@ bool FlutterWindow::OnCreate() {
   // window is shown. It is a no-op if the first frame hasn't completed yet.
   flutter_controller_->ForceRedraw();
 
+  // O ícone na bandeja é o que segura o aplicativo depois de fechada a janela.
+  // Se o Windows recusá-lo, nada de esconder: sem ícone não há caminho de volta
+  // e o PapoCall continuaria rodando invisível. Nesse caso o fechar volta a ser
+  // o que era antes — encerrar o processo.
+  bandeja_.Criar(GetHandle(), L"PapoCall");
+
   return true;
 }
 
 void FlutterWindow::OnDestroy() {
+  // O desenho sai da bandeja junto com a janela: deixar o ícone lá depois de
+  // morto o processo é deixar um botão que não faz nada.
+  bandeja_.Remover();
+
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -64,6 +74,32 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return 0;
   }
 
+  // O que a bandeja manda chega aqui: clique simples ou duplo devolve a janela
+  // para a tela, botão direito abre o menu com o sair de verdade.
+  if (message == bandeja::kMensagem) {
+    const TrayIcon::Resultado escolha =
+        bandeja_.TrataMensagem(message, wparam, lparam);
+    if (escolha == TrayIcon::Resultado::abrir) {
+      TrazDeVolta();
+      return 0;
+    }
+    if (escolha == TrayIcon::Resultado::sair) {
+      // "Sair" é o único caminho que encerra: fecha a janela de verdade, do jeito
+      // que o runner já fechava antes da bandeja existir.
+      saindo_ = true;
+      ::DestroyWindow(hwnd);
+      return 0;
+    }
+    return 0;
+  }
+
+  // Fechar a janela é escondê-la na bandeja. A voz, o chat e a conexão continuam
+  // onde estavam — é para isso que o aplicativo fica vivo lá.
+  if (message == WM_CLOSE && !saindo_ && bandeja_.ativo()) {
+    EsconderNaBandeja();
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -81,4 +117,33 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+void FlutterWindow::EsconderNaBandeja() {
+  const bool escondida = ::ShowWindow(GetHandle(), SW_HIDE) == TRUE;
+  // O primeiro fechamento é o momento em que a pessoa ainda não sabe para onde
+  // o aplicativo foi; depois disso o balão repetido só atrapalha.
+  if (escondida) {
+    bandeja_.Avisar(L"PapoCall continua aberto",
+                    L"A janela foi escondida na bandeja, e voz e chat seguem "
+                    L"ligados. Clique no ícone para voltar; botão direito para "
+                    L"sair do aplicativo.");
+  }
+}
+
+void FlutterWindow::TrazDeVolta() {
+  const HWND hwnd = GetHandle();
+  if (hwnd == nullptr) return;
+
+  // SW_SHOW, e não SW_SHOWNORMAL: quem escondia a janela maximizada quer ela
+  // maximizada de volta, não do tamanho padrão.
+  ::ShowWindow(hwnd, ::IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);
+  ::SetForegroundWindow(hwnd);
+  if (::GetForegroundWindow() != hwnd) {
+    // O Windows não deixa qualquer processo tomar o primeiro plano. Quando ele
+    // nega, o que sobra é avisar onde está: a barra de tarefas pisca.
+    FLASHWINFO flash{static_cast<DWORD>(sizeof(FLASHWINFO)), hwnd,
+                      FLASHW_ALL | FLASHW_TIMERNOFG, 3, 0};
+    ::FlashWindowEx(&flash);
+  }
 }

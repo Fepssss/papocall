@@ -132,15 +132,26 @@ void main() {
     var lido = <String, dynamic>{};
     for (var i = 0; i < 100 && lido.length < 20; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      if (!arquivo.existsSync()) continue;
-      lido = jsonDecode(arquivo.readAsStringSync()) as Map<String, dynamic>;
+      try {
+        if (!arquivo.existsSync()) continue;
+        lido = jsonDecode(arquivo.readAsStringSync()) as Map<String, dynamic>;
+      } catch (_) {
+        // O arquivo pode estar no meio de uma das vinte escritas: aqui é só a
+        // próxima volta do laço, que espera a fila andar.
+        continue;
+      }
     }
     // Trocar de conta escoou o que ainda estava na fila.
     await state.trocarDeConta('conta-b');
 
     expect(lido.length, 20);
+    // Nada de temporário sobrando daquele arquivo: o que sobra é escrito que
+    // não chegou ao destino.
     expect(
-      pastaDaContaA.listSync().whereType<File>().where((f) => f.path.endsWith('.tmp')),
+      pastaDaContaA
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.contains('read_marks.json') && f.path.endsWith('.tmp')),
       isEmpty,
     );
   });
