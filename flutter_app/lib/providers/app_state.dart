@@ -164,6 +164,77 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _saveSettings();
   }
 
+  // --- Regras por participante -------------------------------------------------
+  //
+  // Volume, silêncio e vídeo ocultado são escolhas minhas sobre uma pessoa, não
+  // estado da conexão: ficam em settings.json e valem na próxima sala. A chave é
+  // o nome de usuário sem `@` e em minúsculas, que é como o backend assina a
+  // identidade no token do LiveKit.
+
+  /// Volume escolhido para cada pessoa, de 0 a 1. Quem não está aqui está no
+  /// cheio — e não é gravado, para o arquivo não encher de gente em que a
+  /// pessoa só encostou.
+  final Map<String, double> _volumesDoPar = {};
+
+  /// Pessoas cujo áudio eu desliguei sem ensurdecer a sala inteira.
+  final Set<String> _paresSilenciados = {};
+
+  /// Pessoas cujo vídeo eu escolhi não ver. É só daqui: não desliga a câmera de
+  /// ninguém, e os outros na sala continuam vendo.
+  final Set<String> _videoOculto = {};
+
+  static String _chaveDoPar(String username) =>
+      username.replaceAll('@', '').trim().toLowerCase();
+
+  double volumeDoPar(String username) => _volumesDoPar[_chaveDoPar(username)] ?? 1.0;
+
+  bool parSilenciado(String username) => _paresSilenciados.contains(_chaveDoPar(username));
+
+  bool videoOcultoDe(String username) => _videoOculto.contains(_chaveDoPar(username));
+
+  /// Arrastar o slider não escreve no disco a cada quadro pintado; só aplica no
+  /// áudio, que é justamente o que a pessoa está ouvindo enquanto arrasta.
+  void ajustarVolumeDoPar(String username, double valor) {
+    final chave = _chaveDoPar(username);
+    if (valor >= 1.0) {
+      _volumesDoPar.remove(chave);
+    } else {
+      _volumesDoPar[chave] = valor.clamp(0.0, 1.0).toDouble();
+    }
+    unawaited(_voiceService.definirVolumeDoUsuario(chave, valor));
+    notifyListeners();
+  }
+
+  Future<void> definirVolumeDoPar(String username, double valor) async {
+    ajustarVolumeDoPar(username, valor);
+    await _saveSettings();
+  }
+
+  /// Silenciar uma pessoa é local: o áudio dela sai da minha mixagem, o
+  /// microfone dela continua entrando para o resto da sala.
+  Future<void> definirParSilenciado(String username, bool valor) async {
+    final chave = _chaveDoPar(username);
+    if (valor) {
+      _paresSilenciados.add(chave);
+    } else {
+      _paresSilenciados.remove(chave);
+    }
+    await _voiceService.definirSilenciado(chave, valor);
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> definirVideoOculto(String username, bool valor) async {
+    final chave = _chaveDoPar(username);
+    if (valor) {
+      _videoOculto.add(chave);
+    } else {
+      _videoOculto.remove(chave);
+    }
+    await _saveSettings();
+    notifyListeners();
+  }
+
   Future<void> definirSomDeChamada(bool valor) async {
     somDeChamada = valor;
     SoundService.definirSons(SoundService.sonsDeChamada, ativos: valor);
@@ -237,6 +308,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _voiceService.ganhoAutomatico = autoGainControl;
     _voiceService.filtroPassaAltas = highPassFilter;
     _voiceService.rnnoise = rnnoise;
+    // O serviço é quem aplica na faixa no instante em que ela chega, então é ele
+    // que precisa conhecer as regras — não a interface, que só as mostra.
+    _voiceService.volumesPorUsuario
+      ..clear()
+      ..addAll(_volumesDoPar);
+    _voiceService.silenciados
+      ..clear()
+      ..addAll(_paresSilenciados);
   }
 
   /// Troca a foto de perfil pela imagem escolhida no disco.
@@ -857,6 +936,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'somDeChamada': somDeChamada,
         'somDeCompartilhamento': somDeCompartilhamento,
         'volumeDaLive': volumeDaLive,
+        'volumeDoPar': _volumesDoPar,
+        'paresSilenciados': _paresSilenciados.toList(),
+        'videoOculto': _videoOculto.toList(),
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -1068,6 +1150,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         somDeChamada = data['somDeChamada'] as bool? ?? true;
         somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
         volumeDaLive = (data['volumeDaLive'] as num?)?.toDouble() ?? 0.8;
+        // As regras por pessoa voltam antes de qualquer call: quem foi
+        // silenciado ontem continua silenciado hoje, sem a pessoa ter que caçar
+        // a linha no menu de novo.
+        final volumes = data['volumeDoPar'];
+        if (volumes is Map) {
+          for (final entrada in volumes.entries) {
+            final chave = entrada.key as String?;
+            final valor = (entrada.value as num?)?.toDouble();
+            if (chave == null || valor == null) continue;
+            _volumesDoPar[_chaveDoPar(chave)] = valor.clamp(0.0, 1.0).toDouble();
+          }
+        }
+        final silenciados = data['paresSilenciados'];
+        if (silenciados is List) {
+          _paresSilenciados.addAll(silenciados.whereType<String>().map(_chaveDoPar));
+        }
+        final ocultarVideo = data['videoOculto'];
+        if (ocultarVideo is List) {
+          _videoOculto.addAll(ocultarVideo.whereType<String>().map(_chaveDoPar));
+        }
         _espelharConfigDeAudio();
         _voiceService.definirVolumeDaLive(volumeDaLive);
         SoundService.definirSons(SoundService.sonsDeChamada, ativos: somDeChamada);

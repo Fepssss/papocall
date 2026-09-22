@@ -8,10 +8,10 @@ import 'modals/live_settings_dialog.dart';
 /// A barra de voz no pé do painel esquerdo.
 ///
 /// Duas linhas: a de cima diz onde você está e quão rápido, a de baixo traz os
-/// controles da chamada. Os botões são os que o aplicativo tem de verdade —
-/// compartilhar tela, configurar a transmissão enquanto ela está no ar, mutar e
-/// ensurdecer. O que não existe (câmera, "melhoria de voz") não ganha botão
-/// só porque a referência tinha.
+/// controles que não existem em nenhum outro lugar da tela: compartilhar tela,
+/// configurar a transmissão enquanto ela está no ar e a câmera. Mutar e
+/// ensurdecer ficam só no dock da chamada — repetidos aqui, eram dois botões
+/// para um estado só, e um deles ia acabar discordando do outro.
 class VoiceConnectionHud extends StatelessWidget {
   const VoiceConnectionHud({super.key});
 
@@ -57,22 +57,21 @@ class VoiceConnectionHud extends StatelessWidget {
                   onPressed: () => LiveSettingsDialog.show(context),
                 ),
               _BotaoDeVoz(
-                icone: state.currentUser.isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                tooltip: state.currentUser.isMuted ? 'Desmutar microfone' : 'Mutar microfone',
-                cor: state.currentUser.isMuted
-                    ? HudTheme.red
-                    : (state.currentUser.isSpeaking ? HudTheme.green : HudTheme.textNormal),
-                fundo: state.currentUser.isMuted ? HudTheme.red.withValues(alpha: 0.16) : null,
-                onPressed: state.toggleMute,
-              ),
-              _BotaoDeVoz(
-                icone: state.currentUser.isDeafened
-                    ? Icons.headset_off_rounded
-                    : Icons.headset_rounded,
-                tooltip: state.currentUser.isDeafened ? 'Voltar a ouvir a sala' : 'Ensurdecer',
-                cor: state.currentUser.isDeafened ? HudTheme.red : HudTheme.textNormal,
-                fundo: state.currentUser.isDeafened ? HudTheme.red.withValues(alpha: 0.16) : null,
-                onPressed: state.toggleDeafen,
+                icone: state.cameraAtiva
+                    ? Icons.videocam_rounded
+                    : Icons.videocam_off_rounded,
+                tooltip: state.cameraAtiva ? 'Desligar câmera' : 'Ligar câmera',
+                cor: state.cameraAtiva ? HudTheme.green : HudTheme.textNormal,
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  // O motivo vem do Windows: permissão negada, câmera ocupada ou
+                  // nenhuma câmera. Sem isto o clique não aparenta fazer nada.
+                  final erro = await state.alternarCamera();
+                  if (erro == null) return;
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(erro), backgroundColor: HudTheme.red),
+                  );
+                },
               ),
             ],
           ),

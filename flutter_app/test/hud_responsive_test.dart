@@ -10,6 +10,7 @@ import 'package:papocall/providers/app_state.dart';
 import 'package:papocall/widgets/anel_de_fala.dart';
 import 'package:papocall/widgets/app_left_panel.dart';
 import 'package:papocall/widgets/channels_sidebar.dart';
+import 'package:papocall/widgets/voice_lounge_view.dart';
 
 import 'app_sandbox.dart';
 
@@ -152,23 +153,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a barra de voz manda mutar e ensurdecer de onde ela está', (tester) async {
+  testWidgets('o dock da chamada manda mutar e ensurdecer de onde ele está', (tester) async {
     final state = aplicativo(naVoz: true);
     await montar(tester, state, const Size(1280, 800));
 
     // A linha de cima diz servidor / canal — não o nome fixo de antes.
     expect(find.text('Servidor de Testes da Hud / Sala Alfa'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.mic_rounded));
+    // Mutar e ensurdecer moravam na barra de voz do painel esquerdo e no dock,
+    // um par em cada lugar. Agora o par vive só no dock, que é onde a pessoa
+    // olha durante a chamada; a barra da esquerda ficou com tela, transmissão e
+    // câmera.
+    // Os rótulos "Mutar"/"Ensurdecer" também existem na barra do usuário, no pé
+    // do painel esquerdo, então o dock é procurado dentro da própria cabine de
+    // voz — que é exatamente o botão que este teste quer apertar.
+    Finder botaoDoDock(String tooltip) => find.descendant(
+          of: find.byType(VoiceLoungeView),
+          matching: find.byTooltip(tooltip),
+        );
+
+    await tester.tap(botaoDoDock('Mutar Microfone'));
     await tester.pump(const Duration(milliseconds: 120));
     expect(state.currentUser.isMuted, isTrue);
-    expect(find.byIcon(Icons.mic_off_rounded), findsOneWidget);
+    expect(botaoDoDock('Desmutar Microfone'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.headset_rounded));
+    await tester.tap(botaoDoDock('Ensurdecer'));
     await tester.pump(const Duration(milliseconds: 120));
     expect(state.currentUser.isDeafened, isTrue);
     expect(state.voiceService.ensurdecido, isTrue,
-        reason: 'ensurdecer pela barra lateral tem de silenciar a sala, não só o microfone');
+        reason: 'ensurdecer pelo dock tem de silenciar a sala, não só o microfone');
     expect(tester.takeException(), isNull);
   });
 

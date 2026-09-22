@@ -94,6 +94,84 @@ class VoiceService {
 
   bool _ensurdecido = false;
 
+  /// Volume escolhido para cada pessoa, de 0 a 1, e quem foi silenciada. A chave
+  /// é o nome de usuário sem `@` e em minúsculas — a mesma forma que a interface
+  /// usa para procurar alguém. O [AppState] é dono da cópia gravada em disco;
+  /// aqui vivem só as regras em vigor na sala.
+  final Map<String, double> volumesPorUsuario = {};
+  final Set<String> silenciados = {};
+
+  /// `@nome-da-identity` → `nome`. O LiveKit identifica todo mundo por
+  /// `@username`, e comparar as duas formas sem normalizar é o que fazia o anel
+  /// de fala não acender para ninguém.
+  static String nomeDaIdentity(String identity) =>
+      (identity.startsWith('@') ? identity.substring(1) : identity).toLowerCase();
+
+  /// Aplica numa faixa de áudio as regras de quem a enviou: ensurdecer global,
+  /// silenciar aquela pessoa, e o volume escolhido para ela.
+  ///
+  /// É um único ponto porque as três regras chegam em momentos diferentes — a
+  /// pessoa mexe no controle, a faixa é assinada depois, a conexão cai e volta —
+  /// e em qualquer um deles a faixa tem de acabar no mesmo estado.
+  Future<void> _aplicarRegrasDeAudio(Participant dono, TrackPublication pub) async {
+    final faixa = pub.track;
+    if (faixa is! AudioTrack) return;
+    final nome = nomeDaIdentity(dono.identity);
+    if (_ensurdecido || silenciados.contains(nome)) {
+      await faixa.disable();
+      return;
+    }
+    await faixa.enable();
+    // O áudio que vem junto da transmissão tem o controle dele na barra da live;
+    // somar o volume do microfone daquela pessoa em cima deixaria um slider sem
+    // efeito e o outro mentindo.
+    if (pub.source == TrackSource.screenShareAudio) {
+      _aplicarVolumeDaLive();
+      return;
+    }
+    final volume = volumesPorUsuario[nome];
+    if (volume == null) return;
+    await rtc.Helper
+        .setVolume(volume.clamp(0.0, 1.0).toDouble(), faixa.mediaStreamTrack)
+        .catchError((Object e) =>
+            _log('Não foi possível regular o volume de @$nome: $e'));
+  }
+
+  /// Regras de uma pessoa só, para quando o controle mexe no meio da call.
+  Future<void> _reaplicarAudioDe(String username) async {
+    final room = _room;
+    if (room == null) return;
+    final alvo = username.toLowerCase();
+    for (final p in room.remoteParticipants.values) {
+      if (nomeDaIdentity(p.identity) != alvo) continue;
+      for (final pub in p.audioTrackPublications) {
+        await _aplicarRegrasDeAudio(p, pub);
+      }
+    }
+  }
+
+  Future<void> definirVolumeDoUsuario(String username, double volume) async {
+    final nome = username.toLowerCase();
+    if (volume >= 1.0) {
+      // Acima do cheio não há ganho a dar, e guardar 1.0 encheria o arquivo de
+      // gente que a pessoa só encostou no controle.
+      volumesPorUsuario.remove(nome);
+    } else {
+      volumesPorUsuario[nome] = volume.clamp(0.0, 1.0).toDouble();
+    }
+    await _reaplicarAudioDe(nome);
+  }
+
+  Future<void> definirSilenciado(String username, bool silenciado) async {
+    final nome = username.toLowerCase();
+    if (silenciado) {
+      silenciados.add(nome);
+    } else {
+      silenciados.remove(nome);
+    }
+    await _reaplicarAudioDe(nome);
+  }
+
   /// Se a pessoa está ensurdecida agora, independentemente de haver sala.
   bool get ensurdecido => _ensurdecido;
 
@@ -101,8 +179,8 @@ class VoiceService {
   ///
   /// Cada faixa de áudio remota é desligada na renderização local; as que ainda
   /// vão chegar entram desligadas pelo mesmo caminho, no evento de assinatura.
-  /// O número fica entre uma entrada e outra na sala, porque é uma escolha da
-  /// pessoa, não um estado da conexão.
+  /// Quem foi silenciada individualmente continua silenciada quando o
+  /// ensurdecer global sai de cena.
   Future<void> definirEnsurdecido(bool valor) async {
     _ensurdecido = valor;
     final room = _room;
@@ -110,15 +188,9 @@ class VoiceService {
     var tocadas = 0;
     for (final p in room.remoteParticipants.values) {
       for (final pub in p.audioTrackPublications) {
-        final faixa = pub.track;
-        if (faixa == null) continue;
+        if (pub.track == null) continue;
         tocadas++;
-        if (valor) {
-          await faixa.disable();
-        } else {
-          await faixa.enable();
-          if (faixa.sid == _remoteScreenShareAudioTrack?.sid) _aplicarVolumeDaLive();
-        }
+        await _aplicarRegrasDeAudio(p, pub);
       }
     }
     _log(valor
@@ -618,16 +690,15 @@ class VoiceService {
       _notifyParticipants();
       if (event.track is AudioTrack) {
         final faixa = event.track as AudioTrack;
-        // Quem está ensurdecido não ouve ninguém que chegar depois: a faixa já
-        // entra desligada no instante em que é assinada.
-        if (_ensurdecido) faixa.disable();
         if (event.publication.source == TrackSource.screenShareAudio) {
           _remoteScreenShareAudioTrack = faixa;
           // O volume escolhido antes de a faixa existir precisa valer agora, e a
           // reemissão é o que faz o controle de volume aparecer na tela.
-          _aplicarVolumeDaLive();
           _safeAddScreenShareTrack(activeScreenShareTrack);
         }
+        // Quem está ensurdecido ou silenciou aquela pessoa não ouve ninguém que
+        // chegar depois: a faixa já entra no estado certo, assinada agora.
+        unawaited(_aplicarRegrasDeAudio(event.participant, event.publication));
         return;
       }
       if (event.track is VideoTrack && event.publication.source == TrackSource.screenShareVideo) {

@@ -330,17 +330,155 @@ class _MemberMenuItemState extends State<_MemberMenuItem> {
   }
 }
 
+/// Linha de caixa de marcar do menu: rótulo à esquerda, quadrado à direita.
+///
+/// É outra linha e não o `_MemberMenuItem` com `selected`, porque ali o visto
+/// fica do lado do texto e diz "esta é a opção escolhida entre várias". A caixa
+/// diz "isto está ligado agora", que é o que silenciar e ocultar vídeo são.
+class _MemberMenuCheck extends StatefulWidget {
+  const _MemberMenuCheck({
+    required this.label,
+    required this.marcado,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool marcado;
+  final VoidCallback onTap;
+
+  @override
+  State<_MemberMenuCheck> createState() => _MemberMenuCheckState();
+}
+
+class _MemberMenuCheckState extends State<_MemberMenuCheck> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 32,
+          color: _hover ? HudTheme.bgActive : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              const SizedBox(width: 19),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: HudTheme.textNormal,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                width: 15,
+                height: 15,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: widget.marcado ? HudTheme.green : HudTheme.divider,
+                    width: 1.4,
+                  ),
+                  color: widget.marcado ? HudTheme.green.withValues(alpha: 0.18) : null,
+                ),
+                child: widget.marcado
+                    ? const Icon(Icons.check_rounded, size: 12, color: HudTheme.green)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Volume de uma só pessoa, no menu do botão direito.
+///
+/// Arrastar aplica no áudio na hora e não escreve no disco; soltar grava. É o
+/// mesmo acordo do controle de volume da live, pela mesma razão: um slider
+/// salvo a cada quadro pintado é I/O de disco no meio de uma conversa.
+class _MemberMenuVolume extends StatelessWidget {
+  const _MemberMenuVolume({
+    required this.username,
+    required this.state,
+  });
+
+  final String username;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final valor = state.volumeDoPar(username);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 19),
+              Expanded(
+                child: Text(
+                  'Volume de $username',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: HudTheme.textNormal,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '${(valor * 100).round()}%',
+                style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: HudTheme.green,
+              inactiveTrackColor: HudTheme.bgHover,
+              thumbColor: HudTheme.green,
+              overlayColor: HudTheme.green.withValues(alpha: 0.2),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            ),
+            child: Slider(
+              value: valor,
+              onChanged: (v) => state.ajustarVolumeDoPar(username, v),
+              onChangeEnd: (v) => state.definirVolumeDoPar(username, v),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Menu do botão direito sobre um participante da chamada de voz.
 ///
 /// A lista lateral de membros já tinha menu, mas ele só abria para quem pode
 /// gerenciar alguém — para o resto das pessoas o botão direito na call não fazia
-/// nada. Aqui a ação principal é humana: ver quem é a pessoa e chamar no
-/// particular.
+/// nada. Aqui a ação principal é humana: ver quem é a pessoa, chamar no
+/// particular, e ajustar o que ela faz no meu ouvido e na minha tela.
 ///
-/// Só entra linha que o aplicativo tem de verdade. Nota de amigo, apelido,
-/// bloquear/ignorar, volume por participante e silenciar o microfone do outro não
-/// existem no PapoCall; um item que não faz nada dentro de um menu de contexto é
-/// a mesma coisa que um botão morto na tela.
+/// Só entra linha que o aplicativo faz de verdade. Nota de amigo, apelido
+/// pessoal, bloquear, ignorar, "convocar para entrar" e código de verificação
+/// não existem no PapoCall — um item que não faz nada dentro de um menu de
+/// contexto é a mesma coisa que um botão morto na tela. Desfazer amizade e
+/// cargos moram no Perfil e em "Gerenciar membro", e este menu abre os dois em
+/// vez de copiar as regras deles.
 class VoiceMemberMenu {
   static const double _menuWidth = 236;
 
@@ -392,6 +530,12 @@ class _VoiceMemberMenu extends StatelessWidget {
         (state.can(server.id, Permissions.manageRoles) ||
             state.can(server.id, Permissions.kickMembers));
 
+    final nome = member.username;
+    // A linha de vídeo só existe quando há o que ocultar — ou quando já está
+    // oculto, para a pessoa poder desfazer sem ter que esperar a câmera do
+    // amigo ligar de novo.
+    final linhaDeVideo = member.isCameraOn || state.videoOcultoDe(nome);
+
     final rows = <Widget>[
       _MemberMenuItem(
         label: 'Perfil',
@@ -422,6 +566,25 @@ class _VoiceMemberMenu extends StatelessWidget {
             AddFriendDialog.show(parentContext, handleInicial: member.username);
           },
         ),
+      const _MemberMenuDivider(),
+      // As três linhas abaixo ficam com o menu aberto: são estados que se
+      // ajustam, não ações que se escolhem uma vez.
+      _MemberMenuVolume(username: nome, state: state),
+      _MemberMenuCheck(
+        label: 'Silenciar',
+        marcado: state.parSilenciado(nome),
+        onTap: () {
+          state.definirParSilenciado(nome, !state.parSilenciado(nome));
+        },
+      ),
+      if (linhaDeVideo)
+        _MemberMenuCheck(
+          label: 'Desativar vídeo',
+          marcado: state.videoOcultoDe(nome),
+          onTap: () {
+            state.definirVideoOculto(nome, !state.videoOcultoDe(nome));
+          },
+        ),
       if (podeGerir) ...[
         const _MemberMenuDivider(),
         _MemberMenuItem(
@@ -438,7 +601,16 @@ class _VoiceMemberMenu extends StatelessWidget {
       ],
     ];
 
-    final altura = (30 + rows.length * 32 + 16).toDouble();
+    final altura = 46 +
+        rows.fold<double>(
+          0,
+          (total, linha) => total +
+              (linha is _MemberMenuDivider
+                  ? 9
+                  : linha is _MemberMenuVolume
+                      ? 58
+                      : 32),
+        );
     final tela = MediaQuery.of(context).size;
     var dx = anchor.dx;
     var dy = anchor.dy;
@@ -470,25 +642,33 @@ class _VoiceMemberMenu extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
-                    child: Text(
-                      member.displayNameOrUsername,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HudTheme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
+              child: ConstrainedBox(
+                // Com o volume e as caixas o menu cresceu: sem rolagem, a última
+                // linha ficava fora da tela numa janela pequena, e o que não
+                // cabe na tela não existe para quem usa.
+                constraints: BoxConstraints(maxHeight: tela.height - 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                        child: Text(
+                          member.displayNameOrUsername,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HudTheme.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
                       ),
-                    ),
+                      ...rows,
+                    ],
                   ),
-                  ...rows,
-                ],
+                ),
               ),
             ),
           ),

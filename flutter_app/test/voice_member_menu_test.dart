@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +8,9 @@ import 'package:papocall/models/role.dart';
 import 'package:papocall/models/server.dart';
 import 'package:papocall/models/user_model.dart';
 import 'package:papocall/providers/app_state.dart';
+import 'package:papocall/utils/app_paths.dart';
 import 'package:papocall/widgets/member_context_menu.dart';
+import 'package:papocall/widgets/voice_connection_hud.dart';
 
 import 'app_sandbox.dart';
 
@@ -151,10 +155,7 @@ void main() {
         'Iniciar chamada',
         'Adicionar nota',
         'Adicionar apelido de amigo',
-        'Volume do usuário',
-        'Silenciar',
         'Silenciar efeitos sonoros',
-        'Desativar vídeo',
         'Ver Código de Verificação',
         'Apps',
         'Ignorar',
@@ -167,6 +168,135 @@ void main() {
       ]) {
         expect(find.text(inexistente), findsNothing, reason: '"$inexistente" não tem ação atrás');
       }
+    });
+
+    testWidgets('o volume da pessoa aparece no slider do menu', (tester) async {
+      final state = await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'dono', username: 'dono'),
+      );
+
+      expect(find.text('Volume de alvo'), findsOneWidget);
+      expect(find.text('100%'), findsOneWidget);
+
+      // Só o ajuste, sem gravação: escrever no disco dentro de testWidgets é
+      // esperar por um evento que a zona de tempo falso nunca entrega.
+      state.ajustarVolumeDoPar('alvo', 0.4);
+      await tester.pump();
+
+      expect(find.text('40%'), findsOneWidget);
+      expect(tester.widget<Slider>(find.byType(Slider)).value, 0.4);
+    });
+
+    testWidgets('silenciar fica marcado e desmarcado sem fechar o menu', (tester) async {
+      final state = await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'dono', username: 'dono'),
+      );
+
+      await tester.tap(find.text('Silenciar'));
+      await tester.pumpAndSettle();
+
+      expect(state.parSilenciado('alvo'), isTrue);
+      // O menu continua aberto: as caixas são estados que se ajustam, não a
+      // escolha de uma opção entre várias.
+      expect(find.text('Silenciar'), findsOneWidget);
+
+      await tester.tap(find.text('Silenciar'));
+      await tester.pumpAndSettle();
+      expect(state.parSilenciado('alvo'), isFalse);
+    });
+
+    testWidgets('a linha de vídeo só aparece quando há o que ocultar', (tester) async {
+      await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'dono', username: 'dono'),
+      );
+      expect(find.text('Desativar vídeo'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'dono', username: 'dono'),
+        alvo: UserModel(id: 'alvo', username: 'alvo', isCameraOn: true),
+      );
+      expect(find.text('Desativar vídeo'), findsOneWidget);
+    });
+  });
+
+  group('botões da chamada na barra esquerda', () {
+    Future<AppState> montarBarra(WidgetTester tester) async {
+      final state = AppState()..currentUser = UserModel(id: 'eu', username: 'eu');
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: state,
+          child: const MaterialApp(
+            home: Scaffold(body: VoiceConnectionHud()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return state;
+    }
+
+    testWidgets('a câmera entrou e microfone e ensurdecer saíram', (tester) async {
+      await montarBarra(tester);
+
+      expect(find.byTooltip('Ligar câmera'), findsOneWidget);
+      // Mutar e ensurdecer vivem no dock da chamada — os mesmos rótulos que o
+      // dock usa. Dois botões para o mesmo estado em dois lugares da tela é de
+      // onde vêm as discórdias.
+      expect(find.byTooltip('Mutar Microfone'), findsNothing);
+      expect(find.byTooltip('Ensurdecer'), findsNothing);
+    });
+
+    testWidgets('clicar na câmera fora de uma call diz o motivo', (tester) async {
+      await montarBarra(tester);
+
+      await tester.tap(find.byTooltip('Ligar câmera'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Entre na chamada de voz'), findsOneWidget);
+    });
+  });
+
+  group('regras por participante', () {
+    test('volume, silêncio e vídeo ocultado são gravados e chegam ao serviço', () async {
+      final state = AppState();
+
+      await state.definirVolumeDoPar('Alvo', 0.4);
+      await state.definirParSilenciado('alvo', true);
+      await state.definirVideoOculto('alvo', true);
+
+      // A chave é o nome sem @ e em minúscula, tanto na escrita quanto na
+      // leitura: a mesma pessoa chega como '@Alvo' no token e 'alvo' na lista.
+      expect(state.volumeDoPar('@alvo'), 0.4);
+      expect(state.parSilenciado('ALVO'), isTrue);
+      expect(state.videoOcultoDe('alvo'), isTrue);
+      expect(state.voiceService.volumesPorUsuario, {'alvo': 0.4});
+      expect(state.voiceService.silenciados, {'alvo'});
+
+      final gravado = jsonDecode(
+        AppPaths.file('settings.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      expect(gravado['volumeDoPar'], {'alvo': 0.4});
+      expect(gravado['paresSilenciados'], ['alvo']);
+      expect(gravado['videoOculto'], ['alvo']);
+    });
+
+    test('devolver o volume ao cheio tira a pessoa do arquivo', () async {
+      final state = AppState();
+      await state.definirVolumeDoPar('alvo', 0.4);
+
+      await state.definirVolumeDoPar('alvo', 1.0);
+
+      expect(state.volumeDoPar('alvo'), 1.0);
+      expect(state.voiceService.volumesPorUsuario, isEmpty);
     });
   });
 

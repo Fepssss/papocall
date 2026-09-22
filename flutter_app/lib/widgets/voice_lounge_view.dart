@@ -843,9 +843,11 @@ class _ParticipantCardState extends State<_ParticipantCard> {
     // O vídeo é buscado na hora, e não guardado no `UserModel`: a faixa pertence
     // ao LiveKit, vive enquanto a publicação existe, e um cartão que segurasse
     // uma referência morta desenharia o último quadro de alguém que já desligou
-    // a câmera.
-    final video = user.isCameraOn
-        ? context.read<AppState>().cameraDe(user.username)
+    // a câmera. "Desativar vídeo" no menu do botão direito cai no mesmo caminho:
+    // a faixa existe, mas eu escolhi não ver.
+    final state = context.read<AppState>();
+    final video = user.isCameraOn && !state.videoOcultoDe(user.username)
+        ? state.cameraDe(user.username)
         : null;
 
     Color borderColor = HudTheme.divider;
