@@ -582,6 +582,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _initVoiceListeners() {
+    // Perguntado na abertura, e não só ao entrar na sala: é na criação do ADM
+    // que o conserto do ducking acontece, então assim dá para ler no log o que o
+    // Windows desta máquina respondeu sem depender de uma chamada em andamento.
+    unawaited(_voiceService.registrarEstadoDoDucking());
     _vozAssinaturas.add(_voiceService.activeSpeakersStream.listen((falantes) {
       // O LiveKit identifica todo mundo por `@username`; o restante do app
       // trabalha com o id da conta. Comparar um com o outro é o que fazia o anel

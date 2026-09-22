@@ -405,7 +405,7 @@ class VoiceService {
       // chamada, e a resposta vem em uma linha para o log — porque "está tudo
       // certo" e "o conserto rodou sem achar com o que comparar" soam iguais na
       // boca de quem usa, e não são a mesma coisa.
-      _log('ducking: ${await rtc.Helper.getAudioEndpointStatus()}');
+      await registrarEstadoDoDucking();
       _notifyParticipants();
       _startPingMeasurement();
 
@@ -828,6 +828,17 @@ class VoiceService {
     } catch (e) {
       _log('Erro ao alterar status de mudo: $e');
     }
+  }
+
+  /// Manda para o log o que o fork fez com os endpoints de áudio deste Windows.
+  ///
+  /// O ducking não tem como ser medido do Dart: o que decide se o resto do
+  /// computador abaixa durante a chamada é o papel com que o áudio foi ativado
+  /// lá embaixo, no ADM. Esta linha conta o que aconteceu — se o conserto achou
+  /// o dispositivo padrão de mídia, se o ADM ainda não tinha aparelho nenhum na
+  /// hora, ou se nenhum ítem da lista era o padrão.
+  Future<void> registrarEstadoDoDucking() async {
+    _log('ducking: ${await rtc.Helper.getAudioEndpointStatus()}');
   }
 
   Future<void> leaveVoice() async {

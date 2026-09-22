@@ -77,6 +77,12 @@ void SelecionarEndpointPadrao(RTCAudioDevice* audio_device,
     return;
   }
 
+  // A lista inteira vai para o log, com os nomes que o ADM devolve. Sem ela não
+  // dá para saber se o índice escolhido é o aparelho de verdade ou uma das
+  // entradas "padrão" que o WebRTC coloca na frente da coleção — e essas duas
+  // entradas é que carregam o papel de comunicação.
+  g_status += std::string("lista de ") + papel + ": ";
+
   char nome[RTCAudioDevice::kAdmMaxDeviceNameSize];
   char guid[RTCAudioDevice::kAdmMaxGuidSize];
 
@@ -87,6 +93,7 @@ void SelecionarEndpointPadrao(RTCAudioDevice* audio_device,
     const int32_t codigo = render ? audio_device->PlayoutDeviceName(i, nome, guid)
                                   : audio_device->RecordingDeviceName(i, nome, guid);
     if (codigo != 0) continue;
+    if (i < 6) g_status += std::to_string(i) + "=" + nome + " | ";
 
     if (alvo == guid) {
       // Índice, não papel: é isto que mantém o stream fora da classe
