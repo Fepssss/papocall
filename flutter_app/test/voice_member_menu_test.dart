@@ -282,10 +282,10 @@ void main() {
       expect(state.voiceService.silenciados, {'alvo'});
 
       final gravado = jsonDecode(
-        AppPaths.file('settings.json').readAsStringSync(),
+        AppPaths.contaFile('preferencias.json').readAsStringSync(),
       ) as Map<String, dynamic>;
-      expect(gravado['volumeDoPar'], {'alvo': 0.4});
-      expect(gravado['paresSilenciados'], ['alvo']);
+      expect(gravado['volume'], {'alvo': 0.4});
+      expect(gravado['silenciados'], ['alvo']);
       expect(gravado['videoOculto'], ['alvo']);
     });
 

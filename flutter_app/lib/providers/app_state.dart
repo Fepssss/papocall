@@ -207,7 +207,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> definirVolumeDoPar(String username, double valor) async {
     ajustarVolumeDoPar(username, valor);
-    await _saveSettings();
+    await _saveContaPrefs();
   }
 
   /// Silenciar uma pessoa é local: o áudio dela sai da minha mixagem, o
@@ -220,7 +220,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _paresSilenciados.remove(chave);
     }
     await _voiceService.definirSilenciado(chave, valor);
-    await _saveSettings();
+    await _saveContaPrefs();
     notifyListeners();
   }
 
@@ -231,7 +231,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       _videoOculto.remove(chave);
     }
-    await _saveSettings();
+    await _saveContaPrefs();
     notifyListeners();
   }
 
@@ -720,20 +720,215 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static String? get dataRootOverride => AppPaths.rootOverride;
 
   @visibleForTesting
-  static set dataRootOverride(String? valor) => AppPaths.rootOverride = valor;
+  static set dataRootOverride(String? valor) {
+    AppPaths.rootOverride = valor;
+    // Trocar a raiz sem trocar a conta faria o teste ler a pasta de uma pessoa
+    // real, ou escrever nela.
+    AppPaths.conta = valor == null ? null : 'teste';
+  }
 
   File _getAppFile(String fileName) => AppPaths.file(fileName);
 
+  /// Configurações vivem na raiz: o que está ali é escolha desta instalação
+  /// (qual microfone, qual saída, volume da live), não desta conta.
   File _getSettingsFile() => _getAppFile('settings.json');
-  File _getServersFile() => _getAppFile('servers.json');
-  File _getChatHistoryFile() => _getAppFile('chat_history.json');
-  File _getDraftsFile() => _getAppFile('drafts.json');
-  File _getFriendsFile() => _getAppFile('friends.json');
-  File _getKnownUsersFile() => _getAppFile('known_users.json');
-  File _getFriendRequestsFile() => _getAppFile('friend_requests.json');
-  File _getReadMarksFile() => _getAppFile('read_marks.json');
-  File _getDeletedMessagesFile() => _getAppFile('deleted_messages.json');
-  File _getDirectKeysFile() => _getAppFile('dm_keys.json');
+
+  // --- Arquivos de uma conta --------------------------------------------------
+  //
+  // Todos passam por `AppPaths.contaFile`, que os põe na pasta da conta logada.
+  // É um funil único de propósito: enquanto cada lista montasse o próprio
+  // caminho, bastava uma delas esquecer para uma conta ver os amigos da outra.
+  File _getServersFile() => AppPaths.contaFile('servers.json');
+  File _getChatHistoryFile() => AppPaths.contaFile('chat_history.json');
+  File _getDraftsFile() => AppPaths.contaFile('drafts.json');
+  File _getFriendsFile() => AppPaths.contaFile('friends.json');
+  File _getKnownUsersFile() => AppPaths.contaFile('known_users.json');
+  File _getFriendRequestsFile() => AppPaths.contaFile('friend_requests.json');
+  File _getReadMarksFile() => AppPaths.contaFile('read_marks.json');
+  File _getDeletedMessagesFile() => AppPaths.contaFile('deleted_messages.json');
+  File _getDirectKeysFile() => AppPaths.contaFile('dm_keys.json');
+
+  /// Preferências de uma conta sobre as pessoas e os servidores dela: volume por
+  /// participante, silêncio, vídeo ocultado e servidores em silêncio. Nada disso
+  /// é escolha da instalação, e nada disso pode passar de uma conta para outra.
+  File _getContaPrefsFile() => AppPaths.contaFile('preferencias.json');
+
+  Future<void> _saveContaPrefs() async {
+    try {
+      await _getContaPrefsFile().writeAsString(jsonEncode({
+        'volume': _volumesDoPar,
+        'silenciados': _paresSilenciados.toList(),
+        'videoOculto': _videoOculto.toList(),
+        'mutedServers': _mutedServerIds.toList(),
+      }));
+    } catch (e) {
+      debugPrint('Erro ao salvar as preferências da conta: $e');
+    }
+  }
+
+  Future<void> _loadContaPrefs() async {
+    // Servidores em silêncio moravam em settings.json, um arquivo por
+    // instalação. Na primeira vez que a conta entra depois da atualização ela
+    // herda aquela lista; depois disso o que vale é o arquivo dela, e o que uma
+    // pessoa silencia deixa de valer para quem usa o mesmo computador.
+    final herdadas = _mutedServersDaRaiz;
+    _mutedServersDaRaiz = {};
+    _mutedServerIds.addAll(herdadas);
+
+    try {
+      final file = _getContaPrefsFile();
+      if (!file.existsSync()) {
+        // A conta ainda não tem arquivo próprio. Se ela acabou de herdar a
+        // lista que estava no settings.json compartilhado, é agora que aquela
+        // chave sai de lá: sem isto, a segunda pessoa a entrar neste computador
+        // herdaria o silêncio da primeira.
+        if (herdadas.isNotEmpty) await _saveSettings();
+        return;
+      }
+      final content = await file.readAsString();
+      if (content.isEmpty) return;
+      final data = jsonDecode(content);
+      if (data is! Map) return;
+      final volumes = data['volume'];
+      if (volumes is Map) {
+        for (final entrada in volumes.entries) {
+          final chave = entrada.key as String?;
+          final valor = (entrada.value as num?)?.toDouble();
+          if (chave == null || valor == null) continue;
+          _volumesDoPar[chave] = valor.clamp(0.0, 1.0).toDouble();
+        }
+      }
+      for (final par in data['silenciados'] is List ? data['silenciados'] as List : const []) {
+        if (par is String) _paresSilenciados.add(par);
+      }
+      for (final par in data['videoOculto'] is List ? data['videoOculto'] as List : const []) {
+        if (par is String) _videoOculto.add(par);
+      }
+      final muted = data['mutedServers'];
+      if (muted is List) {
+        _mutedServerIds
+          ..clear()
+          ..addAll(muted.whereType<String>());
+      }
+    } catch (e) {
+      debugPrint('Erro ao ler as preferências da conta: $e');
+    }
+  }
+
+  /// Dono dos arquivos que as versões até a 1.9.x gravavam soltos na raiz da
+  /// instalação. Lido de `settings.json` antes de a conta atual ser conhecida.
+  String? _donoDosArquivosNaRaiz;
+
+  /// Servidores em silêncio que vieram do `settings.json` compartilhado da
+  /// instalação, e que só valem como herança para a primeira conta a entrar
+  /// depois da atualização.
+  Set<String> _mutedServersDaRaiz = {};
+
+  /// A conta cujos dados estão carregados em memória agora.
+  String? _contaCarregada;
+
+  /// Entrada de teste para a troca de conta, que em produção só acontece por
+  /// sessão carregada, login, registro e logout — nenhum deles testável sem
+  /// rede.
+  @visibleForTesting
+  Future<void> trocarDeConta(String? id) => _trocarDeConta(id);
+
+  /// Coloca a interface na pasta de [id] e recarrega o que ela mostra.
+  ///
+  /// Limpa antes de carregar, e não depois: cada leitor deixa a memória como
+  /// estava quando o arquivo não existe, e era exatamente assim que uma conta
+  /// nova aparecia com os amigos, os servidores e as conversas de quem tinha
+  /// saído — com a chave privada do chat privado da outra pessoa junto.
+  Future<void> _trocarDeConta(String? id) async {
+    if (_contaCarregada == id) return;
+    _contaCarregada = id;
+    AppPaths.conta = id;
+    DirectCrypto.esquecerIdentidade();
+    _publicaParaAnunciar = null;
+
+    servers = [];
+    _messages.clear();
+    _onlineUsers.clear();
+    _knownUsers.clear();
+    _lastSeen.clear();
+    friends = [];
+    friendRequests = [];
+    _chavesDosPares.clear();
+    _deletedMessageIds.clear();
+    _lastReadAt.clear();
+    _drafts.clear();
+    _mutedServerIds.clear();
+    _volumesDoPar.clear();
+    _paresSilenciados.clear();
+    _videoOculto.clear();
+
+    _migrarDadosDaRaiz(id);
+
+    await _loadContaPrefs();
+    await _loadServers();
+    await _loadDeletedMessages();
+    await _loadChatHistory();
+    await _loadDrafts();
+    await _loadFriends();
+    await _loadKnownUsers();
+    await _loadFriendRequests();
+    await _loadReadMarks();
+    await _loadDirectKeys();
+    _espelharConfigDeAudio();
+
+    // Garante que currentUser faça parte dos servidores carregados
+    for (final srv in servers) {
+      if (!srv.memberIds.contains(currentUser.id)) {
+        srv.memberIds.insert(0, currentUser.id);
+      }
+    }
+    AppLog.write('Conta', 'dados carregados da pasta ${AppPaths.contaDados().uri.pathSegments.last}');
+    notifyListeners();
+  }
+
+  /// Uma vez por conta, os arquivos da raiz viram dela.
+  ///
+  /// Antes da v1.10 tudo era gravado solto em `%APPDATA%\PapoCall`, e quem
+  /// estava logado é o dono daquele conteúdo: é a lista de amigos dessa pessoa
+  /// que está lá dentro. Sem este passo, atualizar o aplicativo apagaria a conta
+  /// dos olhos de quem atualiza. Com ele, a segunda conta do mesmo computador
+  /// começa vazia — que é o conserto em si.
+  void _migrarDadosDaRaiz(String? id) {
+    final dono = _donoDosArquivosNaRaiz;
+    if (id == null || dono == null || dono != id) return;
+
+    const nomes = [
+      'servers.json',
+      'chat_history.json',
+      'drafts.json',
+      'friends.json',
+      'known_users.json',
+      'friend_requests.json',
+      'read_marks.json',
+      'deleted_messages.json',
+      'dm_keys.json',
+      'dm_identity.key',
+      'preferencias.json',
+    ];
+    // A pasta de destino já tem alguma coisa: esta conta já entrou depois da
+    // atualização, e misturar os dois montes seria pior que não migrar nada.
+    if (nomes.any((n) => AppPaths.contaFile(n).existsSync())) return;
+
+    var movidos = 0;
+    for (final nome in nomes) {
+      final origem = AppPaths.file(nome);
+      if (!origem.existsSync()) continue;
+      try {
+        origem.renameSync(AppPaths.contaFile(nome).path);
+        movidos++;
+      } catch (e) {
+        AppLog.write('Conta', 'não deu para mover $nome para a pasta da conta: $e');
+      }
+    }
+    if (movidos > 0) {
+      AppLog.write('Conta', '$movidos arquivo(s) migrado(s) da raiz para a pasta da conta');
+    }
+  }
 
   Future<void> _saveReadMarks() async {
     try {
@@ -912,7 +1107,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void toggleServerMuted(String serverId) {
     if (serverId.isEmpty) return;
     if (!_mutedServerIds.remove(serverId)) _mutedServerIds.add(serverId);
-    _saveSettings();
+    // É preferência da conta, não da instalação: quem silencia um servidor aqui
+    // não silencia na conta de quem usa o mesmo computador.
+    unawaited(_saveContaPrefs());
     notifyListeners();
   }
 
@@ -924,7 +1121,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'username': currentUser.username.replaceAll('@', '').trim(),
         'displayName': currentUser.displayName,
         'avatar': currentUser.avatar,
-        'mutedServers': _mutedServerIds.toList(),
         'audioInputId': audioInputId,
         'audioOutputId': audioOutputId,
         'cameraId': cameraId,
@@ -936,9 +1132,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'somDeChamada': somDeChamada,
         'somDeCompartilhamento': somDeCompartilhamento,
         'volumeDaLive': volumeDaLive,
-        'volumeDoPar': _volumesDoPar,
-        'paresSilenciados': _paresSilenciados.toList(),
-        'videoOculto': _videoOculto.toList(),
       };
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
@@ -1133,7 +1326,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
         final muted = data['mutedServers'];
         if (muted is List) {
-          _mutedServerIds.addAll(muted.whereType<String>());
+          _mutedServersDaRaiz = muted.whereType<String>().toSet();
         }
         audioInputId = data['audioInputId'] as String?;
         audioOutputId = data['audioOutputId'] as String?;
@@ -1150,26 +1343,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         somDeChamada = data['somDeChamada'] as bool? ?? true;
         somDeCompartilhamento = data['somDeCompartilhamento'] as bool? ?? true;
         volumeDaLive = (data['volumeDaLive'] as num?)?.toDouble() ?? 0.8;
-        // As regras por pessoa voltam antes de qualquer call: quem foi
-        // silenciado ontem continua silenciado hoje, sem a pessoa ter que caçar
-        // a linha no menu de novo.
-        final volumes = data['volumeDoPar'];
-        if (volumes is Map) {
-          for (final entrada in volumes.entries) {
-            final chave = entrada.key as String?;
-            final valor = (entrada.value as num?)?.toDouble();
-            if (chave == null || valor == null) continue;
-            _volumesDoPar[_chaveDoPar(chave)] = valor.clamp(0.0, 1.0).toDouble();
-          }
-        }
-        final silenciados = data['paresSilenciados'];
-        if (silenciados is List) {
-          _paresSilenciados.addAll(silenciados.whereType<String>().map(_chaveDoPar));
-        }
-        final ocultarVideo = data['videoOculto'];
-        if (ocultarVideo is List) {
-          _videoOculto.addAll(ocultarVideo.whereType<String>().map(_chaveDoPar));
-        }
+        // Quem era, antes da v1.10, o dono dos arquivos gravados soltos na raiz.
+        _donoDosArquivosNaRaiz = data['user_id'] as String?;
         _espelharConfigDeAudio();
         _voiceService.definirVolumeDaLive(volumeDaLive);
         SoundService.definirSons(SoundService.sonsDeChamada, ativos: somDeChamada);
@@ -1182,22 +1357,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     currentUser.username = currentUser.username.replaceAll('@', '').trim();
 
-    await _loadServers();
-    await _loadDeletedMessages();
-    await _loadChatHistory();
-    await _loadDrafts();
-    await _loadFriends();
-    await _loadKnownUsers();
-    await _loadFriendRequests();
-    await _loadReadMarks();
-    await _loadDirectKeys();
-
-    // Garante que currentUser faça parte dos servidores carregados
-    for (final srv in servers) {
-      if (!srv.memberIds.contains(currentUser.id)) {
-        srv.memberIds.insert(0, currentUser.id);
-      }
-    }
+    // Tudo que a interface mostra vem daqui, e da pasta da conta que está logada
+    // — não mais de uma pasta única que pertencia a quem usou o computador por
+    // último.
+    await _trocarDeConta(currentSession?.user.id);
 
     isCheckingAuth = false;
     notifyListeners();
@@ -1324,6 +1487,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _renovacaoIncerta = false;
     currentUser = session.user.toUserModel();
     isAuthenticated = true;
+    // Antes de qualquer leitura ou salvamento: a pasta desta conta é que diz o
+    // que ela tem de amigos, servidores e conversas. Sem este passo, entrar com
+    // uma conta nova num computador onde outra já tinha usado o app vinha com a
+    // lista da outra pessoa na tela.
+    await _trocarDeConta(session.user.id);
     await _saveSettings();
     await _startNetwork();
     notifyListeners();
@@ -1345,6 +1513,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _renovacaoIncerta = false;
     currentUser = session.user.toUserModel();
     isAuthenticated = true;
+    // A conta nova ganha pasta vazia, e é nela que tudo passa a ser gravado a
+    // partir de agora.
+    await _trocarDeConta(session.user.id);
     // Novas contas iniciam com 0 servidores
     servers = [];
     await _saveServers();
@@ -1363,8 +1534,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _stopNetwork();
     currentSession = null;
     // As chaves dos contatos são informação desta conta: não têm o que ficar
-    // na memória depois de sair. O arquivo continua no disco para o próximo
-    // login, e o par privado desta instalação jamais sai dele.
+    // na memória depois de sair. O arquivo continua na pasta da conta para o
+    // próximo login dela, e o par privado jamais sai daquela pasta — que é
+    // também o motivo pelo qual uma conta nova não herda a identidade da outra.
     activeDirectPeerId = null;
     _chavesDosPares.clear();
     _publicaParaAnunciar = null;
@@ -1374,6 +1546,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       status: UserStatus.offline,
     );
     isAuthenticated = false;
+    // Por último, e com a rede já parada: larga a pasta da conta que saiu. A
+    // partir daqui qualquer salvamento atrasado cai no cofre de passagem de quem
+    // está deslogado, e não em cima dos dados de quem acabou de sair.
+    await _trocarDeConta(null);
     notifyListeners();
   }
 

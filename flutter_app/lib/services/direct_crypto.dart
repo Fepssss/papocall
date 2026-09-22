@@ -29,13 +29,19 @@ class DirectCrypto {
 
   static SimpleKeyPair? _par;
 
-  /// Par desta instalação. Gerado na primeira execução e relido do disco nas
-  /// seguintes: trocar de chave a cada abertura quebraria toda conversa antiga.
+  /// Par desta conta, nesta instalação. Gerado na primeira execução e relido do
+  /// disco nas seguintes: trocar de chave a cada abertura quebraria toda
+  /// conversa antiga.
+  ///
+  /// Fica na pasta da conta de propósito. Enquanto viveu na raiz, a pessoa que
+  /// criasse uma conta nova no mesmo computador assinava as mensagens dela com a
+  /// chave privada da conta anterior — a identidade privada também vazava de uma
+  /// conta para a outra.
   static Future<SimpleKeyPair> identidade() async {
     final existente = _par;
     if (existente != null) return existente;
 
-    final arquivo = AppPaths.file(_arquivoIdentidade);
+    final arquivo = AppPaths.contaFile(_arquivoIdentidade);
     final gravado = await SecureStorage.readEncrypted(arquivo);
     if (gravado != null && gravado.isNotEmpty) {
       try {
@@ -68,6 +74,11 @@ class DirectCrypto {
     AppLog.write('Direct', 'identidade de conversa direta gerada');
     return novo;
   }
+
+  /// Esquece o par carregado, para a próxima [identidade] ler o disco da conta
+  /// que acabou de entrar. Sem isto, a segunda conta desta instalação continuava
+  /// usando a chave da primeira, que ficou na memória.
+  static void esquecerIdentidade() => _par = null;
 
   /// Chave pública desta instalação, em base64, para ir na presença.
   static Future<String> chavePublicaAtual() async {
