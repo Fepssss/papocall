@@ -250,12 +250,20 @@ class AuthService {
   }
 
   /// Remove a sessão (logout)
+  ///
+  /// Vai junto o `last_login.txt`, que guarda o e-mail digitado na última
+  /// entrada: apagar a sessão e deixar o identificador da conta na tela de login
+  /// para quem quer que abra o aplicativo depois é meio logout.
   static Future<void> clearSession({String motivo = 'logout do usuário'}) async {
     try {
       final file = await _getSessionFile();
       final existia = await file.exists();
       if (existia) {
         await file.delete();
+      }
+      final identificador = await _getLastIdentifierFile();
+      if (await identificador.exists()) {
+        await identificador.delete();
       }
       AppLog.write('Auth', 'sessão apagada ($motivo); arquivo ${existia ? 'existia' : 'não existia'}');
     } catch (e) {
@@ -485,6 +493,21 @@ class AuthService {
     return null;
   }
 
+  /// Códigos que o backend emite quando aquele refresh token está morto de
+  /// verdade: `INVALID_REFRESH_TOKEN` (nunca existiu), `TOKEN_REUSE_DETECTED`
+  /// (já foi girado, e a conta inteira teve as sessões revogadas por isso) e
+  /// `REFRESH_TOKEN_EXPIRED` (passou da validade). São os únicos que justificam
+  /// apagar a sessão desta máquina e mandar fazer login de novo.
+  ///
+  /// A lista é fechada de propósito: qualquer outro 4xx vira dúvida, não
+  /// logout. Um código que este cliente ainda não conhece — validação nova no
+  /// caminho, proxy que devolve 4xx — não é evidência de token queimado.
+  static const Set<String> _codigosDeTokenMorto = {
+    'INVALID_REFRESH_TOKEN',
+    'TOKEN_REUSE_DETECTED',
+    'REFRESH_TOKEN_EXPIRED',
+  };
+
   /// 4. Renovação de Sessão via Refresh Token
   ///
   /// Distingue três coisas que antes eram a mesma: recusa definitiva do backend,
@@ -523,22 +546,42 @@ class AuthService {
       AppLog.write('Auth',
           'refresh sem resposta em ${esperaDaRenovacao.inSeconds}s: resultado incerto');
       return RefreshResult.uncertain('tempo esgotado sem resposta');
-    } on SocketException {
-      // Nada saiu desta máquina — o token continua válido para a próxima.
-      AppLog.write('Auth', 'refresh sem conexão: o pedido não chegou a sair');
-      return RefreshResult.transient('sem conexão');
+    } on SocketException catch (e) {
+      final codigo = e.osError?.errorCode ?? 0;
+      if (_codigosQueNaoSaemDaqui.contains(codigo)) {
+        // Nada saiu desta máquina — o token continua válido para a próxima.
+        AppLog.write('Auth', 'refresh sem conexão ($codigo): o pedido não chegou a sair');
+        return RefreshResult.transient('sem conexão');
+      }
+      // Conexão cortada no meio, reiniciada pelo outro lado, ou um código que
+      // este cliente não conhece: já não dá para afirmar que o servidor não viu
+      // o pedido, e o reenvio é o que queima a conta.
+      AppLog.write('Auth', 'refresh com transporte interrompido ($codigo): resultado incerto');
+      return RefreshResult.uncertain('conexão interrompida');
     } on HandshakeException {
       AppLog.write('Auth', 'refresh com TLS interrompido: o pedido não foi entregue');
       return RefreshResult.transient('falha no TLS');
     } catch (e) {
-      // Conexão cortada no meio, resposta truncada: já não dá para afirmar que
-      // o servidor não viu o pedido.
+      // Resposta truncada, HTTP excepcionado: o pedido entrou.
       AppLog.write('Auth', 'refresh com transporte interrompido: resultado incerto ($e)');
       return RefreshResult.uncertain('conexão interrompida');
     } finally {
       cliente.close();
     }
   }
+
+  /// Erros de soquete do Windows em que a conexão nunca chegou a existir: o
+  /// corpo do pedido não foi para a rua e o refresh token não queimou.
+  ///
+  /// Fora desta lista o caso é dúvida, e dúvida se trata como se o pedido tenha
+  /// saído — ver [refreshSession].
+  static const Set<int> _codigosQueNaoSaemDaqui = {
+    10061, // WSAECONNREFUSED — ninguém escutando na porta
+    11001, // WSATRY_AGAIN  — o DNS não resolveu agora
+    11004, // WSANO_RECOVERY — o DNS não resolve de jeito nenhum
+    10051, // WSAENETUNREACH — sem rota para a rede
+    10065, // WSAEHOSTUNREACH — o host não atende
+  };
 
   /// Classifica uma resposta que chegou. Aqui o pedido foi entregue, então só
   /// resta saber se o backend respondeu "não" de forma definitiva.
@@ -573,13 +616,22 @@ class AuthService {
     final code = (body['error']?['code'] as String?) ?? '';
     AppLog.write('Auth', 'refresh HTTP ${res.statusCode} code=${code.isEmpty ? '-' : code}');
 
-    // 429 e 4xx sem código útil são barrados antes de mexer no token gravado:
-    // nada girou, e a próxima tentativa pode enviar o mesmo de novo.
+    // 429 é o limite de tentativas batendo: nada girou lá fora e a próxima pode
+    // mandar o mesmo token.
     if (res.statusCode == 429) return RefreshResult.transient('muitas tentativas');
+
+    // Os três "nãos" que o backend sabe dar para um token de renovação e que,
+    // deste lado, significam a mesma coisa: a sessão acabou e só um login novo
+    // resolve. Ver [_codigosDeTokenMorto].
+    if (_codigosDeTokenMorto.contains(code)) return RefreshResult.rejected(code);
+
+    // Recusa com outro código, ou sem código nenhum, não é prova de que o token
+    // esteja queimado — pode ser uma validação nova no caminho, um proxy, uma
+    // regra que este cliente não conhece. Derrubar o login por especulação é o
+    // jeito mais rápido de fazer alguém perder a sessão à toa; ficar na dúvida
+    // para de reenviar e pede reabertura, que é a saída honesta.
     if (res.statusCode >= 400 && res.statusCode < 500) {
-      return code.isNotEmpty
-          ? RefreshResult.rejected(code)
-          : RefreshResult.transient('HTTP ${res.statusCode}');
+      return RefreshResult.uncertain('HTTP ${res.statusCode} ${code.isEmpty ? '' : code}'.trim());
     }
     // 5xx: o pedido entrou, e uma falha no meio da rotação não é distinguível
     // de uma recusa limpa. Não se reenvia.

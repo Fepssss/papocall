@@ -18,8 +18,10 @@ import 'secure_storage.dart';
 /// O que isto NÃO resolve sozinho: autenticidade. A chave pública do par chega
 /// pela presença do próprio par, cifrada com aquela chave fraca derivada do
 /// nome. Um atacante ativo que consiga publicar presença falsa no lugar dele
-/// também consegue trocar a chave. A impressão digital exposta na conversa é o
-/// que permite às duas pessoas conferirem isso por outro canal.
+/// também consegue trocar a chave. Duas coisas limitam o estrago: a primeira
+/// chave vista é fixada e todo envelope seguinte precisa abrir com ela (ver
+/// [decifrar]), e a impressão digital exposta na conversa é o que permite às duas
+/// pessoas conferirem uma troca real por outro canal.
 class DirectCrypto {
   static const String _dominio = 'papocall/dm/v1';
   static const String _arquivoIdentidade = 'dm_identity.key';
@@ -29,6 +31,13 @@ class DirectCrypto {
 
   static SimpleKeyPair? _par;
 
+  /// De qual conta é o [_par] na memória.
+  ///
+  /// A identidade mora na pasta da conta, então a troca dela tem de vir com a
+  /// troca do par; guardar só o par era deixar a segunda conta desta instalação
+  /// assinando com a chave privada da primeira.
+  static String? _parDe;
+
   /// Par desta conta, nesta instalação. Gerado na primeira execução e relido do
   /// disco nas seguintes: trocar de chave a cada abertura quebraria toda
   /// conversa antiga.
@@ -37,10 +46,26 @@ class DirectCrypto {
   /// criasse uma conta nova no mesmo computador assinava as mensagens dela com a
   /// chave privada da conta anterior — a identidade privada também vazava de uma
   /// conta para a outra.
-  static Future<SimpleKeyPair> identidade() async {
+  static Future<SimpleKeyPair> identidade({int voltas = 0}) async {
+    final dono = AppPaths.conta;
     final existente = _par;
-    if (existente != null) return existente;
+    if (existente != null && _parDe == dono) return existente;
 
+    // Ler o disco leva um tempo, e uma troca de conta nesse meio tempo entregaria
+    // a quem acabou de entrar a chave privada de quem saiu. Por isso o par só é
+    // aproveitado se a conta em vigor ainda for a mesma da leitura.
+    final par = await _lerOuCriar();
+    if (AppPaths.conta == dono) {
+      _par = par;
+      _parDe = dono;
+      return par;
+    }
+    if (voltas < 3) return identidade(voltas: voltas + 1);
+    AppLog.write('Direct', 'a conta troca sem parar; devolvendo o par lido sem fixá-lo');
+    return par;
+  }
+
+  static Future<SimpleKeyPair> _lerOuCriar() async {
     final arquivo = AppPaths.contaFile(_arquivoIdentidade);
     final gravado = await SecureStorage.readEncrypted(arquivo);
     if (gravado != null && gravado.isNotEmpty) {
@@ -48,7 +73,6 @@ class DirectCrypto {
         final json = jsonDecode(gravado) as Map<String, dynamic>;
         final privada = base64Decode(json['privada'] as String);
         final par = await _x25519.newKeyPairFromSeed(privada);
-        _par = par;
         AppLog.write('Direct', 'identidade de conversa direta relida do disco');
         return par;
       } catch (e) {
@@ -70,7 +94,6 @@ class DirectCrypto {
       // funcionam nesta sessão; só não sobrevivem a um reinício.
       AppLog.write('Direct', 'FALHA ao cifrar a identidade (DPAPI)');
     }
-    _par = novo;
     AppLog.write('Direct', 'identidade de conversa direta gerada');
     return novo;
   }
@@ -78,7 +101,10 @@ class DirectCrypto {
   /// Esquece o par carregado, para a próxima [identidade] ler o disco da conta
   /// que acabou de entrar. Sem isto, a segunda conta desta instalação continuava
   /// usando a chave da primeira, que ficou na memória.
-  static void esquecerIdentidade() => _par = null;
+  static void esquecerIdentidade() {
+    _par = null;
+    _parDe = null;
+  }
 
   /// Chave pública desta instalação, em base64, para ir na presença.
   static Future<String> chavePublicaAtual() async {
@@ -137,13 +163,21 @@ class DirectCrypto {
   /// Abre um envelope recebido na caixa de entrada.
   ///
   /// Devolve null para qualquer coisa que não feche: envelope de outro par,
-  /// texto adulterado, MAC errado. `publicaDoEnvelope` sai junto para que quem
-  /// recebe compare com a chave publicada na presença daquele contato e avise
-  /// se forem diferentes.
+  /// texto adulterado, MAC errado.
+  ///
+  /// [publicaConhecida] é a chave que já se atribui a quem escreveu, aprendida
+  /// na presença daquela pessoa ou no primeiro envelope dela. Ela não é um
+  /// enfeite: o envelope traz a própria chave pública (`pub`) com que se deriva
+  /// o segredo, e qualquer um que saiba o apelido do destinatário pode calcular
+  /// a chave fraca da caixa de entrada, inventar um `de` e cifrar com a chave
+  /// dele. Sem conferir, o aplicativo não só lê lixo como remetente verdadeiro,
+  /// como adota a chave do intruso e passa a cifrar as respostas para ele. Por
+  /// isso a conferência acontece antes de qualquer decifragem.
   static Future<ConversaDecifrada?> decifrar({
     required SimpleKeyPair minha,
     required String meuUsuario,
     required String envelope,
+    String? publicaConhecida,
   }) async {
     try {
       final json = jsonDecode(envelope) as Map<String, dynamic>;
@@ -152,11 +186,22 @@ class DirectCrypto {
       final para = (json['para'] as String?)?.trim().toLowerCase() ?? '';
       if (para != meuUsuario.trim().toLowerCase() || de.isEmpty) return null;
 
+      final publicaDoEnvelope = json['pub'] as String? ?? '';
+      if (!ehChaveX25519(publicaDoEnvelope)) {
+        AppLog.write('Direct', 'envelope descartado: sem chave pública X25519 válida');
+        return null;
+      }
+      if (publicaConhecida != null && publicaConhecida != publicaDoEnvelope) {
+        AppLog.write(
+            'Direct', 'envelope de $de descartado: a chave dele não é a desta pessoa');
+        return null;
+      }
+
       final nomes = _parDeNomes(de, para).join('|');
       final compartilhada = await _x25519.sharedSecretKey(
         keyPair: minha,
         remotePublicKey: SimplePublicKey(
-          base64Decode(json['pub'] as String),
+          base64Decode(publicaDoEnvelope),
           type: KeyPairType.x25519,
         ),
       );
@@ -176,12 +221,42 @@ class DirectCrypto {
       );
 
       final conteudo = jsonDecode(utf8.decode(claro)) as Map<String, dynamic>;
-      return ConversaDecifrada(de: de, conteudo: conteudo, publicaDoEnvelope: json['pub'] as String);
+      return ConversaDecifrada(
+          de: de, conteudo: conteudo, publicaDoEnvelope: publicaDoEnvelope);
     } catch (e) {
       // Um envelope que não abre pode ser de outra conversa ou estar adulterado.
       // Não há o que mostrar ao usuário; registrar é o suficiente para depurar.
       AppLog.write('Direct', 'envelope descartado: $e');
       return null;
+    }
+  }
+
+  /// O autor que o envelope declara, lido sem abrir nada.
+  ///
+  /// Serve para achar a chave fixada daquele contato antes da decifragem. Não é
+  /// confiança: o campo entra no AAD, então um `de` adulterado faz o envelope
+  /// inteiro não abrir.
+  static String? remetenteDeclarado(String envelope) {
+    try {
+      final json = jsonDecode(envelope) as Map<String, dynamic>;
+      if (json['acao'] != 'dm') return null;
+      final de = (json['de'] as String?)?.trim().toLowerCase() ?? '';
+      return de.isEmpty ? null : de;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Uma chave pública X25519 tem exatamente 32 bytes.
+  ///
+  /// O que chega do broker é texto que qualquer um pode publicar. Guardar
+  /// qualquer string dali como chave é levar lixo para a cifragem e para a tela,
+  /// onde [impressao] arrebentaria.
+  static bool ehChaveX25519(String publicaB64) {
+    try {
+      return base64Decode(publicaB64).length == 32;
+    } on FormatException {
+      return false;
     }
   }
 

@@ -831,7 +831,14 @@ class VoiceService {
       // só derruba a conexão, e uma webcam acesa depois do "desconectado" não
       // é detalhe cosmético: é o microfone/lente da pessoa entregues a um
       // processo que já não tem chamada nenhuma.
+      //
+      // Em try separado: uma falha aqui não pode pular a limpeza da transmissão
+      // logo abaixo, que é o que devolve o aparelho de captura e o áudio da tela.
       await _room?.localParticipant?.setCameraEnabled(false);
+    } catch (e) {
+      _log('A câmera não pôde ser desligada ao sair da sala: $e');
+    }
+    try {
       if (_screenSharePublication != null) {
         await _room?.localParticipant?.removePublishedTrack(_screenSharePublication!.sid);
       }

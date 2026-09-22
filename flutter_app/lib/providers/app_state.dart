@@ -748,6 +748,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   File _getDeletedMessagesFile() => AppPaths.contaFile('deleted_messages.json');
   File _getDirectKeysFile() => AppPaths.contaFile('dm_keys.json');
 
+  /// Grava um JSON de dado sem nunca deixar o arquivo pela metade.
+  ///
+  /// `writeAsString` trunca o arquivo existente antes de o conteúdo novo existir
+  /// por inteiro: cai a energia no meio de um histórico grande e o arquivo vira
+  /// lixo ilegível — e todo leitor daqui devolve lista vazia diante de lixo, que
+  /// é a pessoa perder as conversas dela por um azar de gravação. Escrever num
+  /// `.tmp` e trocar os nomes deixa ou o conteúdo velho ou o novo, nunca os dois
+  /// quebrados.
+  Future<void> _gravarJson(File file, Object? dados) async {
+    final provisorio = File('${file.path}.tmp');
+    await provisorio.writeAsString(jsonEncode(dados));
+    await provisorio.rename(file.path);
+  }
+
   /// Preferências de uma conta sobre as pessoas e os servidores dela: volume por
   /// participante, silêncio, vídeo ocultado e servidores em silêncio. Nada disso
   /// é escolha da instalação, e nada disso pode passar de uma conta para outra.
@@ -755,12 +769,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _saveContaPrefs() async {
     try {
-      await _getContaPrefsFile().writeAsString(jsonEncode({
+      await _gravarJson(_getContaPrefsFile(), {
         'volume': _volumesDoPar,
         'silenciados': _paresSilenciados.toList(),
         'videoOculto': _videoOculto.toList(),
         'mutedServers': _mutedServerIds.toList(),
-      }));
+      });
     } catch (e) {
       debugPrint('Erro ao salvar as preferências da conta: $e');
     }
@@ -835,12 +849,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Coloca a interface na pasta de [id] e recarrega o que ela mostra.
   ///
-  /// Limpa antes de carregar, e não depois: cada leitor deixa a memória como
-  /// estava quando o arquivo não existe, e era exatamente assim que uma conta
-  /// nova aparecia com os amigos, os servidores e as conversas de quem tinha
-  /// saído — com a chave privada do chat privado da outra pessoa junto.
-  Future<void> _trocarDeConta(String? id) async {
+  /// Uma troca por vez: o corpo abaixo limpa a memória e vai relendo arquivo por
+  /// arquivo, e duas leituras entrelaçadas deixariam na tela os dados de quem
+  /// acabou de sair misturados aos de quem está entrando. Sai duplo — o botão da
+  /// interface e uma recusa do servidor ao mesmo tempo — era exatamente isso.
+  Future<void> _trocarDeConta(String? id) {
+    final anterior = _trocaDeContaEmAndamento ?? Future<void>.value();
+    final proxima = anterior.then((_) => _executarTrocaDeConta(id));
+    _trocaDeContaEmAndamento = proxima;
+    proxima.whenComplete(() {
+      if (identical(_trocaDeContaEmAndamento, proxima)) _trocaDeContaEmAndamento = null;
+    });
+    return proxima;
+  }
+
+  Future<void>? _trocaDeContaEmAndamento;
+
+  Future<void> _executarTrocaDeConta(String? id) async {
     if (_contaCarregada == id) return;
+    // Limpa antes de carregar, e não depois: cada leitor deixa a memória como
+    // estava quando o arquivo não existe, e era exatamente assim que uma conta
+    // nova aparecia com os amigos, os servidores e as conversas de quem tinha
+    // saído — com a chave privada do chat privado da outra pessoa junto.
     // Escrita pendente primeiro, ainda com a pasta da conta que está saindo na
     // mão: o histórico tem adiamento de gravação, e um salvamento que dispara
     // depois da troca iria cair no cofre de quem está deslogado — a conta
@@ -858,6 +888,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _lastSeen.clear();
     friends = [];
     friendRequests = [];
+    _outboxFriendRequests.clear();
     _chavesDosPares.clear();
     _deletedMessageIds.clear();
     _lastReadAt.clear();
@@ -937,7 +968,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _saveReadMarks() async {
     try {
-      await _getReadMarksFile().writeAsString(jsonEncode(_lastReadAt));
+      await _gravarJson(_getReadMarksFile(), _lastReadAt);
     } catch (e) {
       debugPrint('Erro ao salvar marcas de leitura: $e');
     }
@@ -964,7 +995,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final file = _getServersFile();
       final list = servers.map((s) => s.toJson()).toList();
-      await file.writeAsString(jsonEncode(list));
+      await _gravarJson(file, list);
     } catch (e) {
       debugPrint('Erro ao salvar servidores: $e');
     }
@@ -1016,7 +1047,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final file = _getFriendRequestsFile();
       final list = friendRequests.map((r) => r.toJson()).toList();
-      await file.writeAsString(jsonEncode(list));
+      await _gravarJson(file, list);
     } catch (e) {
       debugPrint('Erro ao salvar solicitações de amizade: $e');
     }
@@ -1041,7 +1072,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final file = _getFriendsFile();
       final list = friends.map((f) => f.toJson()).toList();
-      await file.writeAsString(jsonEncode(list));
+      await _gravarJson(file, list);
     } catch (e) {
       debugPrint('Erro ao salvar amigos: $e');
     }
@@ -1078,7 +1109,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final file = _getKnownUsersFile();
       final list = _knownUsers.values.map((u) => u.toJson()).toList();
-      await file.writeAsString(jsonEncode(list));
+      await _gravarJson(file, list);
     } catch (e) {
       debugPrint('Erro ao salvar usuários conhecidos: $e');
     }
@@ -1138,7 +1169,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'somDeCompartilhamento': somDeCompartilhamento,
         'volumeDaLive': volumeDaLive,
       };
-      await file.writeAsString(jsonEncode(data));
+      await _gravarJson(file, data);
     } catch (e) {
       debugPrint('Erro ao salvar configurações: $e');
     }
@@ -1171,7 +1202,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _saveDrafts() async {
     try {
       final file = _getDraftsFile();
-      await file.writeAsString(jsonEncode(_drafts));
+      await _gravarJson(file, _drafts);
     } catch (e) {
       debugPrint('Erro ao salvar rascunhos: $e');
     }
@@ -1203,7 +1234,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       for (final entry in _messages.entries) {
         serialized[entry.key] = entry.value.map((m) => m.toJson()).toList();
       }
-      await file.writeAsString(jsonEncode(serialized));
+      await _gravarJson(file, serialized);
     } catch (e) {
       debugPrint('Erro ao salvar histórico de chat: $e');
     }
@@ -1248,7 +1279,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _saveDeletedMessages() async {
     try {
-      await _getDeletedMessagesFile().writeAsString(jsonEncode(_deletedMessageIds.toList()));
+      await _gravarJson(_getDeletedMessagesFile(), _deletedMessageIds.toList());
     } catch (e) {
       debugPrint('Erro ao salvar mensagens apagadas: $e');
     }
@@ -1290,6 +1321,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // anteriores antes de qualquer outra coisa.
     await AuthService.purgeLegacyInsecureFiles();
 
+    var renovarAoAbrir = false;
     try {
       final savedSession = await AuthService.loadSession();
       if (savedSession != null) {
@@ -1297,11 +1329,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         currentUser = savedSession.user.toUserModel();
         isAuthenticated = true;
         // O access token dura 15 minutos: ao abrir o app ele quase sempre já
-        // venceu. Renovar aqui evita que a primeira coisa que o usuário tente
-        // fazer depois de abrir o aplicativo falhe por token velho.
-        if (!AuthService.accessTokenValid(savedSession.accessToken)) {
-          unawaited(renewSession());
-        }
+        // venceu. Renovar evita que a primeira coisa que o usuário tente fazer
+        // depois de abrir o aplicativo falhe por token velho — mas só depois de
+        // a casa estar montada, lá embaixo.
+        renovarAoAbrir = !AuthService.accessTokenValid(savedSession.accessToken);
       } else {
         isAuthenticated = false;
       }
@@ -1378,6 +1409,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (isAuthenticated) {
       await _startNetwork();
     }
+
+    // Renovar por último, com a conta já montada. Uma recusa do backend derruba
+    // o login, e um logout atravessado no meio do carregamento deixava a pasta
+    // de uma conta sendo escrita enquanto a outra entrava — e a rede, que o
+    // logout manda parar, voltava a subir logo em seguida.
+    if (renovarAoAbrir && isAuthenticated) unawaited(renewSession());
   }
 
   Future<void> _startNetwork() async {
@@ -1987,6 +2024,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // membro são assinados pelo nome exato, e não dá para assinar o
       // compartimento de alguém cujo ID se desconhece.
       'memberIds': srv.memberIds.take(_maxRosterSize).toList(),
+      // Quantos membros existem de verdade. Quem recebe usa isso para saber se a
+      // lista veio inteira ou cortada no teto: tratar como autoritativa uma
+      // lista truncada apagaria da tela de todo mundo quem passou do limite.
+      'memberTotal': srv.memberIds.length,
       'revision': srv.revision,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
@@ -2280,7 +2321,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         // com o código do convite poderia apagar todo mundo da tela dos outros
         // publicando um retrato só com o próprio nome.
         roster.contains(publishedBy) &&
-        roster.contains(origin.ownerId);
+        roster.contains(origin.ownerId) &&
+        // E a lista precisa ter vindo inteira. O roster publicado tem teto de
+        // `_maxRosterSize`; num servidor maior, substituir por uma lista
+        // cortada apagaria quem passou do limite. Um retrato sem essa
+        // informação (publicado por uma versão anterior) também não substitui.
+        data['memberTotal'] == roster.length;
 
     if (rosterAutoritativo && !roster.contains(currentUser.id)) {
       // Expulso enquanto estava offline: o retrato do Dono já não me tem, e um
@@ -3577,6 +3623,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void openDirectChat(String peerId) {
     if (_amigoPorId(peerId) == null) return;
     activeDirectPeerId = peerId;
+    // Abrir a conversa é ir até ela. Vinda do menu de um membro no meio de um
+    // servidor, a seleção ficava feita atrás de uma tela de canal e nada
+    // acontecia à vista de quem clicou em "mensagem direta".
+    isHomePageActive = true;
     markChannelRead(directKey(peerId));
     notifyListeners();
   }
@@ -3727,20 +3777,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final bruto = data['envelope'] as String?;
     if (bruto == null) return;
 
+    // Só um amigo tem a chave desta conversa; se ele não está mais na lista, a
+    // conversa acabou e o que chega daqui pra frente é lixo.
+    final amigo = _amigoPorUsuario(DirectCrypto.remetenteDeclarado(bruto) ?? '');
+    if (amigo == null) {
+      AppLog.write('Direct', 'mensagem descartada: remetente não é amigo');
+      return;
+    }
+
+    // A chave do contato já conhecida é a única que pode abrir o envelope. O
+    // broker é público: qualquer um que saiba o apelido do destinatário calcula a
+    // chave fraca da caixa de entrada, inventa um `de` e cifra o lixo com a chave
+    // dele. Sem esta conferência o aplicativo não apenas mostraria aquilo como
+    // fala do amigo, como adotaria a chave do intruso e passaria a cifrar as
+    // respostas para ele — o que é ler a conversa inteira pelo lado de fora.
     final aberto = await DirectCrypto.decifrar(
       minha: await DirectCrypto.identidade(),
       meuUsuario: currentUser.username,
       envelope: bruto,
+      publicaConhecida: _chavesDosPares[amigo.id],
     );
     if (aberto == null) return;
-
-    // Só um amigo tem a chave desta conversa; se ele não está mais na lista, a
-    // conversa acabou e o que chega daqui pra frente é lixo.
-    final amigo = _amigoPorUsuario(aberto.de);
-    if (amigo == null) {
-      AppLog.write('Direct', 'mensagem descartada: remetente não é amigo (${aberto.de})');
-      return;
-    }
 
     final chave = directKey(amigo.id);
     final destino = _messages.putIfAbsent(chave, () => []);
@@ -3749,6 +3806,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (id.isEmpty || destino.any((m) => m.id == id)) return;
     if (_deletedMessageIds.contains(id)) return;
 
+    // Aqui só cabe o primeiro envelope de um contato ainda sem chave fixada: com
+    // chave já conhecida, [decifrar] teria recusado outra.
     _registrarChaveDoPar(amigo, aberto.publicaDoEnvelope);
 
     // O carimbo vem do relógio de quem enviou. Adiantado, ele deixaria a
@@ -3783,15 +3842,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// Registra a chave pública que o contato anuncia — na presença dele, ou
-  /// dentro do envelope que ele acabou de mandar.
+  /// Registra a chave pública que o contato anuncia — na presença dele, ou no
+  /// primeiro envelope dele, quando a presença ainda não chegou.
   ///
-  /// Trocar de chave no meio de uma conversa é exatamente o que um atacante
-  /// enfiado no meio faria, então a troca ganha uma linha na conversa em vez de
-  /// passar em branco. A troca legítima também existe: é o que acontece quando o
-  /// amigo reinstala o aplicativo e o par X25519 dele nasce de novo.
+  /// Depois da primeira, um envelope com outra chave não abre (ver
+  /// [DirectCrypto.decifrar]): é exatamente o que um atacante enfiado no meio
+  /// faria para desviar o que você responde. A troca legítima também existe — o
+  /// amigo que reinstala o aplicativo e ganha um par X25519 novo — e é ela que a
+  /// presença anuncia, com uma linha na conversa para que nada passe em branco.
   void _registrarChaveDoPar(UserModel amigo, String publicaB64) {
-    if (!_ehChaveX25519(publicaB64)) {
+    if (!DirectCrypto.ehChaveX25519(publicaB64)) {
       AppLog.write('Direct', 'chave anunciada por ${amigo.username} descartada: não é X25519');
       return;
     }
@@ -3815,19 +3875,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _saveChatHistory();
   }
 
-  /// Uma chave pública X25519 tem exatamente 32 bytes.
-  ///
-  /// A presença de onde ela vem é texto que qualquer um pode publicar num broker
-  /// público. Guardar qualquer string dali é levar lixo para a cifragem e para a
-  /// tela, onde `impressao()` arrebentaria.
-  bool _ehChaveX25519(String publicaB64) {
-    try {
-      return base64Decode(publicaB64).length == 32;
-    } on FormatException {
-      return false;
-    }
-  }
-
   UserModel? _amigoPorId(String? id) {
     if (id == null || id.isEmpty) return null;
     for (final f in friends) {
@@ -3847,7 +3894,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _saveDirectKeys() async {
     try {
-      await _getDirectKeysFile().writeAsString(jsonEncode(_chavesDosPares));
+      await _gravarJson(_getDirectKeysFile(), _chavesDosPares);
     } catch (e) {
       debugPrint('Erro ao salvar chaves de conversa: $e');
     }
@@ -3863,7 +3910,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (raw is! Map) return;
       _chavesDosPares.clear();
       raw.forEach((k, v) {
-        if (k is String && v is String && _ehChaveX25519(v)) _chavesDosPares[k] = v;
+        if (k is String && v is String && DirectCrypto.ehChaveX25519(v)) _chavesDosPares[k] = v;
       });
     } catch (e) {
       debugPrint('Erro ao carregar chaves de conversa: $e');
@@ -4335,9 +4382,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         connectedVoiceChannelId = channelId;
         currentUser.currentVoiceChannelId = channelId;
         voiceErrorMessage = null;
-        // A pessoa pode ter saído da sala ensurdecida e voltar assim: a faixa
-        // de cada amigo já chega desligada, sem esperar por um clique no botão.
-        await _voiceService.definirEnsurdecido(currentUser.isDeafened);
         SoundService.playJoinCall();
       } else {
         connectedVoiceChannelId = null;
@@ -4356,6 +4400,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       isConnectingVoice = false;
       _sendPresence();
       notifyListeners();
+    }
+
+    // A pessoa pode ter saído da sala ensurdecida e voltar assim: a faixa de cada
+    // amigo já chega desligada, sem esperar por um clique no botão. Do lado de
+    // fora do try acima, porque uma falha ao regular o áudio não quer dizer que a
+    // entrada na sala tenha falhado — e dizer isso despejaria a pessoa de uma
+    // chamada onde ela está conectada.
+    if (connectedVoiceChannelId != null) {
+      try {
+        await _voiceService.definirEnsurdecido(currentUser.isDeafened);
+      } catch (e) {
+        debugPrint('Não foi possível aplicar o ensurdecimento na sala $channelId: $e');
+      }
     }
     return voiceErrorMessage;
   }

@@ -173,7 +173,31 @@ void main() {
       expect(state.directMessages('user-amigo'), isEmpty);
     });
 
-    test('troca de chave no meio da conversa vira um aviso na tela', () async {
+    test('quem escreve com outra chave não entra na conversa nem desvia a resposta',
+        () async {
+      final state = aplicativo();
+      presencaDoAmigo(state, chave: publicaDoAmigo);
+      await state.processInboxPayload(
+        await envelopeDe(parDoAmigo, de: 'victor', texto: 'a primeira'),
+      );
+
+      // O broker é público e a chave da caixa de entrada se calcula a partir do
+      // apelido: qualquer um pode cifrar isto aqui assinando como o Victor. Sem a
+      // conferência da chave fixada, o texto abaixo entraria na conversa e a
+      // resposta da pessoa passaria a ir para o estranho.
+      final outroPar = await X25519().newKeyPair();
+      final outraPublica = base64Encode((await outroPar.extract()).publicKey.bytes);
+      await state.processInboxPayload(
+        await envelopeDe(outroPar, de: 'victor', texto: 'a segunda', id: 'msg-2'),
+      );
+
+      expect(state.directMessages('user-amigo').map((m) => m.text), ['a primeira']);
+      expect(state.chavePublicaDoPar('user-amigo'), publicaDoAmigo);
+      expect(state.chavePublicaDoPar('user-amigo'), isNot(outraPublica));
+    });
+
+    test('a reinstalação do amigo, anunciada na presença, muda a chave com aviso',
+        () async {
       final state = aplicativo();
       presencaDoAmigo(state, chave: publicaDoAmigo);
       await state.processInboxPayload(
@@ -182,16 +206,36 @@ void main() {
 
       final outroPar = await X25519().newKeyPair();
       final outraPublica = base64Encode((await outroPar.extract()).publicKey.bytes);
-      await state.processInboxPayload(
-        await envelopeDe(outroPar, de: 'victor', texto: 'a segunda', id: 'msg-2'),
-      );
+      presencaDoAmigo(state, chave: outraPublica);
 
       expect(state.chavePublicaDoPar('user-amigo'), outraPublica);
-      final mensagens = state.directMessages('user-amigo');
-      expect(mensagens.where((m) => m.isSystem), hasLength(1));
-      expect(mensagens.firstWhere((m) => m.isSystem).text, contains('mudou'));
-      expect(mensagens.where((m) => !m.isSystem).map((m) => m.text),
-          ['a primeira', 'a segunda']);
+      expect(state.directMessages('user-amigo').where((m) => m.isSystem), hasLength(1));
+      expect(
+        state.directMessages('user-amigo').firstWhere((m) => m.isSystem).text,
+        contains('mudou'),
+      );
+
+      // E a conversa continua: o envelope cifrado com a chave que a presença
+      // acabou de anunciar é aceito.
+      await state.processInboxPayload(
+        await envelopeDe(outroPar, de: 'victor', texto: 'de novo eu', id: 'msg-2'),
+      );
+      expect(
+        state.directMessages('user-amigo').where((m) => !m.isSystem).map((m) => m.text),
+        ['a primeira', 'de novo eu'],
+      );
+    });
+
+    test('o primeiro envelope, sem presença ainda, fixa a chave e entra', () async {
+      final state = aplicativo();
+      state.isNetworkOnline = true;
+
+      await state.processInboxPayload(
+        await envelopeDe(parDoAmigo, de: 'victor', texto: 'antes da presença'),
+      );
+
+      expect(state.directMessages('user-amigo').map((m) => m.text), ['antes da presença']);
+      expect(state.chavePublicaDoPar('user-amigo'), isNotNull);
     });
 
     test('a conversa some da lista quando o amigo é removido', () async {

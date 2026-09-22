@@ -135,8 +135,11 @@ void main() {
 
   test('falha antes de sair permite tentar de novo na hora seguinte', () async {
     final trajeto = _instalarBackend(
-      noRefresh: (tentativa) =>
-          tentativa == 1 ? const SocketException('conexão caiu') : null,
+      noRefresh: (tentativa) => tentativa == 1
+          // 10061 = conexão recusada: ninguém atendeu a porta, o corpo do pedido
+          // não saiu desta máquina e o token continua inteiro lá fora.
+          ? SocketException('conexão recusada', osError: OSError('ninguém escutando', 10061))
+          : null,
       corpoNoRefresh: _renovou,
     );
     final state = AppState()..currentSession = _sessao();
@@ -148,11 +151,12 @@ void main() {
     expect(renovada?.refreshToken, 'renovacao-2');
   });
 
-  test('recusa definitiva do servidor ainda encerra o login', () async {
-    _instalarBackend(
-      corpoNoRefresh:
-          '{"success":false,"error":{"code":"TOKEN_REUSE_DETECTED","message":"sessões encerradas"}}',
-      statusNoRefresh: 401,
+  // Depois de a conexão existir, o corte já não é "nada saiu daqui": o backend
+  // pode ter girado o token antes de a linha cair, e o reenvio é o que ele lê
+  // como reuso — com a revogação de todas as sessões da conta.
+  test('conexão cortada no meio do pedido não é reenviada', () async {
+    final trajeto = _instalarBackend(
+      noRefresh: (_) => SocketException('reset', osError: OSError('fora do ar', 10054)),
     );
     final state = AppState()
       ..currentSession = _sessao()
@@ -160,14 +164,72 @@ void main() {
     await AuthService.saveSession(_sessao());
 
     expect(await state.renewSession(), isNull);
+    expect(await state.renewSession(), isNull);
 
-    // O logout é agendado sem espera para não travar quem estava renovando;
-    // aqui ele é acompanhado até acontecer de verdade.
-    for (var i = 0; i < 200 && (state.isAuthenticated || await AuthService.loadSession() != null); i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-    }
+    expect(_contar(trajeto, 'POST /auth/refresh'), 1);
+    expect(state.isAuthenticated, isTrue);
+    expect(await AuthService.loadSession(), isNotNull);
+  });
 
-    expect(state.isAuthenticated, isFalse);
+  // Descrever por qualquer 4xx foi o que fez gente perder a sessão por um código
+  // que não tinha nada a ver com o token. Só os três de token morto derrubam o
+  // login; o resto fica na dúvida, que não reenvia e não apaga.
+  test('recusa com código que não fala do token mantém o login', () async {
+    final trajeto = _instalarBackend(
+      corpoNoRefresh:
+          '{"success":false,"error":{"code":"VALIDATION_ERROR","message":"campo desconhecido"}}',
+      statusNoRefresh: 400,
+    );
+    final state = AppState()
+      ..currentSession = _sessao()
+      ..isAuthenticated = true;
+    await AuthService.saveSession(_sessao());
+
+    expect(await state.renewSession(), isNull);
+    expect(await state.renewSession(), isNull);
+
+    expect(_contar(trajeto, 'POST /auth/refresh'), 1);
+    expect(state.isAuthenticated, isTrue);
+    expect(await AuthService.loadSession(), isNotNull);
+  });
+
+  for (final codigo in [
+    'INVALID_REFRESH_TOKEN',
+    'TOKEN_REUSE_DETECTED',
+    'REFRESH_TOKEN_EXPIRED',
+  ]) {
+    test('o código $codigo é recusa de token e encerra o login', () async {
+      _instalarBackend(
+        corpoNoRefresh:
+            '{"success":false,"error":{"code":"$codigo","message":"faça login de novo"}}',
+        statusNoRefresh: 401,
+      );
+      final state = AppState()
+        ..currentSession = _sessao()
+        ..isAuthenticated = true;
+      await AuthService.saveSession(_sessao());
+
+      expect(await state.renewSession(), isNull);
+      for (var i = 0; i < 200 && (state.isAuthenticated || await AuthService.loadSession() != null); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      expect(state.isAuthenticated, isFalse);
+      expect(await AuthService.loadSession(), isNull);
+    });
+  }
+
+  // O logout apaga também o identificador guardado para pré-preencher a tela de
+  // login: sair e deixar o e-mail da conta na tela para o próximo que abrir o
+  // aplicativo é meio logout.
+  test('sair leva o último identificador junto', () async {
+    await AuthService.saveLastIdentifier('feps@exemplo.com');
+    expect(await AuthService.loadLastIdentifier(), 'feps@exemplo.com');
+    await AuthService.saveSession(_sessao());
+
+    await AuthService.clearSession(motivo: 'teste');
+
+    expect(await AuthService.loadLastIdentifier(), isEmpty);
     expect(await AuthService.loadSession(), isNull);
   });
 

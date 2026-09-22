@@ -381,6 +381,7 @@ void main() {
       required List<String> memberIds,
       String publisher = 'dono',
       int revision = 4,
+      int? total,
     }) =>
         {
           'action': 'server_info',
@@ -390,6 +391,7 @@ void main() {
           'colorHex': '22C55E',
           'revision': revision,
           'memberIds': memberIds,
+          'memberTotal': total ?? memberIds.length,
           'channels': [
             {'id': 'c-1', 'name': 'geral', 'type': 'text'},
           ],
@@ -435,6 +437,32 @@ void main() {
         infoDe(memberIds: ['dono', 'eu'], revision: 4),
         srv,
       );
+
+      expect(srv.memberIds, contains('fantasma'));
+    });
+
+    test('lista cortada no teto do roster nunca apaga ninguém', () {
+      // O roster publicado tem teto. Num servidor maior, a lista que chega é só
+      // uma parte da verdade, e tratá-la como a lista apagaria da tela de todo
+      // mundo quem passou do limite — o `memberTotal` é o que diz isso.
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('eu', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['dono', 'eu'], total: 300),
+        srv,
+      );
+
+      expect(srv.memberIds, containsAll(['dono', 'eu', 'fantasma']));
+    });
+
+    test('retrato publicado por versão anterior não substitui a lista', () {
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('eu', srv);
+      final semTotal = infoDe(memberIds: ['dono', 'eu'])
+        ..remove('memberTotal');
+
+      state.processNetworkPayload(semTotal, srv);
 
       expect(srv.memberIds, contains('fantasma'));
     });

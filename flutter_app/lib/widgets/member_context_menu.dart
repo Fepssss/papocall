@@ -113,6 +113,7 @@ class _MemberContextMenu extends StatelessWidget {
     final estimatedHeight =
         (30 + rows.length * 32 + rows.whereType<_MemberMenuDivider>().length * 9 + 16).toDouble();
     final origin = _origin(screen, estimatedHeight);
+    final disponivel = screen.height - origin.dy - 26;
 
     return Stack(
       fit: StackFit.expand,
@@ -137,25 +138,33 @@ class _MemberContextMenu extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
-                    child: Text(
-                      member.displayNameOrUsername,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: HudTheme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
+              child: ConstrainedBox(
+                // Mesma regra do menu da chamada: o que não cabe na janela tem de
+                // rolar, não pode ficar fora do alcance do clique.
+                constraints: BoxConstraints(
+                    maxHeight: disponivel < 120 ? 120 : disponivel),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                        child: Text(
+                          member.displayNameOrUsername,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HudTheme.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
                       ),
-                    ),
+                      ...rows,
+                    ],
                   ),
-                  ...rows,
-                ],
+                ),
               ),
             ),
           ),
@@ -633,13 +642,21 @@ class _VoiceMemberMenu extends StatelessWidget {
       dx = tela.width - VoiceMemberMenu._menuWidth - 8;
     }
     if (dy + altura + 8 > tela.height) dy = tela.height - altura - 8;
+    final esquerda = dx < 8 ? 8.0 : dx;
+    final topo = dy < 8 ? 8.0 : dy;
+    // O tanto que cabe abaixo do topo, e não o tamanho da tela: a estimativa
+    // acima pode errar para baixo, e um menu que passa do pé da janela não tem
+    // como ser fechado pela última linha. Descontam-se os 8 de margem e os 18
+    // de forro da própria caixa.
+    final calculada = tela.height - topo - 26;
+    final alturaDisponivel = calculada < 120 ? 120.0 : calculada;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         Positioned(
-          left: dx < 8 ? 8 : dx,
-          top: dy < 8 ? 8 : dy,
+          left: esquerda,
+          top: topo,
           child: Material(
             color: Colors.transparent,
             child: Container(
@@ -661,7 +678,7 @@ class _VoiceMemberMenu extends StatelessWidget {
                 // Com o volume e as caixas o menu cresceu: sem rolagem, a última
                 // linha ficava fora da tela numa janela pequena, e o que não
                 // cabe na tela não existe para quem usa.
-                constraints: BoxConstraints(maxHeight: tela.height - 24),
+                constraints: BoxConstraints(maxHeight: alturaDisponivel),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
