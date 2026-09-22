@@ -109,8 +109,11 @@ void main() {
     expect(tester.getTopLeft(find.text('mensagem nova 0')).dy, lessThan(220));
     // O começo da conversa não é mais o que a pessoa vê ao abrir.
     expect(find.text('mensagem 3'), findsNothing);
-    // E o fim da conversa também não: a marca fica onde foi posta.
-    expect(find.text('mensagem nova 14'), findsNothing);
+    // E o fim da conversa também não: a marca fica onde foi posta. O bloco da
+    // marca é montado inteiro (é ele que encosta no pé da tela quando é curto),
+    // então aqui o que diz "fora da tela" é a geometria, não a existência.
+    expect(tester.getBottomLeft(find.text('mensagem nova 14')).dy,
+        greaterThan(700));
     expect(tester.takeException(), isNull);
     await vencerOsRelogios(tester);
   });
@@ -154,6 +157,52 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
 
     expect(tester.getTopLeft(find.text('mensagem nova 0')).dy, antes);
+    await vencerOsRelogios(tester);
+  });
+
+  /// O que o usuário viu: depois da última mensagem ainda dava para rolar, e a
+  /// tela ia parar vazia. O fim da conversa tem de ser o limite da rolagem —
+  /// com mensagem nova ou sem — e isso é a geometria da lista que garante, não
+  /// um pulo de scroll calculado depois do quadro pintado.
+  ScrollPosition _rolagem(WidgetTester tester) =>
+      tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+
+  testWidgets('sem nada novo não existe rolagem depois da última mensagem', (tester) async {
+    final srv = servidor();
+    final state = aplicativo(srv);
+    injeta(state, srv, 40, DateTime.now().millisecondsSinceEpoch - 400000);
+    state.selectChannel('c-texto');
+    state.selectChannel('c-fora');
+    state.selectChannel('c-texto');
+    await montar(tester, state);
+
+    expect(_rolagem(tester).maxScrollExtent, 0);
+    expect(
+      tester.getBottomLeft(find.text('mensagem 39')).dy,
+      greaterThan(tester.getBottomLeft(find.byType(CustomScrollView)).dy - 40),
+    );
+    await vencerOsRelogios(tester);
+  });
+
+  testWidgets('com três novas não existe rolagem depois da última mensagem', (tester) async {
+    final srv = servidor();
+    final state = aplicativo(srv);
+    final agora = DateTime.now().millisecondsSinceEpoch;
+    injeta(state, srv, 40, agora - 400000);
+    state.selectChannel('c-texto');
+    injeta(state, srv, 3, agora + 5000, rotulo: 'nova ');
+    state.selectChannel('c-fora');
+    state.selectChannel('c-texto');
+    await montar(tester, state);
+
+    final pos = _rolagem(tester);
+    expect(pos.maxScrollExtent, 0);
+    expect(pos.pixels, 0);
+    // Arrastar para baixo não tem para onde ir: o fim é o fim.
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(_rolagem(tester).pixels, 0);
+    expect(find.text('mensagem nova 2'), findsOneWidget);
     await vencerOsRelogios(tester);
   });
 }

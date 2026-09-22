@@ -24,11 +24,10 @@ class _ChatViewState extends State<ChatView> {
   final FocusNode _inputFocus = FocusNode();
   String? _lastChannelId;
 
-  /// Chaves de medição: a moldura da área do chat e o balão da última mensagem.
-  /// É da diferença entre o pé uma e o pé do outro que se precisa para saber
-  /// quanto puxar a conversa para baixo.
-  final GlobalKey _chaveDaLista = GlobalKey(debugLabel: 'área do chat');
-  final GlobalKey _chaveDoFim = GlobalKey(debugLabel: 'última mensagem');
+  /// Até quantas mensagens abaixo da marca vale montar de uma vez, alinhadas em
+  /// baixo, em vez de deixar o sliver preguiçoso cuidar delas. Acima disso o
+  /// próprio conteúdo já passa de uma tela e não há sobra para rolar.
+  static const int _marcaEmCaixa = 120;
 
   /// Índice da primeira mensagem ainda não vista deste canal, resolvido quando
   /// a pessoa troca de canal. `null` quer dizer "abrir no fim".
@@ -234,14 +233,11 @@ class _ChatViewState extends State<ChatView> {
 
   Widget _tile(
     ChatMessage msg, {
-    required int indice,
-    required int total,
     required Set<String> knownHandles,
     required String selfHandle,
     required AppState state,
   }) {
     return _ChatMessageTile(
-      key: indice == total - 1 ? _chaveDoFim : null,
       msg: msg,
       knownHandles: knownHandles,
       selfHandle: selfHandle,
@@ -253,35 +249,16 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  /// Solta a marca de leitura e cola o fim da conversa no pé da área do chat.
+  /// Solta a marca de leitura e vai para o fim da conversa.
+  ///
+  /// O fim é o offset zero: o bloco da marca é desenhado encostado embaixo
+  /// quando é curto (ver `_blocoDaMarca`), então não existe mais o "pular para
+  /// trás" que deixava tela vazia abaixo da última mensagem.
   void _scrollToBottom() {
     _indiceAncora = null;
-    _alinharComOFim();
-  }
-
-  /// Puxa a conversa para baixo até a última mensagem encostar no pé da área
-  /// do chat.
-  ///
-  /// O sliver da marca de leitura está no topo da tela, então o offset zero é a
-  /// própria marca: tudo o que ainda não foi visto aparece a partir dela. Quando
-  /// o que falta ver é curto — e quando não falta nada — é o fim da conversa que
-  /// deve ficar encostado embaixo, e para isso se desce a linha da marca pela
-  /// sobra de tela que ficou embaixo dela. Nunca se sobe: a marca fica sempre no
-  /// lugar ou mais abaixo, nunca rolada para fora.
-  void _alinharComOFim() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      final lista = _chaveDaLista.currentContext?.findRenderObject();
-      final fim = _chaveDoFim.currentContext?.findRenderObject();
-      if (lista is! RenderBox || fim is! RenderBox) return;
-      if (!lista.hasSize || !fim.hasSize) return;
-
-      final peDaLista = lista.localToGlobal(Offset.zero).dy + lista.size.height;
-      final peDoFim = fim.localToGlobal(Offset.zero).dy + fim.size.height;
-      final sobra = peDaLista - peDoFim;
-      if (sobra <= 0.5) return;
-
-      _scrollController.jumpTo(_scrollController.position.pixels - sobra);
+      _scrollController.jumpTo(0);
     });
   }
 
@@ -303,9 +280,11 @@ class _ChatViewState extends State<ChatView> {
       final aberta = state.aberturaDoCanal;
       _indiceAncora =
           (aberta != null && aberta.canal == channel?.id) ? aberta.indice : null;
-      _alinharComOFim();
     }
-    final marca = (_indiceAncora ?? messages.length).clamp(0, messages.length);
+    // A marca nunca cai depois da última mensagem: o bloco que desce dela é que
+    // tem de ter conteúdo, para que o fim da conversa seja o offset zero.
+    final ultima = messages.isEmpty ? 0 : messages.length - 1;
+    final marca = (_indiceAncora ?? ultima).clamp(0, ultima);
 
     return Expanded(
       child: Container(
@@ -367,59 +346,76 @@ class _ChatViewState extends State<ChatView> {
             // acima dela e o que ainda não foi visto abaixo, sem calcular pixel
             // nenhum. O bloco antigo cresce para cima a partir da marca, então
             // ele é alimentado de trás para frente: é assim que a leitura sai em
-            // ordem cronológica. Sem nada novo o bloco da marca fica vazio e o
-            // `_alinharComOFim` cola a última mensagem no pé da área.
+            // ordem cronológica.
+            //
+            // O bloco da marca, quando é curto, é esticado até a altura da área
+            // e alinhado embaixo. É isso que faz o fim da conversa ser o offset
+            // zero: antes, com poucas mensagens novas (ou nenhuma), a lista
+            // ainda tinha rolagem para baixo depois da última, e ela ia parar
+            // numa tela vazia.
             Expanded(
               child: messages.isEmpty
                   ? _EmptyChannelHint(channelName: channel?.name ?? 'geral')
-                  : SelectionArea(
-                      child: CustomScrollView(
-                        key: _chaveDaLista,
-                        controller: _scrollController,
-                        center: const ValueKey('marca-de-leitura'),
-                        slivers: [
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final i = marca - 1 - index;
-                                  return _tile(
-                                    messages[i],
-                                    indice: i,
-                                    total: messages.length,
+                  : LayoutBuilder(
+                      builder: (context, moldura) => SelectionArea(
+                        child: CustomScrollView(
+                          controller: _scrollController,
+                          center: const ValueKey('marca-de-leitura'),
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) => _tile(
+                                    messages[marca - 1 - index],
                                     knownHandles: knownHandles,
                                     selfHandle: selfHandle,
                                     state: state,
-                                  );
-                                },
-                                childCount: marca,
+                                  ),
+                                  childCount: marca,
+                                ),
                               ),
                             ),
-                          ),
-                          SliverPadding(
-                            key: const ValueKey('marca-de-leitura'),
-                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final i = marca + index;
-                                  return _tile(
-                                    messages[i],
-                                    indice: i,
-                                    total: messages.length,
-                                    knownHandles: knownHandles,
-                                    selfHandle: selfHandle,
-                                    state: state,
-                                  );
-                                },
-                                childCount: messages.length - marca,
-                              ),
+                            SliverPadding(
+                              key: const ValueKey('marca-de-leitura'),
+                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                              sliver: messages.length - marca <= _marcaEmCaixa
+                                  ? SliverToBoxAdapter(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minHeight:
+                                              (moldura.maxHeight - 12).clamp(0.0, 100000.0),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            for (var i = marca; i < messages.length; i++)
+                                              _tile(
+                                                messages[i],
+                                                knownHandles: knownHandles,
+                                                selfHandle: selfHandle,
+                                                state: state,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : SliverList(
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) => _tile(
+                                          messages[marca + index],
+                                          knownHandles: knownHandles,
+                                          selfHandle: selfHandle,
+                                          state: state,
+                                        ),
+                                        childCount: messages.length - marca,
+                                      ),
+                                    ),
                             ),
-                          ),
                         ],
                       ),
                     ),
+                  ),
             ),
 
             // Lista de sugestões de marcação, logo acima do campo de mensagem.
@@ -633,7 +629,6 @@ class _ChatMessageTile extends StatefulWidget {
   final VoidCallback onDelete;
 
   const _ChatMessageTile({
-    super.key,
     required this.msg,
     required this.knownHandles,
     required this.selfHandle,
