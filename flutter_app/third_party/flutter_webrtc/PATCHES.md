@@ -41,10 +41,49 @@ build reprodutível).
 | `common/cpp/src/flutter_webrtc.cc` | método `setNeuralNoiseSuppression`, devolvendo se a máquina aceitou o filtro |
 | `lib/src/helper.dart` | `Helper.setNeuralNoiseSuppression(bool)` |
 | `windows/CMakeLists.txt` | `flutter_rnnoise.cc` na lista de fontes + `papocall_rnnoise` como estática de C (`/W0`, `_USE_MATH_DEFINES`), ligada ao plugin |
+| `common/cpp/include/flutter_audio_endpoints.h`, `common/cpp/src/flutter_audio_endpoints.cc` | **novo** — fixa os endpoints padrão de *mídia* do Windows como os dispositivos do ADM, para o stream não nascer na classe "comunicações" |
+| `common/cpp/src/flutter_webrtc_base.cc` | chamada a `FixarEndpointsPadraoDeMidia()` na criação do ADM |
+| `windows/CMakeLists.txt` | `flutter_audio_endpoints.cc` na lista de fontes (`mmdevapi.lib` e `ole32.lib` já eram ligados pelo plugin) |
 
 O filtro fica instalado para o processo inteiro e decide por dentro se filtra. Desinstalá-lo
 passando `nullptr` não é opção: o adaptador do libwebrtc chama `Initialize()` no ponteiro que
 recebe sempre que a captura já está de pé, e um nulo ali seria dereferência na thread de áudio.
+
+### Ducking do Windows (o computador inteiro ficava mais baixo durante a chamada)
+
+`modules/audio_device/win/audio_device_core_win.cc` constrói o ADM com
+`_inputDevice = _outputDevice = kDefaultCommunicationDevice` (linhas 394-395 da versão de
+junho/2026 do fonte), e o caminho de seleção por papel usa isso:
+
+    ERole role;
+    (_outputDevice == AudioDeviceModule::kDefaultDevice) ? role = eConsole
+                                                         : role = eCommunications;
+
+Papel `eCommunications` é o gatilho do recurso "Comunicações" do painel de Som: enquanto um
+stream assim está aberto, o Windows atenua em 80% **os outros** aplicativos. Não é bug do
+PapoCall nem escolha nossa — é o padrão do WebRTC no Windows —, mas é o nosso usuário que via
+o jogo e o player baixarem de volume.
+
+O conserto não pode ser feito do Dart: o wrapper `rtc_audio_device.h` do binário pré-compilado
+só expõe `SetPlayoutDevice(uint16_t index)` / `SetRecordingDevice(uint16_t index)`, sem a
+sobrecarga `WindowsDeviceType`. Escolher **por índice** usa a coleção enumerada e não passa por
+papel nenhum, então o stream não entra na classe de comunicação — e é isso que `flutter_audio_endpoints.cc`
+faz: pergunta ao COM qual é o endpoint padrão de mídia (`GetDefaultAudioEndpoint(fluxo, eConsole)`
+→ `IMMDevice::GetId`), compara com o GUID que o próprio ADM devolve em `PlayoutDeviceName` /
+`RecordingDeviceName`, e seleciona o índice correspondente.
+
+Duas decisões registradas aqui porque são fáceis de desfazer sem querer:
+
+- **Uma vez só, na criação do ADM.** Rodar isso a cada `getUserMedia` desfaria a escolha
+  explícita de saída que a interface faz depois (`Hardware.selectAudioOutput`), que é o
+  caminho do usuário que escolheu um alto-falante específico.
+- **Falhar é silencioso por desenho.** Se o COM não responder ou o endpoint padrão não estiver
+  na lista do ADM (aparelho desconectado, driver estranho), nada é alterado e o comportamento
+  volta a ser o de antes — sem faixa muda e sem crash.
+
+Custo, dito sem rodeio: quem configurou no Windows um "dispositivo de comunicação" diferente do
+dispositivo de reprodução padrão passa a ouvir pelo de mídia. É a mesma troca que Discord e
+Chrome fazem, e continua consertável na interface do PapoCall, onde a escolha manual vale.
 
 ## O que a medição anterior estabeleceu (e por que a sonda saiu)
 

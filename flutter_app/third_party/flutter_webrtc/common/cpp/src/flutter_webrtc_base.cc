@@ -7,6 +7,7 @@
 
 #include "helper.h"
 #include "rtc_field_trials.h"
+#include "flutter_audio_endpoints.h"
 
 namespace flutter_webrtc_plugin {
 
@@ -90,6 +91,18 @@ void FlutterWebRTCBase::EnsureWebRTCInitialized(bool enable_warp,
     info[EncodableValue("event")] = "onDeviceChange";
     event_channel()->Success(EncodableValue(info), false);
   });
+
+  // O Windows abaixa em 80% o volume dos outros aplicativos enquanto houver um
+  // stream aberto no papel "comunicações" — e é nesse papel que o ADM do WebRTC
+  // nasce (`kDefaultCommunicationDevice`), o que fazia uma chamada do PapoCall
+  // silenciar o jogo, o player e o navegador de quem usava. Fixar o endpoint
+  // padrão de mídia aqui, uma vez, antes de qualquer faixa existir: depois disso
+  // o stream é escolhido por índice e não pertence à classe de comunicação.
+  //
+  // Uma vez só, de propósito. Se isto rodasse a cada getUserMedia, a escolha
+  // explícita de saída feita na interface seria desfeita na republicação do
+  // microfone. Fora do Windows a função não faz nada.
+  FixarEndpointsPadraoDeMidia(audio_device_.get());
 }
 
 EventChannelProxy* FlutterWebRTCBase::event_channel() {
