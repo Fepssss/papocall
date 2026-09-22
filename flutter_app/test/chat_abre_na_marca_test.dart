@@ -164,7 +164,7 @@ void main() {
   /// tela ia parar vazia. O fim da conversa tem de ser o limite da rolagem —
   /// com mensagem nova ou sem — e isso é a geometria da lista que garante, não
   /// um pulo de scroll calculado depois do quadro pintado.
-  ScrollPosition _rolagem(WidgetTester tester) =>
+  ScrollPosition rolagem(WidgetTester tester) =>
       tester.state<ScrollableState>(find.byType(Scrollable).first).position;
 
   testWidgets('sem nada novo não existe rolagem depois da última mensagem', (tester) async {
@@ -176,7 +176,7 @@ void main() {
     state.selectChannel('c-texto');
     await montar(tester, state);
 
-    expect(_rolagem(tester).maxScrollExtent, 0);
+    expect(rolagem(tester).maxScrollExtent, 0);
     expect(
       tester.getBottomLeft(find.text('mensagem 39')).dy,
       greaterThan(tester.getBottomLeft(find.byType(CustomScrollView)).dy - 40),
@@ -195,13 +195,13 @@ void main() {
     state.selectChannel('c-texto');
     await montar(tester, state);
 
-    final pos = _rolagem(tester);
+    final pos = rolagem(tester);
     expect(pos.maxScrollExtent, 0);
     expect(pos.pixels, 0);
     // Arrastar para baixo não tem para onde ir: o fim é o fim.
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
     await tester.pumpAndSettle();
-    expect(_rolagem(tester).pixels, 0);
+    expect(rolagem(tester).pixels, 0);
     expect(find.text('mensagem nova 2'), findsOneWidget);
     await vencerOsRelogios(tester);
   });
