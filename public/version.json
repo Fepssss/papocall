@@ -1,8 +1,8 @@
 {
-    "version":  "1.10.1",
+    "version":  "1.10.2",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "8ba7f4a0646d28a0e9f4814040a43e9dd1e6fd52afcdaa5094a9df725b4eb1c2",
-    "sizeBytes":  18385445,
-    "notes":  "• Botão direito em quem está na chamada de voz funciona no cartão inteiro, e funciona em você também. Antes o clique só pegava se acertasse em cheio o nome da pessoa, e sobre o seu próprio nome ele não fazia nada. Agora o cartão de vídeo inteiro responde: perfil, mensagem direta, o volume daquela pessoa, silenciar, ocultar o vídeo dela — e sobre você, na chamada, o menu vem com silenciar o seu microfone e ensurdecer o que você escuta, que é o que a tela que você mandou mostra. Quem não é administrador do servidor abre o mesmo menu: a única linha que depende de permissão é \"Gerenciar membro\", e ela simplesmente não aparece.\n• Trazer o PapoCall de volta da bandeja agora mostra a última mensagem da conversa que estava aberta. A janela escondida não está lendo nada, e o que chega nesse tempo é tudo novo — a tela voltava parada no ponto em que foi deixada, com as mensagens novas abaixo da dobra, e por isso parecia que \"o chat não vai lá para baixo\". Um alt-tab comum continua deixando a conversa onde você a deixou: quem só trocou de janela pode estar no meio de uma página.",
-    "publishedAt":  "2026-09-22T18:41:15Z"
+    "sha256":  "71fc6ef748653f631172b72927e3dc687e84531e8f4e6b75591daca67488804c",
+    "sizeBytes":  18391072,
+    "notes":  "• Botão direito na lista de gente embaixo do canal de voz, na barra da esquerda. A linha existia, tinha cursor de clique e não fazia nada: agora o botão direito abre o menu daquela pessoa — perfil, mensagem direta, o volume dela, silenciar, ocultar o vídeo — e o clique simples abre o mini perfil, que é o que o cursor já estava prometendo. Vale para quem está na sala comigo e para quem aparece pela presença, e não depende de você ser administrador de nada.\n• O ducking do Windows ganhou medidor. Toda vez que você entra numa sala, o log do aplicativo agora diz o que o conserto conseguiu fazer naquele instante no seu computador: se ele achou o dispositivo padrão de mídia e tirou o áudio da classe \"comunicações\" (que é o que impede o resto do PC de abaixar), ou se ele rodou sem achar com o que comparar — aparelho desconectado, Bluetooth trocando de perfil, o Windows sem responder. Não é conserto no escuro: é a resposta para a pergunta \"voltou mesmo, e por quê\", que até agora ninguém podia responder de fora.",
+    "publishedAt":  "2026-09-22T19:20:59Z"
 }
