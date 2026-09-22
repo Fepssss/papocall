@@ -1,8 +1,8 @@
 {
-    "version":  "1.9.1",
+    "version":  "1.9.2",
     "url":  "https://papocall.vercel.app/downloads/PapoCall-Setup.exe",
-    "sha256":  "db53884241113b15ed20002b0ed68b6f364a7f0bea70ff478fe2992371234f0e",
-    "sizeBytes":  18376941,
-    "notes":  "• Cada conta agora tem pasta própria no seu computador. Antes, criar uma conta nova numa máquina que já tinha usado o PapoCall vinha com os amigos, os servidores e as conversas da conta anterior na tela — e, como a chave do chat privado também estava no mesmo lugar, a conta nova assinava mensagens com a identidade da antiga. Seus dados continuam onde estavam: na primeira abertura eles são movidos para a pasta da sua conta. Se você usa o mesmo computador para duas contas, a segunda começa limpa, como deve ser.\n• Expulsar alguém do servidor tira essa pessoa da lista de membros de todo mundo, não só da sua tela. A lista que o Dono publica passou a valer como lista: antes ela só acrescentava, e quem não estava conectado na hora continuava vendo quem já tinha saído. Quem é expulso enquanto está offline também descobre sozinho ao voltar.\n• No chat, o fim da conversa virou o limite da rolagem. Antes dava para rolar para baixo depois da última mensagem e a tela parava vazia — o alinhamento que colava a última mensagem embaixo deixava para trás um espaço rolável que não era de ninguém.\n• Na aba de início, passar o mouse sobre amigos, conversas e abas agora tem efeito visual. Ele já estava lá, escondido: a cor de fundo da página pintava por cima.",
-    "publishedAt":  "2026-09-22T03:54:43Z"
+    "sha256":  "ac6c6656ce6957d4b68b9b66f94f4e4e4d227829ae9a85af3b6aa8dd4d1d2212",
+    "sizeBytes":  18377326,
+    "notes":  "• O chat não abre mais com um vão no meio da conversa. A marca de \"onde você parou de ler\" caía no meio de uma conversa curta e deixava uma mensagem grudada no topo e a outra no pé da tela, com uma janela vazia entre elas. Agora a marca só é usada quando há história suficiente acima dela e mensagem nova abaixo; fora disso a conversa é montada junta, encostada embaixo — e continua sem existir rolagem depois da última mensagem.\n• Clicar com o botão direito em alguém da lista de membros abre o menu daquela pessoa. Antes era só um atalho de administração: para quem não gerencia ninguém, o clique não fazia nada. Na lista do servidor o menu vem sem as linhas de volume, silêncio e vídeo, que só fazem sentido para quem está na sala com você agora; na chamada, elas continuam lá.\n• Câmera: o botão agora registra no log o que aconteceu — inclusive quando ele é apertado fora de uma chamada, caso em que ele avisa em vez de ficar mudo. E desligar a câmera não pode mais falhar em silêncio.",
+    "publishedAt":  "2026-09-22T04:43:21Z"
 }

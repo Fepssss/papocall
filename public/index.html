@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.9.1</span>
+        <span class="version-tag">v1.9.2</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.9.1
+          Baixar v1.9.2
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.9.1 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.9.2 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.9.1 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.9.2 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.9.2', this)">
+          v1.9.2 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.1', this)">
-          v1.9.1 <span class="badge-current">ATUAL</span>
+          v1.9.1
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.0', this)">
           v1.9.0
@@ -996,12 +999,43 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.9.2 -->
+        <article class="release-card latest" data-version="v1.9.2">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.9.2</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">22 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            O vão que a 1.9.1 abriu no meio do chat está fechado, e o botão direito na lista de membros agora abre o menu da pessoa para qualquer um.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>A conversa curta não abre rasgada</strong>: a marca de &quot;onde você parou de ler&quot; caiu no meio de uma conversa de duas mensagens e grudou cada uma numa borda da tela, com uma janela vazia entre elas. A marca agora só é usada quando há história suficiente acima dela e mensagem nova abaixo; fora disso a conversa é montada junta, encostada embaixo, como em qualquer chat. Continua sem existir rolagem depois da última mensagem.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Botão direito em alguém da lista abre o menu</strong>: ele era só um atalho de administração — para quem não gerencia ninguém, clicar não fazia nada. Agora abre o mesmo menu da chamada: perfil, mensagem direta (ou adicionar amigo) e gerenciar membro, quando você pode. As linhas de volume, silêncio e vídeo ficam só na chamada, porque é onde aquela pessoa está falando com você; na lista do servidor elas não teriam o que controlar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>A câmera conta o que fez</strong>: apertar o botão da câmera fora de uma chamada agora avisa em vez de ficar mudo, e o que acontece fica registrado no log do programa. Desligar a câmera também não pode mais falhar em silêncio.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">NOTA</span>
+              <span><strong>Como a câmera se recusa</strong>: sem nenhum aparelho de vídeo conectado, o botão diz &quot;Nenhuma câmera encontrada neste computador&quot; e não acende nada; se a câmera escolhida foi desconectada no meio, ele diz que ela não responde — e não liga uma outra câmera no lugar. Plugada uma webcam (ou um celular fazendo de conta), o botão passa a ligar o vídeo, e a escolha do aparelho fica em Configurações → Voz e Áudio.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.9.1 -->
-        <article class="release-card latest" data-version="v1.9.1">
+        <article class="release-card" data-version="v1.9.1">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.9.1</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">22 de Setembro de 2026</span>
           </div>
@@ -1429,7 +1463,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.2 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -2005,7 +2039,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.1</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.2</strong></p>
     </div>
   </footer>
 
