@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.10.0</span>
+        <span class="version-tag">v1.10.1</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.10.0
+          Baixar v1.10.1
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.10.0 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.10.1 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.10.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.10.1 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.10.1', this)">
+          v1.10.1 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.10.0', this)">
-          v1.10.0 <span class="badge-current">ATUAL</span>
+          v1.10.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.9.4', this)">
           v1.9.4
@@ -1008,12 +1011,35 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.10.1 -->
+        <article class="release-card latest" data-version="v1.10.1">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.10.1</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">22 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Duas coisas da tela: o botão direito pega o cartão inteiro de quem está na chamada &mdash; e pega o seu também &mdash; e a conversa que estava aberta volta mostrando a última mensagem.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORRE&Ccedil;&Atilde;O</span>
+              <span><strong>Botão direito no cartão de quem está na voz</strong>: até agora o clique só respondia se acertasse em cheio o nome da pessoa, e sobre o seu próprio nome não fazia nada. O cartão de inteiro responde: perfil, mensagem direta, o volume daquela pessoa, silenciar e ocultar o vídeo dela. Sobre você, na chamada, o menu vem com <strong>Silenciar</strong> o seu microfone e <strong>Ensurdecer</strong> o que você escuta &mdash; as duas linhas fazem o mesmo que os botões do rodapé da sala, não são enfeite. E quem não é administrador abre o mesmo menu: a única linha que pede permissão é &quot;Gerenciar membro&quot;, que simplesmente não aparece.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORRE&Ccedil;&Atilde;O</span>
+              <span><strong>De volta da bandeja, o chat vai para a última mensagem</strong>: a janela escondida não está lendo nada, e o que chega nesse tempo é tudo novo. A tela voltava parada no ponto em que tinha sido deixada, com as mensagens novas abaixo da dobra &mdash; era isso que fazia o chat &quot;não ir lá para baixo&quot;. Um alt-tab comum continua deixando a conversa onde a pessoa a deixou: quem só trocou de janela pode estar no meio de uma página que estava lendo.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.10.0 -->
-        <article class="release-card latest" data-version="v1.10.0">
+        <article class="release-card" data-version="v1.10.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.10.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">22 de Setembro de 2026</span>
           </div>
@@ -1569,7 +1595,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.10.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.10.1 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -2145,7 +2171,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.1</strong></p>
     </div>
   </footer>
 

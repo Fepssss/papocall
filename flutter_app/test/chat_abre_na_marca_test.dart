@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:papocall/models/channel.dart';
@@ -57,6 +58,17 @@ void main() {
     }
   }
 
+  /// Manda ao aplicativo o recado que o runner C++ manda quando a janela é
+  /// escondida na bandeja ou trazida de volta.
+  Future<void> recadoDaJanela(WidgetTester tester, String evento) async {
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      'papocall/janela',
+      const StandardMethodCodec().encodeMethodCall(MethodCall(evento)),
+      (_) {},
+    );
+    await tester.pump();
+  }
+
   AppState aplicativo(Server srv) => AppState()
     ..isCheckingAuth = false
     ..isAuthenticated = true
@@ -90,6 +102,99 @@ void main() {
     await tester.pump(const Duration(seconds: 20));
     await tester.pump();
   }
+
+  testWidgets('de volta da bandeja, o canal aberto pega a última mensagem',
+      (tester) async {
+    // Com a janela escondida a pessoa não está lendo nada: o que chegou nesse
+    // tempo é tudo novo, e voltar para a mesma tela de antes é o "não vai lá para
+    // baixo" de quem traz o aplicativo de volta na bandeja.
+    final srv = servidor();
+    final state = aplicativo(srv);
+    final agora = DateTime.now().millisecondsSinceEpoch;
+
+    injeta(state, srv, 200, agora - 400000);
+    state.selectChannel('c-texto');
+    await montar(tester, state);
+
+    await recadoDaJanela(tester, 'escondeu');
+    injeta(state, srv, 5, agora + 10000, rotulo: 'nova ');
+    await recadoDaJanela(tester, 'voltou');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+
+    final ultima = find.text('mensagem nova 4');
+    expect(ultima, findsOneWidget);
+    expect(tester.getBottomLeft(ultima).dy, lessThanOrEqualTo(700));
+    expect(tester.takeException(), isNull);
+    await vencerOsRelogios(tester);
+  });
+
+  testWidgets('conversa de linhas desiguais abre no fim de verdade', (tester) async {
+    // A lista preguiçosa estima o tamanho de quem ainda não foi montado. Com
+    // linhas de alturas muito diferentes a estimativa erra para baixo, e um único
+    // salto ao `maxScrollExtent` medido no primeiro frame para antes do fim da
+    // conversa — que é o "não vai lá para baixo" de quem abre um canal movimentado.
+    final srv = servidor();
+    final state = aplicativo(srv);
+    final agora = DateTime.now().millisecondsSinceEpoch;
+
+    for (var i = 0; i < 220; i++) {
+      final texto = i == 219
+          ? 'a última'
+          : (i % 3 == 0 ? 'linha longa ${'muito ' * 40}$i' : 'curta $i');
+      state.processNetworkPayload({
+        'action': 'chat_message',
+        'channelId': 'c-texto',
+        'channelName': 'geral',
+        'channelType': 'text',
+        'serverId': srv.id,
+        'message': ChatMessage(
+          id: 'x$i',
+          authorId: 'amigo',
+          author: 'Amigo',
+          text: texto,
+          timestamp: 'agora',
+          sentAt: agora - (220 - i) * 1000,
+        ).toJson(),
+      }, srv);
+    }
+    state.selectChannel('c-texto');
+    state.selectChannel('c-fora');
+    state.selectChannel('c-texto');
+
+    await montar(tester, state);
+
+    final ultima = find.text('a última');
+    expect(ultima, findsOneWidget);
+    expect(tester.getBottomLeft(ultima).dy, lessThanOrEqualTo(700));
+    expect(tester.takeException(), isNull);
+    await vencerOsRelogios(tester);
+  });
+
+  testWidgets('em conversa longa sem nada novo, o canal abre encostado no fim',
+      (tester) async {
+    // Acima do teto da "caixa" a lista é preguiçosa: no primeiro frame ela ainda
+    // não mediu as próprias linhas, e um único salto ao `maxScrollExtent` medido
+    // ali para antes do fim — é o "não vai lá para baixo" de quem abre um canal
+    // com trezentas mensagens.
+    final srv = servidor();
+    final state = aplicativo(srv);
+    final agora = DateTime.now().millisecondsSinceEpoch;
+
+    injeta(state, srv, 300, agora - 300000);
+    state.selectChannel('c-texto');
+    state.selectChannel('c-fora');
+    state.selectChannel('c-texto');
+
+    await montar(tester, state);
+
+    final ultima = find.text('mensagem 299');
+    expect(ultima, findsOneWidget);
+    expect(tester.getBottomLeft(ultima).dy, lessThanOrEqualTo(700));
+    expect(tester.takeException(), isNull);
+    await vencerOsRelogios(tester);
+  });
 
   testWidgets('com mensagem nova, o canal abre na primeira ainda não vista', (tester) async {
     final srv = servidor();

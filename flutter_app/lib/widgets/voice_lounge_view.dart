@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:livekit_client/livekit_client.dart';
+import '../models/server.dart';
 import '../models/user_model.dart';
 import '../providers/app_state.dart';
 import '../theme/hud_theme.dart';
@@ -269,6 +270,7 @@ class VoiceLoungeView extends StatelessWidget {
                         return _ParticipantCard(
                           user: member,
                           isSelf: member.id == state.currentUser.id,
+                          servidor: state.servidorDoCanal(state.connectedVoiceChannelId),
                         );
                       },
                     ),
@@ -541,10 +543,10 @@ class VoiceLoungeView extends StatelessWidget {
               ],
             ),
           );
-          // Botão direito no nome de quem está na sala. Sem isto o único menu de
-          // membro do aplicativo vivia na lista lateral e só abria para quem pode
-          // gerenciar alguém — na chamada, o clique direito não fazia nada.
-          if (isSelf || servidor == null) return pill;
+          // Botão direito no nome de quem está na sala, inclusive no meu: sobre a
+          // própria pessoa o menu vem com silenciar e ensurdecer, que é o que a
+          // foto do Discord mostra.
+          if (servidor == null) return pill;
           return GestureDetector(
             onSecondaryTapUp: (detalhes) => VoiceMemberMenu.show(
               context,
@@ -824,9 +826,14 @@ class _ParticipantCard extends StatefulWidget {
   final UserModel user;
   final bool isSelf;
 
+  /// O servidor do canal onde a pessoa está: é o que o menu do botão direito
+  /// precisa para saber o que se pode fazer com aquele membro.
+  final Server? servidor;
+
   const _ParticipantCard({
     required this.user,
     required this.isSelf,
+    this.servidor,
   });
 
   @override
@@ -861,7 +868,10 @@ class _ParticipantCardState extends State<_ParticipantCard> {
       borderWidth = 1.5;
     }
 
-    return MouseRegion(
+    // Botão direito no cartão de quem está na sala — inclusive no meu, que é o
+    // que a foto do Discord mostra: sobre a própria pessoa o menu vem com
+    // silenciar e ensurdecer, e sem as linhas de amizade ou gestão.
+    Widget cartao = MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
@@ -994,32 +1004,12 @@ class _ParticipantCardState extends State<_ParticipantCard> {
                         const Icon(Icons.graphic_eq, color: HudTheme.green, size: 14),
                         const SizedBox(width: 6),
                       ],
-                      GestureDetector(
-                        // O mesmo menu da faixa de participantes, agora no cartão
-                        // de vídeo: é onde o nome da pessoa aparece quando ela está
-                        // em teatro ou tela cheia.
-                        onSecondaryTapUp: widget.isSelf
-                            ? null
-                            : (detalhes) {
-                                final state = context.read<AppState>();
-                                final servidor =
-                                    state.servidorDoCanal(state.connectedVoiceChannelId);
-                                if (servidor == null) return;
-                                VoiceMemberMenu.show(
-                                  context,
-                                  servidor,
-                                  user,
-                                  detalhes.globalPosition,
-                                  naChamada: true,
-                                );
-                              },
-                        child: Text(
-                          widget.isSelf ? '${user.username} (Você)' : user.username,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      Text(
+                        widget.isSelf ? '${user.username} (Você)' : user.username,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1030,6 +1020,19 @@ class _ParticipantCardState extends State<_ParticipantCard> {
           ),
         ),
       ),
+    );
+
+    final servidor = widget.servidor;
+    if (servidor == null) return cartao;
+    return GestureDetector(
+      onSecondaryTapUp: (detalhes) => VoiceMemberMenu.show(
+        context,
+        servidor,
+        user,
+        detalhes.globalPosition,
+        naChamada: true,
+      ),
+      child: cartao,
     );
   }
 }

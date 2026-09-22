@@ -494,7 +494,9 @@ class VoiceMemberMenu {
   /// [naChamada] é o que decide se as linhas de áudio e vídeo daquela pessoa
   /// aparecem: volume, silêncio e vídeo ocultado só fazem sentido para quem está
   /// na sala comigo agora. Na lista de membros do servidor o menu abre sem
-  /// elas, e não com três linhas mortas.
+  /// elas, e não com três linhas mortas. Sobre a própria pessoa, na chamada, o
+  /// que aparece são os meus aparelhos — silenciar o meu microfone e ensurdecer
+  /// o que eu escuto — porque o volume de mim mesmo não tem o que controlar.
   static Future<void> show(
     BuildContext context,
     Server server,
@@ -519,7 +521,7 @@ class VoiceMemberMenu {
         server: server,
         member: member,
         anchor: globalPosition,
-        naChamada: naChamada && !ehAuto,
+        naChamada: naChamada,
         ehAuto: ehAuto,
       ),
     );
@@ -588,7 +590,22 @@ class _VoiceMemberMenu extends StatelessWidget {
             AddFriendDialog.show(parentContext, handleInicial: member.username);
           },
         ),
-      if (naChamada) ...[
+      // Sobre a própria pessoa, na chamada, o que se ajusta são os meus próprios
+      // aparelhos: o microfone que os outros ouvem e o que eu escuto.
+      if (ehAuto && naChamada) ...[
+        const _MemberMenuDivider(),
+        _MemberMenuCheck(
+          label: 'Silenciar',
+          marcado: state.currentUser.isMuted,
+          onTap: state.toggleMute,
+        ),
+        _MemberMenuCheck(
+          label: 'Ensurdecer',
+          marcado: state.currentUser.isDeafened,
+          onTap: state.toggleDeafen,
+        ),
+      ],
+      if (naChamada && !ehAuto) ...[
         const _MemberMenuDivider(),
         // As três linhas abaixo ficam com o menu aberto: são estados que se
         // ajustam, não ações que se escolhem uma vez.

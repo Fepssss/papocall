@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 import 'package:livekit_client/livekit_client.dart' show VideoTrack;
@@ -473,6 +473,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       status: UserStatus.online,
     );
     WidgetsBinding.instance.addObserver(this);
+    _escutaJanela();
     // Com a raiz de dados redirecionada estamos em teste: nada de abrir socket,
     // cronômetro de heartbeat nem ler a sessão gravada nesta máquina.
     if (dataRootOverride == null) {
@@ -509,6 +510,42 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     isHomePageActive = !isHomePageActive;
+    notifyListeners();
+  }
+
+  /// A janela está escondida na bandeja, avisado pelo runner C++.
+  bool _janelaForaDaTela = false;
+
+  /// O canal com o runner: é por ele que o Windows diz que a janela foi escondida
+  /// e que voltou. O ciclo de vida do Flutter não entrega nada quando a janela é
+  /// escondida pelo próprio runner, e sem esse recado a conversa aberta voltaria
+  /// parada no ponto em que foi deixada, com a mensagem nova abaixo da dobra.
+  static const MethodChannel _canalJanela = MethodChannel('papocall/janela');
+
+  void _escutaJanela() {
+    _canalJanela.setMethodCallHandler((chamada) async {
+      switch (chamada.method) {
+        case 'escondeu':
+          _janelaForaDaTela = true;
+        case 'voltou':
+          if (!_janelaForaDaTela) return;
+          _janelaForaDaTela = false;
+          AppLog.write('Janela', 'de volta da bandeja: a conversa vai para o fim');
+          irParaOFimDoCanalAberto();
+      }
+    });
+  }
+
+  /// Contador de "leve a lista ao fim". É um número e não um booleano porque a
+  /// tela precisa distinguir um pedido novo do estado parado do anterior, e um
+  /// segundo pedido para o mesmo canal tem de valer de novo.
+  int _pedidoDeFim = 0;
+  int get pedidoDeFim => _pedidoDeFim;
+
+  /// Manda a conversa aberta para a última mensagem e a marca como lida.
+  void irParaOFimDoCanalAberto() {
+    _pedidoDeFim++;
+    if (activeChannelId.isNotEmpty) markChannelRead(activeChannelId);
     notifyListeners();
   }
 
@@ -4559,6 +4596,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _canalJanela.setMethodCallHandler(null);
     _isDisposed = true;
     for (final s in _vozAssinaturas) {
       s.cancel();

@@ -130,11 +130,13 @@ void main() {
       expect(find.text('Gerenciar membro'), findsNothing);
     });
 
-    testWidgets('sobre a própria pessoa o menu só tem o perfil', (tester) async {
-      await abrirMenu(
+    testWidgets('sobre a própria pessoa, na chamada, o menu são os meus aparelhos',
+        (tester) async {
+      final state = await abrirMenu(
         tester,
         servidor: buildServer(),
-        // Dono do servidor: teria gestão, e não deve ver gestão de si mesmo.
+        // Dono do servidor: teria gestão de outros, e não deve ver gestão de si
+        // mesmo nem volume da própria voz, que é o que eu escuto do meu microfone.
         quemAbre: UserModel(id: 'eu', username: 'eu'),
         alvo: UserModel(id: 'eu', username: 'eu'),
       );
@@ -143,7 +145,36 @@ void main() {
       expect(find.text('Mensagem direta'), findsNothing);
       expect(find.text('Adicionar amigo'), findsNothing);
       expect(find.text('Gerenciar membro'), findsNothing);
+      expect(find.text('Volume de eu'), findsNothing);
+      expect(find.text('Silenciar'), findsOneWidget);
+      expect(find.text('Ensurdecer'), findsOneWidget);
+
+      // E as duas linhas fazem o que o botão do dock faz, não só mostram nome.
+      await tester.tap(find.text('Ensurdecer'));
+      await tester.pump();
+      expect(state.currentUser.isDeafened, isTrue);
+      expect(state.currentUser.isMuted, isTrue);
+
+      await tester.tap(find.text('Silenciar'));
+      await tester.pump();
+      expect(state.currentUser.isMuted, isFalse);
+      expect(state.currentUser.isDeafened, isTrue);
+    });
+
+    testWidgets('fora da chamada, sobre a própria pessoa sobra o perfil', (tester) async {
+      // Sem sala, não há microfone nem fone em uso — as duas linhas são do
+      // contexto da chamada.
+      await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'eu', username: 'eu'),
+        alvo: UserModel(id: 'eu', username: 'eu'),
+        naChamada: false,
+      );
+
+      expect(find.text('Perfil'), findsOneWidget);
       expect(find.text('Silenciar'), findsNothing);
+      expect(find.text('Ensurdecer'), findsNothing);
     });
 
     testWidgets('fora da chamada o menu não oferece volume nem silêncio', (tester) async {

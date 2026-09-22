@@ -3,6 +3,8 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
 
@@ -30,6 +32,14 @@ class FlutterWindow : public Win32Window {
   // Devolve a janela ao estado de antes de esconder: mesmo lugar, mesmo
   // tamanho, maximizada se estava assim.
   void TrazDeVolta();
+
+  // Conta para o Dart que a janela saiu de cena ou voltou. O ciclo de vida que o
+  // próprio Flutter entrega no Windows não avisa nada quando a janela é
+  // escondida por nós, e sem esse recado a conversa voltaria parada no ponto em
+  // que foi deixada.
+  void AvisaJanela(const std::string& evento);
+
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> canal_janela_;
 
   // The project to run.
   flutter::DartProject project_;

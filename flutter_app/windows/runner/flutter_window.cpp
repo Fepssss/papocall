@@ -27,6 +27,10 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  canal_janela_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "papocall/janela",
+      &flutter::StandardMethodCodec::GetInstance());
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -119,8 +123,14 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
 }
 
+void FlutterWindow::AvisaJanela(const std::string& evento) {
+  if (!canal_janela_) return;
+  canal_janela_->InvokeMethod(evento, nullptr);
+}
+
 void FlutterWindow::EsconderNaBandeja() {
   const bool escondida = ::ShowWindow(GetHandle(), SW_HIDE) == TRUE;
+  AvisaJanela("escondeu");
   // O primeiro fechamento é o momento em que a pessoa ainda não sabe para onde
   // o aplicativo foi; depois disso o balão repetido só atrapalha.
   if (escondida) {
@@ -138,6 +148,7 @@ void FlutterWindow::TrazDeVolta() {
   // SW_SHOW, e não SW_SHOWNORMAL: quem escondia a janela maximizada quer ela
   // maximizada de volta, não do tamanho padrão.
   ::ShowWindow(hwnd, ::IsIconic(hwnd) ? SW_RESTORE : SW_SHOW);
+  AvisaJanela("voltou");
   ::SetForegroundWindow(hwnd);
   if (::GetForegroundWindow() != hwnd) {
     // O Windows não deixa qualquer processo tomar o primeiro plano. Quando ele

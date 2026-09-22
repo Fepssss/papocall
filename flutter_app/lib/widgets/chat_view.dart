@@ -39,6 +39,9 @@ class _ChatViewState extends State<ChatView> {
   /// em que o canal é aberto, e só depois de medir é que dá para ir ao fim.
   bool _deveIrParaOFim = false;
 
+  /// O último pedido de "ir para o fim" que esta tela já atendeu.
+  int _pedidoDeFimVisto = 0;
+
   /// Índice da primeira mensagem ainda não vista deste canal, resolvido quando
   /// a pessoa troca de canal. `null` quer dizer "abrir no fim".
   String? _canalAncorado;
@@ -286,6 +289,14 @@ class _ChatViewState extends State<ChatView> {
     final knownHandles = state.knownMentionHandles();
     final selfHandle = normalizeHandle(state.currentUser.username);
 
+    // Um pedido de "vai para o fim" vindo do estado — a janela voltou da bandeja
+    // com mensagem nova — vale para o canal já aberto, que é justamente o caso
+    // que a âncora por canal não alcança.
+    if (state.pedidoDeFim != _pedidoDeFimVisto) {
+      _pedidoDeFimVisto = state.pedidoDeFim;
+      _indiceAncora = null;
+      _deveIrParaOFim = true;
+    }
     // A posição de abertura é resolvida uma vez por canal. Depois disso a
     // pessoa manda a lista para onde quiser e o chat não se mexe mais atrás.
     if (_canalAncorado != channel?.id) {
