@@ -1948,16 +1948,24 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// sozinho, e é exatamente contra isso que a checagem do lado de fora
   /// (`adoptRoles`) protege: sem o `publishedBy` batendo com o `ownerId`, a
   /// tabela é ignorada.
+  /// Quem pode publicar o retrato do servidor no broker: o Dono e quem gerencia
+  /// canais ou o servidor. É o único caminho pelo qual a estrutura se propaga,
+  /// e por isso é também o portão que impede um moderador de reescrever os
+  /// canais alheios publicando uma tabela própria.
+  bool _podePublicarEstrutura(Server srv) =>
+      srv.isOwnedBy(currentUser.id) ||
+      srv.hasPermission(currentUser.id, Permissions.manageChannels) ||
+      srv.hasPermission(currentUser.id, Permissions.manageServer);
+
   Future<void> _publishServerInfo(Server srv) async {
     if (srv.inviteCode.trim().isEmpty) return;
     if (!srv.isSynced) return; // não propaga uma estrutura provisória
+    if (!_podePublicarEstrutura(srv)) return;
 
+    // Só o Dono escreve a tabela de cargos no retrato. Um moderador que gerencia
+    // canais republica a estrutura sem os cargos, para não se promover pelo
+    // caminho de fora.
     final isOwner = srv.isOwnedBy(currentUser.id);
-    final podeEditarEstrutura = isOwner ||
-        srv.hasPermission(currentUser.id, Permissions.manageChannels) ||
-        srv.hasPermission(currentUser.id, Permissions.manageServer);
-    if (!podeEditarEstrutura) return;
-
     final payload = {
       'action': 'server_info',
       'serverId': srv.id,
@@ -2243,18 +2251,57 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// origem já está autenticada pelo próprio AES-GCM: um terceiro não consegue
   /// forjar uma estrutura para reescrever os canais alheios.
   void _processServerInfoPayload(Map<String, dynamic> data, Server origin) {
-    // O roster é absorvido sempre, mesmo quando a estrutura em si não muda: é
-    // ele que revela de quem assinar presença e histórico, e um membro novo
-    // pode aparecer sem que nada mais do servidor tenha mudado.
-    final roster = (data['memberIds'] as List<dynamic>?)?.map((m) => m.toString()) ?? const [];
+    final rawChannels = data['channels'] as List<dynamic>? ?? [];
+    final incomingRevision = data['revision'] as int? ?? 1;
+    final publishedBy = data['publishedBy'] as String? ?? '';
+
+    // O roster é absorvido sempre: é ele que revela de quem assinar presença e
+    // histórico, e um membro novo pode aparecer sem que mais nada do servidor
+    // tenha mudado. Com uma exceção: quando a lista vem de quem tem poder de
+    // expulsar, numa revisão que não é mais velha que a nossa, aquilo não é um
+    // acréscimo — é a lista. A união aditiva de antes era o motivo pelo qual
+    // quem era expulso continuava na tela de quem não estava lá na hora.
+    final roster = (data['memberIds'] as List<dynamic>?)
+            ?.map((m) => m.toString())
+            .where((m) => m.isNotEmpty)
+            .toList() ??
+        const <String>[];
+    final rosterAutoritativo = roster.isNotEmpty &&
+        incomingRevision >= origin.revision &&
+        (origin.isOwnedBy(publishedBy) ||
+            origin.hasPermission(publishedBy, Permissions.kickMembers));
+
+    if (rosterAutoritativo && !roster.contains(currentUser.id)) {
+      // Expulso enquanto estava offline: o retrato do Dono já não me tem, e um
+      // convite novo é o que me faria parte outra vez.
+      _forgetServer(origin);
+      return;
+    }
+
     var rosterMudou = false;
-    for (final memberId in roster) {
-      if (memberId.isEmpty || origin.memberIds.contains(memberId)) continue;
-      origin.memberIds.add(memberId);
-      rosterMudou = true;
-      if (memberId != currentUser.id) {
-        _mqtt.subscribe(ServerCrypto.presenceSlotTopic(origin.inviteCode, memberId));
-        _mqtt.subscribe(ServerCrypto.historySlotTopic(origin.inviteCode, memberId));
+    if (rosterAutoritativo) {
+      final novos = {...roster, currentUser.id};
+      for (final id in novos.where((id) => id != currentUser.id)) {
+        if (origin.memberIds.contains(id)) continue;
+        _mqtt.subscribe(ServerCrypto.presenceSlotTopic(origin.inviteCode, id));
+        _mqtt.subscribe(ServerCrypto.historySlotTopic(origin.inviteCode, id));
+      }
+      rosterMudou = novos.length != origin.memberIds.length ||
+          !novos.every(origin.memberIds.contains);
+      if (rosterMudou) {
+        origin.memberIds
+          ..clear()
+          ..addAll(novos);
+      }
+    } else {
+      for (final memberId in roster) {
+        if (memberId.isEmpty || origin.memberIds.contains(memberId)) continue;
+        origin.memberIds.add(memberId);
+        rosterMudou = true;
+        if (memberId != currentUser.id) {
+          _mqtt.subscribe(ServerCrypto.presenceSlotTopic(origin.inviteCode, memberId));
+          _mqtt.subscribe(ServerCrypto.historySlotTopic(origin.inviteCode, memberId));
+        }
       }
     }
     if (rosterMudou) {
@@ -2274,15 +2321,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     }
 
-    final rawChannels = data['channels'] as List<dynamic>? ?? [];
-    final incomingRevision = data['revision'] as int? ?? 1;
-
     // Cargos: aceitos apenas de quem é o Dono deste servidor, e nunca de uma
     // revisão mais velha que a que já temos. Sem as duas condições, um membro
     // se promoveria publicando a própria tabela, ou um pacote velho regravado
     // do broker derrubaria um cargo recém-revogado.
     final rawRoles = data['roles'] as List<dynamic>?;
-    final publishedBy = data['publishedBy'] as String? ?? '';
     if (rawRoles != null && origin.isOwnedBy(publishedBy) && incomingRevision >= origin.revision) {
       final rawMemberRoles = (data['memberRoles'] as Map<String, dynamic>?)?.map(
             (key, value) => MapEntry(key, value.toString()),
@@ -2411,13 +2454,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (action == 'member_kicked') {
       final target = data['targetUserId'] as String? ?? '';
-      if (target.isEmpty || target != currentUser.id) return;
       final publisher = data['publishedBy'] as String? ?? '';
-      if (publisher == currentUser.id) return;
+      if (target.isEmpty || publisher == currentUser.id) return;
       // Mesma razão do túmulo: a ordem só vale se quem a deu tinha a permissão
       // de expulsar naquele servidor.
       if (!origin.hasPermission(publisher, Permissions.kickMembers)) return;
-      _forgetServer(origin);
+      if (target == currentUser.id) {
+        _forgetServer(origin);
+        return;
+      }
+
+      // Quem assiste à expulsão de fora também tira a pessoa da lista. Antes
+      // disto só a vítima sabia que tinha saído, e o servidor continuava
+      // mostrando quem já não era membro — a lista que o usuário viu errada.
+      if (!origin.memberIds.remove(target)) return;
+      origin.memberRoles.remove(target);
+      unawaited(_saveServers());
+      notifyListeners();
+
+      // O Dono é o único que pode republicar o retrato retido, e é ele que faz
+      // o corte valer para quem entrar depois pelo convite: sem esta
+      // repubicação, o `server_info` guardado no broker continuaria listando
+      // quem acabou de sair.
+      if (origin.isOwnedBy(currentUser.id)) {
+        unawaited(_propagateStructure(origin));
+      }
       return;
     }
     if (action == 'message_delete') {
@@ -2909,6 +2970,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       } catch (e) {
         debugPrint('Erro ao avisar expulsão de $userId: $e');
       }
+    }
+
+    // Quem pode republicar o catálogo faz agora: é o retrato retido no broker o
+    // que um recém-chegado pelo convite lê, e sem esta repubicação ele ainda
+    // traria quem acabou de sair. Um moderador com apenas 'expulsar_membros' não
+    // publica estrutura — para ele o corte chega aos demais pelo aviso acima e
+    // fica definitivo na próxima publicação do Dono.
+    if (_podePublicarEstrutura(srv)) {
+      await _propagateStructure(srv);
     }
     notifyListeners();
     return true;

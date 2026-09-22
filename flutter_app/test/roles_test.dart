@@ -361,6 +361,96 @@ void main() {
       expect(state.servers, isEmpty);
     });
   });
+
+  // O sintoma reclamado: expulsa alguém e algumas pessoas continuam vendo a
+  // pessoa na lista de membros. A lista vivia sendo só acrescida por quem
+  // recebia o server_info, então a poda do Dono nunca chegava a ninguém.
+  group('roster autoritativo do server_info', () {
+    Server srvLocal({required List<String> memberIds, int revision = 3}) => Server(
+          id: 'srv-roster',
+          name: 'Servidor',
+          inviteCode: 'papo-roster',
+          ownerId: 'dono',
+          memberIds: memberIds,
+          roles: ServerRole.defaults(),
+          revision: revision,
+          channels: [Channel(id: 'c-1', name: 'geral', type: ChannelType.text)],
+        );
+
+    Map<String, dynamic> infoDe({
+      required List<String> memberIds,
+      String publisher = 'dono',
+      int revision = 4,
+    }) =>
+        {
+          'action': 'server_info',
+          'publishedBy': publisher,
+          'ownerId': 'dono',
+          'name': 'Servidor',
+          'colorHex': '22C55E',
+          'revision': revision,
+          'memberIds': memberIds,
+          'channels': [
+            {'id': 'c-1', 'name': 'geral', 'type': 'text'},
+          ],
+        };
+
+    test('a lista do Dono poda quem ele tirou do servidor', () {
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('eu', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['dono', 'eu']),
+        srv,
+      );
+
+      expect(srv.memberIds, containsAll(['dono', 'eu']));
+      expect(srv.memberIds, isNot(contains('fantasma')));
+    });
+
+    test('a lista de quem não pode expulsar continua sendo só acréscimo', () {
+      // Um membro comum (ou um atacante com a chave do convite) republica sem o
+      // expulso: sem o poder de expulsar, ele não tem como tirar ninguém de
+      // ninguém.
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('eu', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['dono', 'eu'], publisher: 'curioso'),
+        srv,
+      );
+
+      expect(srv.memberIds, contains('fantasma'));
+    });
+
+    test('revisão mais velha que a minha nunca poda', () {
+      // Um pacote velho regravado no broker não tem poder de tirar ninguém da
+      // lista de hoje: só uma revisão que não é mais velha que a nossa chega a
+      // ser tratada como a lista. O que ele ainda pode fazer é acrescentar,
+      // como sempre fez — a poda de verdade volta na próxima publicação do Dono.
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma'], revision: 9);
+      final state = buildApp('eu', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['dono', 'eu'], revision: 4),
+        srv,
+      );
+
+      expect(srv.memberIds, contains('fantasma'));
+    });
+
+    test('quem é expulso offline sai do servidor ao receber a lista do Dono', () {
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('fantasma', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['dono', 'eu']),
+        srv,
+      );
+
+      expect(state.servers, isEmpty);
+    });
+  });
 }
 
 ChatMessage _msg(String id, String authorId) => ChatMessage(
