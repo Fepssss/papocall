@@ -734,13 +734,14 @@ class _SettingsModalState extends State<SettingsModal> {
         _buildInfoCard(
           icon: Icons.graphic_eq_rounded,
           iconColor: HudTheme.red,
-          title: 'Voz e tela: cifrados no trajeto, não ponta a ponta',
+          title: 'Voz, câmera e tela: cifrados no trajeto, não ponta a ponta',
           description:
-              'Áudio e transmissão de tela passam pelo LiveKit Cloud com criptografia de transporte '
-              '(DTLS/SRTP): ninguém no meio do caminho escuta, mas o servidor da LiveKit processa o '
-              'conteúdo para distribuir para a sala. É o desenho padrão de uma chamada WebRTC, e o '
-              'PapoCall não entrega voz ponta a ponta hoje. Não gravamos chamada nenhuma: não existe '
-              'código de gravação no app nem no servidor.',
+              'Áudio, vídeo da câmera e transmissão de tela passam pelo LiveKit Cloud com criptografia '
+              'de transporte (DTLS/SRTP): ninguém no meio do caminho escuta, mas o servidor da LiveKit '
+              'processa o conteúdo para distribuir para a sala. É o desenho padrão de uma chamada '
+              'WebRTC, e o PapoCall não entrega voz nem vídeo ponta a ponta hoje. Não gravamos chamada '
+              'nenhuma: não existe código de gravação no app nem no servidor, e a câmera só captura '
+              'enquanto o botão de vídeo estiver ligado — sair da sala desliga ela.',
           badge: 'HOP-BY-HOP',
           badgeColor: HudTheme.red,
         ),

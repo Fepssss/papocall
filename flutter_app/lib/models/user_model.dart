@@ -10,6 +10,11 @@ class UserModel {
   bool isMuted;
   bool isDeafened;
   bool isScreenSharing;
+
+  /// Se a pessoa está publicando vídeo agora. Não vai para o JSON nem para a
+  /// presença: quem está na sala sabe disso pelo próprio LiveKit, e um segundo
+  /// canal dizendo o mesmo fato é de onde vinham as discordâncias.
+  bool isCameraOn;
   String? currentVoiceChannelId;
   String? currentVoiceServerId;
   int lastSeen;
@@ -24,6 +29,7 @@ class UserModel {
     this.isMuted = false,
     this.isDeafened = false,
     this.isScreenSharing = false,
+    this.isCameraOn = false,
     this.currentVoiceChannelId,
     this.currentVoiceServerId,
     int? lastSeen,

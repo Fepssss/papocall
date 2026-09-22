@@ -134,6 +134,29 @@ void main() {
     await expectLater(state.voiceService.aplicarDispositivosEscolhidos(), completes);
   });
 
+  test('a câmera escolhida é gravada e espelhada no serviço da call', () async {
+    final state = AppState();
+
+    // Fora de uma chamada, escolher não liga captura nenhuma: devolve null
+    // porque não houve recusa do Windows, apenas nada a republicar.
+    expect(await state.definirCamera('cam-usb'), isNull);
+    expect(state.cameraAtiva, isFalse);
+    expect(state.voiceService.cameraId, 'cam-usb');
+    expect(configLida()['cameraId'], 'cam-usb');
+
+    await state.definirCamera(null);
+    expect(state.voiceService.cameraId, isNull);
+    expect(configLida()['cameraId'], isNull);
+  });
+
+  test('sem sala, o botão de câmera diz isso e não chama o plugin', () async {
+    final service = VoiceService();
+
+    expect(service.cameraAtiva, isFalse);
+    expect(await service.alternarCamera(), contains('Entre na chamada'));
+    expect(service.cameraDe('feps'), isNull);
+  });
+
   test('a chave de som de chamada cala entrar e sair, e só isso', () async {
     final state = AppState();
 

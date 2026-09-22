@@ -8,7 +8,8 @@ import '../../providers/app_state.dart';
 import '../../services/voice_service.dart';
 import '../../theme/hud_theme.dart';
 
-/// Os dois seletores de dispositivo da aba "Voz e Áudio".
+/// Os três seletores de dispositivo da aba "Voz e Áudio": microfone, saída e
+/// câmera.
 ///
 /// A escolha pega na hora (o [AppState] manda o VoiceService aplicar) e volta
 /// na próxima abertura porque é gravada em settings.json.
@@ -22,6 +23,7 @@ class AudioDevicesPanel extends StatefulWidget {
 class _AudioDevicesPanelState extends State<AudioDevicesPanel> {
   List<MediaDevice> _entradas = const [];
   List<MediaDevice> _saidas = const [];
+  List<MediaDevice> _camaras = const [];
   bool _carregando = true;
   String? _falha;
   StreamSubscription<List<MediaDevice>>? _mudancaDeRede;
@@ -51,10 +53,18 @@ class _AudioDevicesPanelState extends State<AudioDevicesPanel> {
     try {
       final entradas = await VoiceService.listarEntradasDeAudio();
       final saidas = await VoiceService.listarSaidasDeAudio();
+      // A câmera é lida numa tentativa à parte: o Windows pode negar a
+      // enumeração de vídeo inteiro sem permissão, e isso não tem o direito de
+      // esconder os microfones que estão funcionando.
+      var camaras = const <MediaDevice>[];
+      try {
+        camaras = await VoiceService.listarCamaras();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _entradas = entradas;
         _saidas = saidas;
+        _camaras = camaras;
         _carregando = false;
       });
     } catch (e) {
@@ -85,7 +95,7 @@ class _AudioDevicesPanelState extends State<AudioDevicesPanel> {
           children: [
             const Expanded(
               child: Text(
-                'DISPOSITIVOS DE ÁUDIO',
+                'DISPOSITIVOS DE ÁUDIO E VÍDEO',
                 style: TextStyle(
                   color: HudTheme.textMuted,
                   fontSize: 11,
@@ -130,6 +140,26 @@ class _AudioDevicesPanelState extends State<AudioDevicesPanel> {
           valor: state.audioOutputId,
           carregando: _carregando,
           onChanged: (id) => aplicar(state.definirSaidaDeAudio, id),
+        ),
+        const SizedBox(height: 14),
+        _SeletorDispositivo(
+          icone: Icons.videocam_rounded,
+          titulo: 'Câmera',
+          dispositivos: _camaras,
+          valor: state.cameraId,
+          carregando: _carregando,
+          // Escolher câmera sem estar em call não liga nada: a captura começa
+          // quando a pessoa aperta o botão de vídeo. Com a câmera no ar, a
+          // escolha repassa a faixa, e o motivo de uma recusa do Windows
+          // aparece em vez de virar silêncio.
+          onChanged: (id) async {
+            final messenger = ScaffoldMessenger.of(context);
+            final motivo = await state.definirCamera(id);
+            if (motivo == null) return;
+            messenger.showSnackBar(
+              SnackBar(content: Text(motivo), backgroundColor: HudTheme.red),
+            );
+          },
         ),
         const SizedBox(height: 6),
       ],

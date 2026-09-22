@@ -530,6 +530,10 @@ class VoiceLoungeView extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Icon(Icons.mic_off, size: 14, color: HudTheme.red),
                 ],
+                if (user.isCameraOn) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.videocam_rounded, size: 14, color: HudTheme.green),
+                ],
                 if (user.isScreenSharing) ...[
                   const SizedBox(width: 6),
                   const Icon(Icons.screen_share, size: 14, color: HudTheme.accent),
@@ -692,6 +696,23 @@ class VoiceLoungeView extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
+          // Camera Button
+          _ModernDockButton(
+            icon: state.cameraAtiva ? Icons.videocam : Icons.videocam_off,
+            tooltip: state.cameraAtiva ? 'Desligar câmera' : 'Ligar câmera',
+            isActive: state.cameraAtiva,
+            activeColor: HudTheme.green,
+            isDestructive: !state.cameraAtiva,
+            // O motivo vem do Windows, traduzido: sem isto a pessoa clicava e
+            // nada acontecia, sem saber se era permissão, câmera ocupada ou
+            // falta de câmera.
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              reportVoiceJoinError(messenger, await state.alternarCamera());
+            },
+          ),
+          const SizedBox(width: 8),
+
           // Microphone Button
           _ModernDockButton(
             icon: state.currentUser.isMuted ? Icons.mic_off : Icons.mic,
@@ -819,6 +840,14 @@ class _ParticipantCardState extends State<_ParticipantCard> {
     final user = widget.user;
     final isSpeaking = user.isSpeaking;
 
+    // O vídeo é buscado na hora, e não guardado no `UserModel`: a faixa pertence
+    // ao LiveKit, vive enquanto a publicação existe, e um cartão que segurasse
+    // uma referência morta desenharia o último quadro de alguém que já desligou
+    // a câmera.
+    final video = user.isCameraOn
+        ? context.read<AppState>().cameraDe(user.username)
+        : null;
+
     Color borderColor = HudTheme.divider;
     double borderWidth = 1.0;
     if (isSpeaking) {
@@ -861,40 +890,52 @@ class _ParticipantCardState extends State<_ParticipantCard> {
           borderRadius: BorderRadius.circular(11),
           child: Stack(
             children: [
-              // Center Avatar with Speaking Halo
-              Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isSpeaking ? HudTheme.green : Colors.transparent,
-                      width: 3.5,
-                    ),
-                    boxShadow: isSpeaking
-                        ? [
-                            BoxShadow(
-                              color: HudTheme.green.withValues(alpha: 0.8),
-                              blurRadius: 16,
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: HudTheme.green.withValues(alpha: 0.4),
-                              blurRadius: 28,
-                              spreadRadius: 6,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: RetratoUsuario(
-                    avatar: user.avatar,
-                    iniciais: user.initials,
-                    raio: 38,
-                    corQuandoSemFoto: widget.isSelf ? HudTheme.blurple : const Color(0xFF2B2D31),
+              // O vídeo da pessoa, quando ela está publicando. Espelhado só na
+              // própria prévia: é o que se espera de um autorretrato, e quem
+              // olha de fora tem de ver a cena como ela é.
+              if (video != null)
+                Positioned.fill(
+                  child: Transform.scale(
+                    scaleX: widget.isSelf ? -1 : 1,
+                    child: VideoTrackRenderer(video, fit: VideoViewFit.cover),
                   ),
                 ),
-              ),
+
+              // Center Avatar with Speaking Halo
+              if (video == null)
+                Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSpeaking ? HudTheme.green : Colors.transparent,
+                        width: 3.5,
+                      ),
+                      boxShadow: isSpeaking
+                          ? [
+                              BoxShadow(
+                                color: HudTheme.green.withValues(alpha: 0.8),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                              ),
+                              BoxShadow(
+                                color: HudTheme.green.withValues(alpha: 0.4),
+                                blurRadius: 28,
+                                spreadRadius: 6,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: RetratoUsuario(
+                      avatar: user.avatar,
+                      iniciais: user.initials,
+                      raio: 38,
+                      corQuandoSemFoto: widget.isSelf ? HudTheme.blurple : const Color(0xFF2B2D31),
+                    ),
+                  ),
+                ),
 
               // Top-right Live Badge
               if (user.isScreenSharing)

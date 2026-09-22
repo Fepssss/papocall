@@ -77,6 +77,40 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool autoGainControl = true;
   bool highPassFilter = false;
 
+  /// A webcam escolhida, persistida como as outras. Se ela está de fato
+  /// publicando vídeo não é um campo aqui: é o LiveKit que diz, em
+  /// [cameraAtiva], porque a publicação da faixa é o fato e um botão apertado
+  /// é só a intenção.
+  String? cameraId;
+  bool get cameraAtiva => _voiceService.cameraAtiva;
+  String? get erroDaCamera => _voiceService.erroDaCamera;
+
+  /// O vídeo de uma pessoa da sala, ou `null` se ela não está publicando
+  /// nenhum agora — o que inclui a própria pessoa.
+  VideoTrack? cameraDe(String username) => _voiceService.cameraDe(username);
+
+  /// Liga ou desliga a câmera e devolve o motivo quando não conseguiu, para o
+  /// chamador dizer na tela em vez de deixar o botão aceso sem captura.
+  Future<String?> alternarCamera() async {
+    final motivo = await _voiceService.alternarCamera();
+    notifyListeners();
+    return motivo;
+  }
+
+  Future<String?> definirCamera(String? id) async {
+    cameraId = id;
+    _espelharConfigDeAudio();
+    await _saveSettings();
+    notifyListeners();
+    if (!cameraAtiva) return null;
+    // Trocar de câmera durante a call só vale alguma coisa se a faixa nova for
+    // publicada: desligar e ligar de novo é o caminho que o próprio SDK usa, e
+    // é o que garante que a lente antiga parou de capturar.
+    final desligou = await _voiceService.alternarCamera();
+    if (desligou != null) return desligou;
+    return _voiceService.alternarCamera();
+  }
+
   /// O filtro neural (RNNoise) montado no caminho nativo, e o que a máquina
   /// respondeu na última tentativa (`null` = ainda não se tentou nesta execução).
   /// Não é um quinto processador para somar aos outros quatro: ao ligá-lo, a
@@ -197,6 +231,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   void _espelharConfigDeAudio() {
     _voiceService.entradaDeAudioId = audioInputId;
     _voiceService.saidaDeAudioId = audioOutputId;
+    _voiceService.cameraId = cameraId;
     _voiceService.supressaoDeRuido = noiseSuppression;
     _voiceService.cancelamentoDeEco = echoCancellation;
     _voiceService.ganhoAutomatico = autoGainControl;
@@ -525,6 +560,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         isSpeaking: o.falando,
         isMuted: o.mudo,
         isScreenSharing: o.isLocal ? currentUser.isScreenSharing : resolvido.isScreenSharing,
+        isCameraOn: o.temCamera,
         currentVoiceChannelId: connectedVoiceChannelId,
         currentVoiceServerId: activeServerId,
       ));
@@ -812,6 +848,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'mutedServers': _mutedServerIds.toList(),
         'audioInputId': audioInputId,
         'audioOutputId': audioOutputId,
+        'cameraId': cameraId,
         'noiseSuppression': noiseSuppression,
         'echoCancellation': echoCancellation,
         'autoGainControl': autoGainControl,
@@ -1018,6 +1055,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         }
         audioInputId = data['audioInputId'] as String?;
         audioOutputId = data['audioOutputId'] as String?;
+        cameraId = data['cameraId'] as String?;
         noiseSuppression = data['noiseSuppression'] as bool? ?? true;
         echoCancellation = data['echoCancellation'] as bool? ?? true;
         autoGainControl = data['autoGainControl'] as bool? ?? true;

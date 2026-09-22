@@ -26,6 +26,7 @@ class OcupanteDaSala {
     required this.isLocal,
     required this.mudo,
     required this.falando,
+    required this.temCamera,
   });
 
   /// Identidade no token, assinada pelo backend: `@username`.
@@ -37,6 +38,11 @@ class OcupanteDaSala {
   final bool isLocal;
   final bool mudo;
   final bool falando;
+
+  /// Se a pessoa está publicando vídeo agora. Vem da publicação da faixa no
+  /// LiveKit, não de um botão apertado: é o único jeito de acertar também
+  /// quando foi o outro lado que ligou ou desligou a dele.
+  final bool temCamera;
 
   /// O `username` puro, para ir procurar o usuário no diretório local.
   String get username => identity.startsWith('@') ? identity.substring(1) : identity;
@@ -468,6 +474,113 @@ class VoiceService {
     }
   }
 
+  // --- Câmera ---------------------------------------------------------------
+
+  /// A câmera escolhida em Configurações > Voz e Áudio. `null` deixa o Windows
+  /// decidir, como no microfone.
+  String? cameraId;
+
+  /// Enumerada por função, não por método, pelo mesmo motivo das entradas de
+  /// áudio: em teste de unidade não existe canal de plugin.
+  static Future<List<MediaDevice>> Function() listarCamaras =
+      () => Hardware.instance.videoInputs();
+
+  /// Por que a câmera não ligou, na palavra do Windows. É o que o botão mostra
+  /// em vez de acender uma luz que não corresponde a nenhuma captura.
+  String? _erroDaCamera;
+  String? get erroDaCamera => _erroDaCamera;
+
+  /// Ligada ou não, é o LiveKit que diz: a publicação da faixa é o fato, e um
+  /// bool nosso ficaria desatualizado na primeira queda de conexão.
+  bool get cameraAtiva => _room?.localParticipant?.isCameraEnabled() ?? false;
+
+  /// As opções de captura da câmera.
+  ///
+  /// Não há reserva nenhuma para a câmera padrão quando a escolhida não está
+  /// plugada: acender uma webcam que a pessoa não escolheu é justamente o que a
+  /// tela de privacidade promete que não acontece. Ela falha, e o botão diz por
+  /// quê.
+  CameraCaptureOptions get _opcoesDeCamera => CameraCaptureOptions(
+        deviceId: cameraId,
+        maxFrameRate: 30,
+      );
+
+  /// Liga ou desliga a câmera da sala e devolve o motivo quando não conseguiu.
+  ///
+  /// O SDK faz publicar e retirar a faixa; aqui só fica a explicação do erro,
+  /// traduzida para o que a pessoa pode fazer com ela.
+  Future<String?> alternarCamera() async {
+    final local = _room?.localParticipant;
+    if (local == null || !isConnected) {
+      return 'Entre na chamada de voz antes de ligar a câmera.';
+    }
+    if (cameraAtiva) {
+      await local.setCameraEnabled(false);
+      _erroDaCamera = null;
+      _notifyParticipants();
+      return null;
+    }
+    try {
+      await local.setCameraEnabled(true, cameraCaptureOptions: _opcoesDeCamera)
+          .timeout(const Duration(seconds: 12));
+      _erroDaCamera = null;
+      _log('Câmera publicada: ${cameraId ?? 'padrão do Windows'}');
+    } catch (e) {
+      _erroDaCamera = _explicarFalhaDeCamera(e);
+      _log('Falha ao ligar a câmera: $e');
+      _notifyParticipants();
+      return _erroDaCamera;
+    }
+    _notifyParticipants();
+    return null;
+  }
+
+  /// Os nomes que o `getUserMedia` do Windows devolve, ditos em português.
+  static String _explicarFalhaDeCamera(Object e) {
+    final texto = e.toString();
+    if (texto.contains('ermission') || texto.contains('denied')) {
+      return 'O Windows negou a câmera. Libere o acesso em Configurações > Privacidade > Câmera.';
+    }
+    if (texto.contains('NotFound')) {
+      return 'Nenhuma câmera encontrada neste computador.';
+    }
+    if (texto.contains('NotReadable') || texto.contains('in use')) {
+      return 'A câmera está ocupada ou não responde. Feche o programa que está usando ela.';
+    }
+    return 'Não foi possível ligar a câmera.';
+  }
+
+  /// A faixa de câmera de uma pessoa da sala, procurada pelo nome de usuário.
+  ///
+  /// É a única chave que a interface tem nas mãos: o cartão é um `UserModel`, e
+  /// a identity do LiveKit é o `@username` que o backend assinou no token.
+  /// Vale para a própria pessoa também — o vídeo local é a mesma faixa que os
+  /// outros veem, só que já chega por aqui em vez de atravessar a rede.
+  VideoTrack? cameraDe(String username) {
+    final room = _room;
+    if (username.isEmpty || room == null) return null;
+    final alvo = username.toLowerCase();
+
+    for (final p in <Participant?>[
+      room.localParticipant,
+      ...room.remoteParticipants.values,
+    ]) {
+      if (p == null) continue;
+      final identidade = p.identity;
+      final nome = identidade.startsWith('@')
+          ? identidade.substring(1)
+          : identidade;
+      if (nome.toLowerCase() != alvo) continue;
+      for (final pub in p.videoTrackPublications) {
+        final track = pub.track;
+        if (pub.source == TrackSource.camera && !pub.muted && track is VideoTrack) {
+          return track;
+        }
+      }
+    }
+    return null;
+  }
+
   void _setupListeners() {
     _listener?.on<ActiveSpeakersChangedEvent>((event) {
       final speakerIdentities = event.speakers.map((s) => s.identity).toSet();
@@ -499,6 +612,10 @@ class VoiceService {
 
     _listener?.on<TrackSubscribedEvent>((event) {
       _log('Track remoto assinado: ${event.track.sid}, source: ${event.publication.source}');
+      // O cartão de quem acabou de ligar a câmera só tem o que mostrar a
+      // partir daqui — o `TrackPublished` chega antes da faixa existir de
+      // fato, e sem reemitir a lista o vídeo nascia depois do desenho.
+      _notifyParticipants();
       if (event.track is AudioTrack) {
         final faixa = event.track as AudioTrack;
         // Quem está ensurdecido não ouve ninguém que chegar depois: a faixa já
@@ -525,6 +642,7 @@ class VoiceService {
 
     _listener?.on<TrackUnsubscribedEvent>((event) {
       _log('Track remoto desinscrito: ${event.track.sid}');
+      _notifyParticipants();
       if (event.publication.source == TrackSource.screenShareAudio) {
         if (_remoteScreenShareAudioTrack?.sid == event.track.sid) {
           _remoteScreenShareAudioTrack = null;
@@ -588,6 +706,7 @@ class VoiceService {
         isLocal: local,
         mudo: !p.isMicrophoneEnabled(),
         falando: _lastActiveSpeakers.contains(p.identity),
+        temCamera: p.isCameraEnabled(),
       ));
     }
 
@@ -613,6 +732,11 @@ class VoiceService {
   Future<void> leaveVoice() async {
     _log('Desconectando voz...');
     try {
+      // Desligar a câmera é o que apaga a luz do aparelho. Sair da sala por si
+      // só derruba a conexão, e uma webcam acesa depois do "desconectado" não
+      // é detalhe cosmético: é o microfone/lente da pessoa entregues a um
+      // processo que já não tem chamada nenhuma.
+      await _room?.localParticipant?.setCameraEnabled(false);
       if (_screenSharePublication != null) {
         await _room?.localParticipant?.removePublishedTrack(_screenSharePublication!.sid);
       }
@@ -632,6 +756,7 @@ class VoiceService {
     _remoteScreenShareTrack = null;
     _remoteScreenSharePresenter = null;
     _remoteScreenShareAudioTrack = null;
+    _erroDaCamera = null;
     _safeAddScreenShareTrack(null);
 
     try {

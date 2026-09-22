@@ -38,10 +38,14 @@ void main() {
       (tester) async {
     await abrirAba(tester);
 
-    expect(textoHonesto('Voz e tela: cifrados no trajeto, não ponta a ponta'),
+    expect(textoHonesto('Voz, câmera e tela: cifrados no trajeto, não ponta a ponta'),
         findsOneWidget);
     expect(textoHonesto('HOP-BY-HOP'), findsOneWidget);
     expect(textoHonesto('DTLS/SRTP'), findsOneWidget);
+    // A câmera entrou nesta aba no dia em que entrou no aplicativo, e com a
+    // promessa que o código cumpre: `leaveVoice` desliga a captura antes de
+    // derrubar a conexão.
+    expect(textoHonesto('a câmera só captura'), findsOneWidget);
     // A frase que não era sustentada pelo código não pode voltar.
     expect(textoHonesto('Todas as mensagens e áudio'), findsNothing);
     expect(textoHonesto('Nem intermediários nem brokers têm acesso'), findsNothing);
