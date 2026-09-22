@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../utils/app_log.dart';
@@ -96,10 +98,17 @@ enum RefreshOutcome {
   /// sessão local pode ser apagada e o login refeito.
   rejected,
 
-  /// Rede, timeout, cold start do Render, 5xx ou resposta sem JSON.
-  /// A sessão continua válida: apagar por um erro momentâneo é o que fazia a
-  /// conta "desaparecer" para o usuário.
+  /// O pedido nunca chegou ao backend (sem rede, TLS interrompido, backend que
+  /// não acorda) ou foi barrado antes de tocar no token. O refresh token está
+  /// intacto: a próxima tentativa pode enviá-lo de novo.
   transientFailure,
+
+  /// O pedido saiu desta máquina e a resposta se perdeu. O servidor pode ter
+  /// rotacionado o token sem que a resposta nova chegasse; reenviar o mesmo
+  /// token é exatamente o que a detecção de reuso pune com a revogação de
+  /// todas as sessões da conta. A sessão local continua no disco, mas neste
+  /// processo o token não volta a ser enviado.
+  uncertain,
 }
 
 class RefreshResult {
@@ -115,6 +124,10 @@ class RefreshResult {
       RefreshResult._(RefreshOutcome.rejected, null, reason);
   factory RefreshResult.transient(String reason) =>
       RefreshResult._(RefreshOutcome.transientFailure, null, reason);
+
+  /// O pedido saiu e a resposta se perdeu: não se sabe se o token girou.
+  factory RefreshResult.uncertain(String reason) =>
+      RefreshResult._(RefreshOutcome.uncertain, null, reason);
 }
 
 class UsernameAvailabilityResult {
@@ -140,6 +153,18 @@ class AuthService {
 
   static String get apiBaseUrl =>
       _apiUrlFromEnv.isNotEmpty ? _apiUrlFromEnv : _defaultApiUrl;
+
+  /// Transporte usado pelo aquecimento do backend e pela renovação de sessão.
+  static http.Client Function()? _transporte;
+
+  /// Permite ao teste encenar o cold start do Render — a conexão que é segurada,
+  /// a que não abre, a que responde tarde demais — sem depender da rede real.
+  /// Produção não toca aqui; o `_novoCliente()` usa o transporte padrão.
+  @visibleForTesting
+  static set transporteDeTeste(http.Client Function()? fabrica) =>
+      _transporte = fabrica;
+
+  static http.Client _novoCliente() => _transporte?.call() ?? http.Client();
 
   static Future<File> _getLastIdentifierFile() async => AppPaths.file('last_login.txt');
 
@@ -240,25 +265,76 @@ class AuthService {
 
   /// Aquece o backend em cold start (ex.: Render free) consultando /health até responder 200
   /// ou esgotar o tempo limite de espera (padrão: 60 segundos com tentativas a cada 3 segundos).
+  ///
+  /// A primeira consulta é paciente de propósito: o Render segura a conexão
+  /// enquanto o serviço sobe e responde justamente nela quando a casa acorda.
+  /// Curta mesmo são só as tentativas seguintes, quando já se sabe que alguma
+  /// coisa está errada.
   static Future<bool> warmUpBackend({
     Duration totalTimeout = const Duration(seconds: 60),
     Duration retryInterval = const Duration(seconds: 3),
   }) async {
-    final stopwatch = Stopwatch()..start();
-    while (stopwatch.elapsed < totalTimeout) {
-      try {
-        final res = await http.get(Uri.parse('$apiBaseUrl/health')).timeout(
-          const Duration(seconds: 4),
-        );
-        if (res.statusCode == 200) {
-          return true;
+    final cliente = _novoCliente();
+    final relogio = Stopwatch()..start();
+    const esperaDaPrimeira = Duration(seconds: 30);
+    var primeiraConsulta = true;
+    try {
+      while (relogio.elapsed < totalTimeout) {
+        try {
+          final res = await cliente
+              .get(Uri.parse('$apiBaseUrl/health'))
+              .timeout(primeiraConsulta && totalTimeout > esperaDaPrimeira
+                  ? esperaDaPrimeira
+                  : const Duration(seconds: 4));
+          if (res.statusCode == 200) {
+            return true;
+          }
+        } catch (_) {
+          // Servidor ainda acordando / conectando
         }
-      } catch (_) {
-        // Servidor ainda acordando / conectando
+        primeiraConsulta = false;
+        await Future.delayed(retryInterval);
       }
-      await Future.delayed(retryInterval);
+      return false;
+    } finally {
+      cliente.close();
     }
-    return false;
+  }
+
+  static Future<bool>? _aquecimentoEmAndamento;
+
+  /// Quanto esperar o backend acordar antes de desistir de renovar.
+  static Duration _orcamentoDeAquecimento = const Duration(seconds: 45);
+  static Duration _intervaloDeTentativa = const Duration(seconds: 2);
+
+  /// Comprime a espera do portão para o teste poder atravessá-lo sem esperar
+  /// 45 segundos de mundo real. Produção não chama.
+  @visibleForTesting
+  static void comprimirAquecimentoParaTeste(Duration orcamento) {
+    _orcamentoDeAquecimento = orcamento;
+    _intervaloDeTentativa = orcamento ~/ 4;
+  }
+
+  /// Uma bateria de /health por vez, não uma por chamador.
+  ///
+  /// É o portão que a renovação de sessão atravessa antes de qualquer
+  /// credencial sair desta máquina — ver [refreshSession].
+  static Future<bool> garantirBackendAcordado({
+    Duration? orcamento,
+  }) {
+    final emAndamento = _aquecimentoEmAndamento;
+    if (emAndamento != null) return emAndamento;
+    final futura = warmUpBackend(
+      totalTimeout: orcamento ?? _orcamentoDeAquecimento,
+      retryInterval: _intervaloDeTentativa,
+    );
+    _aquecimentoEmAndamento = futura;
+    futura.whenComplete(() {
+      if (identical(_aquecimentoEmAndamento, futura)) {
+        _aquecimentoEmAndamento = null;
+      }
+    });
+    return futura;
   }
 
   /// 1. Registro de Usuário
@@ -411,59 +487,103 @@ class AuthService {
 
   /// 4. Renovação de Sessão via Refresh Token
   ///
-  /// Distingue recusa definitiva de erro momentâneo. O backend sempre responde
-  /// em JSON nos erros de autenticação; qualquer outra coisa (rede, timeout,
-  /// cold start do plano gratuito, 5xx, página de proxy) não apaga a sessão.
+  /// Distingue três coisas que antes eram a mesma: recusa definitiva do backend,
+  /// falha antes de o pedido sair, e falha depois de ele ter saído. A primeira
+  /// apaga a sessão; a segunda não muda nada; a terceira é a perigosa — o
+  /// backend rotaciona o token e, se receber de novo um token já consumido,
+  /// revoga todas as sessões da conta. Ver [RefreshOutcome.uncertain].
   static Future<RefreshResult> refreshSession(AuthSession session) async {
     if (session.refreshToken.isEmpty) {
       AppLog.write('Auth', 'refresh abortado: sessão sem refresh token');
       return RefreshResult.rejected('sem refresh token');
     }
 
+    // O portão: o refresh token só vai para a rua depois que o backend confirma
+    // no /health que está de pé. Era mandá-lo para um serviço adormecido, ver o
+    // pedido morrer no timeout do cliente e reenviar um token que o servidor já
+    // tinha consumido — o logout que nenhuma senha justifica.
+    if (!await garantirBackendAcordado()) {
+      AppLog.write('Auth', 'refresh adiado: o backend não respondeu ao /health');
+      return RefreshResult.transient('backend indisponível');
+    }
+
+    const esperaDaRenovacao = Duration(seconds: 30);
+    final cliente = _novoCliente();
     try {
-      final res = await http.post(
-        Uri.parse('$apiBaseUrl/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': session.refreshToken}),
-      ).timeout(const Duration(seconds: 15));
-
-      Map<String, dynamic>? decodificado;
-      try {
-        decodificado = jsonDecode(res.body) as Map<String, dynamic>;
-      } catch (_) {
-        AppLog.write(
-            'Auth', 'refresh sem resposta JSON (HTTP ${res.statusCode})');
-        return RefreshResult.transient('resposta inválida HTTP ${res.statusCode}');
-      }
-      final body = decodificado;
-
-      if (res.statusCode == 200 && body['success'] == true) {
-        final data = body['data'] as Map<String, dynamic>;
-        final newSession = AuthSession(
-          accessToken: data['accessToken'] as String? ?? session.accessToken,
-          refreshToken: data['refreshToken'] as String? ?? session.refreshToken,
-          user: session.user,
-        );
-        await saveSession(newSession);
-        AppLog.write('Auth',
-            'sessão renovada para @${session.user.rawUsername}, nova expiração ${accessTokenExpiry(newSession.accessToken)?.toIso8601String() ?? 'desconhecida'}');
-        return RefreshResult.renewed(newSession);
-      }
-
-      final code = (body['error']?['code'] as String?) ?? '';
-      final recusado = res.statusCode >= 400 &&
-          res.statusCode < 500 &&
-          res.statusCode != 429 &&
-          code.isNotEmpty;
+      final res = await cliente
+          .post(
+            Uri.parse('$apiBaseUrl/auth/refresh'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': session.refreshToken}),
+          )
+          .timeout(esperaDaRenovacao);
+      return await _avaliarRespostaDeRefresh(res, session);
+    } on TimeoutException {
+      // Saiu daqui e a resposta não voltou: pode ter girado o token lá fora.
       AppLog.write('Auth',
-          'refresh HTTP ${res.statusCode} code=${code.isEmpty ? '-' : code}');
-      return recusado
+          'refresh sem resposta em ${esperaDaRenovacao.inSeconds}s: resultado incerto');
+      return RefreshResult.uncertain('tempo esgotado sem resposta');
+    } on SocketException {
+      // Nada saiu desta máquina — o token continua válido para a próxima.
+      AppLog.write('Auth', 'refresh sem conexão: o pedido não chegou a sair');
+      return RefreshResult.transient('sem conexão');
+    } on HandshakeException {
+      AppLog.write('Auth', 'refresh com TLS interrompido: o pedido não foi entregue');
+      return RefreshResult.transient('falha no TLS');
+    } catch (e) {
+      // Conexão cortada no meio, resposta truncada: já não dá para afirmar que
+      // o servidor não viu o pedido.
+      AppLog.write('Auth', 'refresh com transporte interrompido: resultado incerto ($e)');
+      return RefreshResult.uncertain('conexão interrompida');
+    } finally {
+      cliente.close();
+    }
+  }
+
+  /// Classifica uma resposta que chegou. Aqui o pedido foi entregue, então só
+  /// resta saber se o backend respondeu "não" de forma definitiva.
+  static Future<RefreshResult> _avaliarRespostaDeRefresh(
+    http.Response res,
+    AuthSession session,
+  ) async {
+    Map<String, dynamic>? body;
+    try {
+      body = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      AppLog.write('Auth', 'refresh sem resposta JSON (HTTP ${res.statusCode})');
+      return RefreshResult.uncertain('resposta inválida HTTP ${res.statusCode}');
+    }
+
+    if (res.statusCode == 200 && body['success'] == true) {
+      final data = body['data'];
+      if (data is! Map<String, dynamic>) {
+        return RefreshResult.uncertain('resposta 200 sem dados');
+      }
+      final newSession = AuthSession(
+        accessToken: data['accessToken'] as String? ?? session.accessToken,
+        refreshToken: data['refreshToken'] as String? ?? session.refreshToken,
+        user: session.user,
+      );
+      await saveSession(newSession);
+      AppLog.write('Auth',
+          'sessão renovada para @${session.user.rawUsername}, nova expiração ${accessTokenExpiry(newSession.accessToken)?.toIso8601String() ?? 'desconhecida'}');
+      return RefreshResult.renewed(newSession);
+    }
+
+    final code = (body['error']?['code'] as String?) ?? '';
+    AppLog.write('Auth', 'refresh HTTP ${res.statusCode} code=${code.isEmpty ? '-' : code}');
+
+    // 429 e 4xx sem código útil são barrados antes de mexer no token gravado:
+    // nada girou, e a próxima tentativa pode enviar o mesmo de novo.
+    if (res.statusCode == 429) return RefreshResult.transient('muitas tentativas');
+    if (res.statusCode >= 400 && res.statusCode < 500) {
+      return code.isNotEmpty
           ? RefreshResult.rejected(code)
           : RefreshResult.transient('HTTP ${res.statusCode}');
-    } catch (e) {
-      AppLog.write('Auth', 'refresh falhou na rede: $e');
-      return RefreshResult.transient('erro de rede');
     }
+    // 5xx: o pedido entrou, e uma falha no meio da rotação não é distinguível
+    // de uma recusa limpa. Não se reenvia.
+    return RefreshResult.uncertain('HTTP ${res.statusCode}');
   }
 
   /// Instante em que o access token JWT expira, lido da claim `exp`.

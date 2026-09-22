@@ -1180,6 +1180,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> login({required String identifier, required String password}) async {
     final session = await AuthService.login(identifier: identifier, password: password);
     currentSession = session;
+    // Senha dada, token novo na mão: nada mais está em dúvida.
+    _renovacaoIncerta = false;
     currentUser = session.user.toUserModel();
     isAuthenticated = true;
     await _saveSettings();
@@ -1200,6 +1202,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       password: password,
     );
     currentSession = session;
+    _renovacaoIncerta = false;
     currentUser = session.user.toUserModel();
     isAuthenticated = true;
     // Novas contas iniciam com 0 servidores
@@ -3806,6 +3809,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<AuthSession?>? _renovacaoEmAndamento;
 
+  /// Um envio do token de renovação que saiu desta máquina sem resposta.
+  ///
+  /// O backend rotaciona a cada uso: se aquele pedido chegou e a resposta se
+  /// perdeu, o token em `session.dat` já está queimado lá fora e o reenvio cai
+  /// na detecção de reuso, que revoga todas as sessões da conta e é o que
+  /// derrubava o login. A dúvida vale só para este processo: reiniciar o app
+  /// tenta de novo com um token que o usuário ainda tem no disco, e é a saída
+  /// honesta para uma situação em que nenhum dos dois lados tem certeza.
+  bool _renovacaoIncerta = false;
+
   /// Renova o access token da sessão HTTP, no máximo uma renovação por vez.
   ///
   /// O backend rotaciona o refresh token a cada uso e, se receber um token já
@@ -3826,11 +3839,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<AuthSession?> _renewSessionOnce() async {
     final antiga = currentSession;
     if (antiga == null) return null;
+    if (_renovacaoIncerta) {
+      AppLog.write('Auth',
+          'renovação bloqueada: o último envio do token de renovação não teve resposta e pode já ter sido consumido');
+      return null;
+    }
 
     final resultado = await AuthService.refreshSession(antiga);
     switch (resultado.outcome) {
       case RefreshOutcome.renewed:
         final renovada = resultado.session!;
+        _renovacaoIncerta = false;
         currentSession = AuthSession(
           accessToken: renovada.accessToken,
           refreshToken: renovada.refreshToken,
@@ -3843,9 +3862,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           motivo: 'o servidor recusou o token de renovação (${resultado.reason})',
         ));
         return null;
+      case RefreshOutcome.uncertain:
+        // Não apaga nada e não insiste: a próxima oportunidade de enviar este
+        // token é um processo novo, aberto pelo usuário.
+        _renovacaoIncerta = true;
+        return null;
       case RefreshOutcome.transientFailure:
-        // Sem resposta útil: a sessão continua válida e o próximo pedido tenta
-        // de novo. Derrubar o login aqui era perder a conta por um capricho da rede.
+        // O pedido nem saiu daqui: a sessão continua válida e a próxima
+        // tentativa é igual a esta. Derrubar o login por um capricho da rede é
+        // o que fazia a conta "desaparecer".
         return null;
     }
   }
@@ -3893,6 +3918,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (sessao != null &&
           !AuthService.accessTokenValid(sessao.accessToken)) {
         sessao = await renewSession() ?? sessao;
+        // Sem token válido e com a renovação em dúvida, insistir só acumula
+        // requisições que o backend vai recusar. Melhor dizer logo o que
+        // resolver: abrir o app de novo recomeça a tentativa do zero.
+        if (_renovacaoIncerta &&
+            !AuthService.accessTokenValid(sessao.accessToken)) {
+          return 'O servidor não confirmou sua sessão. Feche e abra o PapoCall de novo; '
+              'se continuar, saia e entre com sua senha.';
+        }
       }
 
       final success = await _voiceService.joinVoice(

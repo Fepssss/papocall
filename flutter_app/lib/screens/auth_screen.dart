@@ -82,9 +82,8 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _warmUpElapsedSeconds++);
     });
 
-    AuthService.warmUpBackend(
-      totalTimeout: const Duration(seconds: 60),
-      retryInterval: const Duration(seconds: 3),
+    AuthService.garantirBackendAcordado(
+      orcamento: const Duration(seconds: 60),
     ).then((isReady) {
       if (!mounted) return;
       _warmUpTimer?.cancel();
