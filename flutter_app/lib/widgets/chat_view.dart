@@ -29,6 +29,16 @@ class _ChatViewState extends State<ChatView> {
   /// próprio conteúdo já passa de uma tela e não há sobra para rolar.
   static const int _marcaEmCaixa = 120;
 
+  /// Mensagens que precisam existir acima da marca, e abaixo dela, para abrir
+  /// na marca valer a pena. Abaixo disso a conversa é montada junta, encostada
+  /// embaixo, como em qualquer chat.
+  static const int _acimaDaMarcaMinimo = 12;
+  static const int _abaixoDaMarcaMinimo = 10;
+
+  /// Um quadro de espera: a lista ainda não mediu o próprio tamanho no momento
+  /// em que o canal é aberto, e só depois de medir é que dá para ir ao fim.
+  bool _deveIrParaOFim = false;
+
   /// Índice da primeira mensagem ainda não vista deste canal, resolvido quando
   /// a pessoa troca de canal. `null` quer dizer "abrir no fim".
   String? _canalAncorado;
@@ -249,16 +259,19 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  /// Solta a marca de leitura e vai para o fim da conversa.
-  ///
-  /// O fim é o offset zero: o bloco da marca é desenhado encostado embaixo
-  /// quando é curto (ver `_blocoDaMarca`), então não existe mais o "pular para
-  /// trás" que deixava tela vazia abaixo da última mensagem.
+  /// Solta a marca de leitura e manda a lista para o fim da conversa.
   void _scrollToBottom() {
     _indiceAncora = null;
+    _deveIrParaOFim = true;
+  }
+
+  /// Ir para o fim depois que a lista medir o próprio tamanho — antes disso não
+  /// há até onde rolar.
+  void _agendaIdaParaOFim() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      _scrollController.jumpTo(0);
+      final pos = _scrollController.position;
+      if ((pos.pixels - pos.maxScrollExtent).abs() > 0.5) pos.jumpTo(pos.maxScrollExtent);
     });
   }
 
@@ -280,11 +293,25 @@ class _ChatViewState extends State<ChatView> {
       final aberta = state.aberturaDoCanal;
       _indiceAncora =
           (aberta != null && aberta.canal == channel?.id) ? aberta.indice : null;
+      _deveIrParaOFim = true;
     }
-    // A marca nunca cai depois da última mensagem: o bloco que desce dela é que
-    // tem de ter conteúdo, para que o fim da conversa seja o offset zero.
     final ultima = messages.isEmpty ? 0 : messages.length - 1;
-    final marca = (_indiceAncora ?? ultima).clamp(0, ultima);
+    final indiceAberta = (_indiceAncora ?? ultima).clamp(0, ultima);
+
+    // A marca de leitura só faz sentido com história suficiente acima dela para
+    // preencher a tela e matéria nova abaixo para rolar. Sem isso, abrir na
+    // marca de uma conversa curta deixava um vão de uma tela inteira entre as
+    // duas mensagens que existiam — foi o que apareceu na tela de quem atualizou.
+    final usaMarca = indiceAberta >= _acimaDaMarcaMinimo &&
+        messages.length - indiceAberta >= _abaixoDaMarcaMinimo;
+    final marca = usaMarca ? indiceAberta : 0;
+    if (_deveIrParaOFim) {
+      _deveIrParaOFim = false;
+      if (!usaMarca) _agendaIdaParaOFim();
+    }
+    // Poucas mensagens: monta tudo de uma vez, encostado embaixo. Muitas: um
+    // sliver comum, que continua preguiçoso, e a lista é levada ao fim.
+    final emCaixa = !usaMarca && messages.length <= _marcaEmCaixa;
 
     return Expanded(
       child: Container(
@@ -348,11 +375,11 @@ class _ChatViewState extends State<ChatView> {
             // ele é alimentado de trás para frente: é assim que a leitura sai em
             // ordem cronológica.
             //
-            // O bloco da marca, quando é curto, é esticado até a altura da área
-            // e alinhado embaixo. É isso que faz o fim da conversa ser o offset
-            // zero: antes, com poucas mensagens novas (ou nenhuma), a lista
-            // ainda tinha rolagem para baixo depois da última, e ela ia parar
-            // numa tela vazia.
+            // Essa divisão só é usada quando há história acima da marca e
+            // matéria nova abaixo dela. Fora disso a conversa inteira é um bloco
+            // só, encostado embaixo (ou, se for longa, um sliver comum levado ao
+            // fim no quadro seguinte): com a marca no meio de uma conversa curta,
+            // o vão entre as duas mensagens ocupava a tela toda.
             Expanded(
               child: messages.isEmpty
                   ? _EmptyChannelHint(channelName: channel?.name ?? 'geral')
@@ -360,62 +387,82 @@ class _ChatViewState extends State<ChatView> {
                       builder: (context, moldura) => SelectionArea(
                         child: CustomScrollView(
                           controller: _scrollController,
-                          center: const ValueKey('marca-de-leitura'),
+                          center: usaMarca
+                              ? const ValueKey('marca-de-leitura')
+                              : const ValueKey('conversa-inteira'),
                           slivers: [
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
-                              sliver: SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) => _tile(
-                                    messages[marca - 1 - index],
-                                    knownHandles: knownHandles,
-                                    selfHandle: selfHandle,
-                                    state: state,
+                            if (usaMarca)
+                              SliverPadding(
+                                padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                                sliver: SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) => _tile(
+                                      messages[marca - 1 - index],
+                                      knownHandles: knownHandles,
+                                      selfHandle: selfHandle,
+                                      state: state,
+                                    ),
+                                    childCount: marca,
                                   ),
-                                  childCount: marca,
                                 ),
                               ),
-                            ),
-                            SliverPadding(
-                              key: const ValueKey('marca-de-leitura'),
-                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                              sliver: messages.length - marca <= _marcaEmCaixa
-                                  ? SliverToBoxAdapter(
-                                      child: ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          minHeight:
-                                              (moldura.maxHeight - 12).clamp(0.0, 100000.0),
-                                        ),
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.end,
-                                          children: [
-                                            for (var i = marca; i < messages.length; i++)
-                                              _tile(
-                                                messages[i],
-                                                knownHandles: knownHandles,
-                                                selfHandle: selfHandle,
-                                                state: state,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    )
-                                  : SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) => _tile(
-                                          messages[marca + index],
-                                          knownHandles: knownHandles,
-                                          selfHandle: selfHandle,
-                                          state: state,
-                                        ),
-                                        childCount: messages.length - marca,
-                                      ),
+                            if (usaMarca)
+                              SliverPadding(
+                                key: const ValueKey('marca-de-leitura'),
+                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                                sliver: SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) => _tile(
+                                      messages[marca + index],
+                                      knownHandles: knownHandles,
+                                      selfHandle: selfHandle,
+                                      state: state,
                                     ),
-                            ),
-                        ],
+                                    childCount: messages.length - marca,
+                                  ),
+                                ),
+                              ),
+                            if (!usaMarca)
+                              SliverPadding(
+                                key: const ValueKey('conversa-inteira'),
+                                padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+                                sliver: emCaixa
+                                    ? SliverToBoxAdapter(
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            minHeight:
+                                                (moldura.maxHeight - 24).clamp(0.0, 100000.0),
+                                          ),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.end,
+                                            children: [
+                                              for (final m in messages)
+                                                _tile(
+                                                  m,
+                                                  knownHandles: knownHandles,
+                                                  selfHandle: selfHandle,
+                                                  state: state,
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    : SliverList(
+                                        delegate: SliverChildBuilderDelegate(
+                                          (context, index) => _tile(
+                                            messages[index],
+                                            knownHandles: knownHandles,
+                                            selfHandle: selfHandle,
+                                            state: state,
+                                          ),
+                                          childCount: messages.length,
+                                        ),
+                                      ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
             ),
 
             // Lista de sugestões de marcação, logo acima do campo de mensagem.
