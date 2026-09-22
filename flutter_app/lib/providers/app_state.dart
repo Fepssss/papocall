@@ -841,6 +841,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// saído — com a chave privada do chat privado da outra pessoa junto.
   Future<void> _trocarDeConta(String? id) async {
     if (_contaCarregada == id) return;
+    // Escrita pendente primeiro, ainda com a pasta da conta que está saindo na
+    // mão: o histórico tem adiamento de gravação, e um salvamento que dispara
+    // depois da troca iria cair no cofre de quem está deslogado — a conta
+    // voltaria na próxima abertura sem o que viu nesta.
+    await _escreverPendenciasEmDisco();
     _contaCarregada = id;
     AppPaths.conta = id;
     DirectCrypto.esquecerIdentidade();
@@ -2268,8 +2273,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         const <String>[];
     final rosterAutoritativo = roster.isNotEmpty &&
         incomingRevision >= origin.revision &&
-        (origin.isOwnedBy(publishedBy) ||
-            origin.hasPermission(publishedBy, Permissions.kickMembers));
+        origin.isOwnedBy(publishedBy) &&
+        // Duas conferências de auto-coerência. O envelope é cifrado com a chave
+        // que qualquer membro tem, então "quem publicou" é declarado, não
+        // provado: sem exigir que a lista se inclua e inclua o Dono, um membro
+        // com o código do convite poderia apagar todo mundo da tela dos outros
+        // publicando um retrato só com o próprio nome.
+        roster.contains(publishedBy) &&
+        roster.contains(origin.ownerId);
 
     if (rosterAutoritativo && !roster.contains(currentUser.id)) {
       // Expulso enquanto estava offline: o retrato do Dono já não me tem, e um

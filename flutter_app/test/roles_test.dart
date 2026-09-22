@@ -450,6 +450,23 @@ void main() {
 
       expect(state.servers, isEmpty);
     });
+
+    test('lista que se diz do Dono mas não tem o Dono não vale nada', () {
+      // O envelope é cifrado com a chave que qualquer membro do servidor tem,
+      // então "publishedBy" é declarado, não provado. A lista autoritativa
+      // precisa ser auto-coerente: quem se diz Dono tem de estar na própria
+      // lista. Sem isso, um membro apagaria os outros da tela de todo mundo.
+      final srv = srvLocal(memberIds: ['dono', 'eu', 'fantasma']);
+      final state = buildApp('eu', srv);
+
+      state.processNetworkPayload(
+        infoDe(memberIds: ['eu']),
+        srv,
+      );
+
+      expect(srv.memberIds, containsAll(['dono', 'eu', 'fantasma']));
+      expect(state.servers, hasLength(1));
+    });
   });
 }
 

@@ -1,4 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:papocall/models/channel.dart';
+import 'package:papocall/models/chat_message.dart';
+import 'package:papocall/models/role.dart';
+import 'package:papocall/models/server.dart';
 import 'package:papocall/providers/app_state.dart';
 import 'package:papocall/utils/app_paths.dart';
 
@@ -55,6 +59,50 @@ void main() {
     expect(AppPaths.contaDados().path, isNot(a));
     AppPaths.conta = 'conta-a';
     expect(AppPaths.contaDados().path, a);
+  });
+
+  test('o histórico sujo é gravado na conta de origem antes da troca', () async {
+    // A gravação do histórico é adiada de propósito. Sem escoar antes de trocar
+    // de conta, o que chegou nos últimos segundos ia cair no cofre de quem está
+    // deslogado, e a conta voltaria na próxima abertura sem o que viu.
+    final srv = Server(
+      id: 'srv-conta',
+      name: 'Squad',
+      inviteCode: '',
+      ownerId: 'eu',
+      memberIds: ['eu'],
+      roles: ServerRole.defaults(),
+      channels: [Channel(id: 'c-texto', name: 'geral', type: ChannelType.text)],
+    );
+    final state = AppState();
+    await state.trocarDeConta('conta-a');
+    state.servers.add(srv);
+    state.activeServerId = srv.id;
+    state.selectChannel('c-texto');
+    state.processNetworkPayload({
+      'action': 'chat_message',
+      'channelId': 'c-texto',
+      'channelName': 'geral',
+      'channelType': 'text',
+      'serverId': srv.id,
+      'message': ChatMessage(
+        id: 'm1',
+        authorId: 'amigo',
+        author: 'Amigo',
+        text: 'o que ficou sujo',
+        timestamp: 'agora',
+        sentAt: DateTime.now().millisecondsSinceEpoch,
+      ).toJson(),
+    }, srv);
+
+    await state.trocarDeConta('conta-b');
+
+    AppPaths.conta = 'conta-a';
+    final gravadoDaA = AppPaths.contaFile('chat_history.json');
+    expect(gravadoDaA.existsSync(), isTrue);
+    expect(gravadoDaA.readAsStringSync(), contains('o que ficou sujo'));
+    AppPaths.conta = 'conta-b';
+    expect(AppPaths.contaFile('chat_history.json').existsSync(), isFalse);
   });
 
   test('quem saiu não reescreve os dados de quem saiu', () async {

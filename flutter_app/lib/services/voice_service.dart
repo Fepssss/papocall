@@ -129,10 +129,13 @@ class VoiceService {
       _aplicarVolumeDaLive();
       return;
     }
-    final volume = volumesPorUsuario[nome];
-    if (volume == null) return;
+    // O volume é sempre aplicado, inclusive o cheio: a chave some do mapa
+    // quando a pessoa devolve o controle ao 100%, e se aqui faltasse o "senão
+    // tem chave, não faço nada", a pessoa ficaria quieta para sempre depois de
+    // ter baixado e soltado o slider de volta.
+    final volume = (volumesPorUsuario[nome] ?? 1.0).clamp(0.0, 1.0).toDouble();
     await rtc.Helper
-        .setVolume(volume.clamp(0.0, 1.0).toDouble(), faixa.mediaStreamTrack)
+        .setVolume(volume, faixa.mediaStreamTrack)
         .catchError((Object e) =>
             _log('Não foi possível regular o volume de @$nome: $e'));
   }
@@ -612,6 +615,15 @@ class VoiceService {
     } catch (e) {
       _erroDaCamera = _explicarFalhaDeCamera(e);
       _log('Falha ao ligar a câmera: $e');
+      // Um timeout não desfaz o que o SDK pode ter começado: se a captura
+      // abriu e a resposta não veio, a luz da câmera ficaria acesa com a tela
+      // dizendo que não ligou nada. Retira a faixa antes de avisar.
+      try {
+        await local.setCameraEnabled(false);
+        _log('Captura retirada depois da recusa da câmera.');
+      } catch (e2) {
+        _log('E a câmera não quis desligar depois da recusa: $e2');
+      }
       _notifyParticipants();
       return _erroDaCamera;
     }
