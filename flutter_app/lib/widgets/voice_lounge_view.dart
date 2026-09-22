@@ -551,6 +551,7 @@ class VoiceLoungeView extends StatelessWidget {
               servidor,
               user,
               detalhes.globalPosition,
+              naChamada: true,
             ),
             child: pill,
           );
@@ -1009,6 +1010,7 @@ class _ParticipantCardState extends State<_ParticipantCard> {
                                   servidor,
                                   user,
                                   detalhes.globalPosition,
+                                  naChamada: true,
                                 );
                               },
                         child: Text(

@@ -482,16 +482,22 @@ class _MemberMenuVolume extends StatelessWidget {
 class VoiceMemberMenu {
   static const double _menuWidth = 236;
 
+  /// [naChamada] é o que decide se as linhas de áudio e vídeo daquela pessoa
+  /// aparecem: volume, silêncio e vídeo ocultado só fazem sentido para quem está
+  /// na sala comigo agora. Na lista de membros do servidor o menu abre sem
+  /// elas, e não com três linhas mortas.
   static Future<void> show(
     BuildContext context,
     Server server,
     UserModel member,
-    Offset globalPosition,
-  ) {
+    Offset globalPosition, {
+    bool naChamada = false,
+  }) {
     final state = context.read<AppState>();
-    // Não existe ação minha sobre mim mesmo neste menu: o que se faz consigo é
-    // pelos controles da própria chamada.
-    if (member.id == state.currentUser.id) return Future.value();
+    // Sobre a própria pessoa não há mensagem nem gestão: sobra o perfil, e um
+    // menu de uma linha só ainda é um menu — o clique direito não pode ser
+    // silêncio onde a pessoa esperava uma resposta.
+    final ehAuto = member.id == state.currentUser.id;
 
     return showGeneralDialog(
       context: context,
@@ -504,6 +510,8 @@ class VoiceMemberMenu {
         server: server,
         member: member,
         anchor: globalPosition,
+        naChamada: naChamada && !ehAuto,
+        ehAuto: ehAuto,
       ),
     );
   }
@@ -515,18 +523,23 @@ class _VoiceMemberMenu extends StatelessWidget {
     required this.server,
     required this.member,
     required this.anchor,
+    required this.naChamada,
+    required this.ehAuto,
   });
 
   final BuildContext parentContext;
   final Server server;
   final UserModel member;
   final Offset anchor;
+  final bool naChamada;
+  final bool ehAuto;
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final ehAmigo = state.friends.any((f) => f.id == member.id);
-    final podeGerir = !server.isOwnedBy(member.id) &&
+    final podeGerir = !ehAuto &&
+        !server.isOwnedBy(member.id) &&
         (state.can(server.id, Permissions.manageRoles) ||
             state.can(server.id, Permissions.kickMembers));
 
@@ -546,7 +559,7 @@ class _VoiceMemberMenu extends StatelessWidget {
           MemberProfileCard.show(parentContext, server, member, anchor);
         },
       ),
-      if (ehAmigo)
+      if (!ehAuto && ehAmigo)
         _MemberMenuItem(
           label: 'Mensagem direta',
           color: HudTheme.green,
@@ -556,7 +569,7 @@ class _VoiceMemberMenu extends StatelessWidget {
             state.openDirectChat(member.id);
           },
         )
-      else
+      else if (!ehAuto)
         _MemberMenuItem(
           label: 'Adicionar amigo',
           color: HudTheme.green,
@@ -566,25 +579,27 @@ class _VoiceMemberMenu extends StatelessWidget {
             AddFriendDialog.show(parentContext, handleInicial: member.username);
           },
         ),
-      const _MemberMenuDivider(),
-      // As três linhas abaixo ficam com o menu aberto: são estados que se
-      // ajustam, não ações que se escolhem uma vez.
-      _MemberMenuVolume(username: nome, state: state),
-      _MemberMenuCheck(
-        label: 'Silenciar',
-        marcado: state.parSilenciado(nome),
-        onTap: () {
-          state.definirParSilenciado(nome, !state.parSilenciado(nome));
-        },
-      ),
-      if (linhaDeVideo)
+      if (naChamada) ...[
+        const _MemberMenuDivider(),
+        // As três linhas abaixo ficam com o menu aberto: são estados que se
+        // ajustam, não ações que se escolhem uma vez.
+        _MemberMenuVolume(username: nome, state: state),
         _MemberMenuCheck(
-          label: 'Desativar vídeo',
-          marcado: state.videoOcultoDe(nome),
+          label: 'Silenciar',
+          marcado: state.parSilenciado(nome),
           onTap: () {
-            state.definirVideoOculto(nome, !state.videoOcultoDe(nome));
+            state.definirParSilenciado(nome, !state.parSilenciado(nome));
           },
         ),
+        if (linhaDeVideo)
+          _MemberMenuCheck(
+            label: 'Desativar vídeo',
+            marcado: state.videoOcultoDe(nome),
+            onTap: () {
+              state.definirVideoOculto(nome, !state.videoOcultoDe(nome));
+            },
+          ),
+      ],
       if (podeGerir) ...[
         const _MemberMenuDivider(),
         _MemberMenuItem(

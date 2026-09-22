@@ -45,6 +45,7 @@ void main() {
     required UserModel quemAbre,
     UserModel? alvo,
     List<UserModel> amigos = const [],
+    bool naChamada = true,
   }) async {
     final state = AppState()
       ..currentUser = quemAbre
@@ -67,6 +68,7 @@ void main() {
                     servidor ?? buildServer(),
                     alvo ?? UserModel(id: 'alvo', username: 'alvo'),
                     const Offset(120, 120),
+                    naChamada: naChamada,
                   ),
                   child: const Text('abrir'),
                 ),
@@ -128,15 +130,36 @@ void main() {
       expect(find.text('Gerenciar membro'), findsNothing);
     });
 
-    testWidgets('não abre menu sobre a própria pessoa', (tester) async {
+    testWidgets('sobre a própria pessoa o menu só tem o perfil', (tester) async {
       await abrirMenu(
         tester,
         servidor: buildServer(),
+        // Dono do servidor: teria gestão, e não deve ver gestão de si mesmo.
         quemAbre: UserModel(id: 'eu', username: 'eu'),
         alvo: UserModel(id: 'eu', username: 'eu'),
       );
 
-      expect(find.text('Perfil'), findsNothing);
+      expect(find.text('Perfil'), findsOneWidget);
+      expect(find.text('Mensagem direta'), findsNothing);
+      expect(find.text('Adicionar amigo'), findsNothing);
+      expect(find.text('Gerenciar membro'), findsNothing);
+      expect(find.text('Silenciar'), findsNothing);
+    });
+
+    testWidgets('fora da chamada o menu não oferece volume nem silêncio', (tester) async {
+      // É o menu da lista de membros do servidor: a pessoa não está na sala
+      // comigo, então não há faixa de áudio minha para regular dela.
+      await abrirMenu(
+        tester,
+        servidor: buildServer(),
+        quemAbre: UserModel(id: 'dono', username: 'dono'),
+        naChamada: false,
+      );
+
+      expect(find.text('Perfil'), findsOneWidget);
+      expect(find.text('Volume de alvo'), findsNothing);
+      expect(find.text('Silenciar'), findsNothing);
+      expect(find.text('Desativar vídeo'), findsNothing);
     });
 
     testWidgets('nenhuma linha do menu é decorativa: o que existe hoje é o que aparece',

@@ -249,7 +249,10 @@ class _MemberTileState extends State<_MemberTile> {
       ),
     );
 
-    // Clique abre o mini perfil; botão direito segue sendo o atalho de gestão.
+    // Clique abre o mini perfil; o botão direito abre o menu da pessoa — o
+    // mesmo menu da chamada, sem as linhas de áudio e vídeo, que só valem para
+    // quem está na sala agora. Antes o botão direito era só o atalho de gestão,
+    // e para quem não gerencia ninguém ele não fazia nada.
     void abrePerfil(TapUpDetails detalhes) => MemberProfileCard.show(
           context,
           widget.server,
@@ -261,7 +264,7 @@ class _MemberTileState extends State<_MemberTile> {
       return GestureDetector(
         onTapUp: abrePerfil,
         onSecondaryTapUp: (details) =>
-            MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
+            VoiceMemberMenu.show(context, widget.server, widget.user, details.globalPosition),
         child: Opacity(
           opacity: _isHovered ? 0.9 : 0.65,
           child: tileContent,
@@ -272,7 +275,7 @@ class _MemberTileState extends State<_MemberTile> {
     return GestureDetector(
       onTapUp: abrePerfil,
       onSecondaryTapUp: (details) =>
-          MemberContextMenu.show(context, widget.server, widget.user, details.globalPosition),
+          VoiceMemberMenu.show(context, widget.server, widget.user, details.globalPosition),
       child: tileContent,
     );
   }

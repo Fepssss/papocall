@@ -882,7 +882,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         srv.memberIds.insert(0, currentUser.id);
       }
     }
-    AppLog.write('Conta', 'dados carregados da pasta ${AppPaths.contaDados().uri.pathSegments.last}');
+    AppLog.write('Conta', 'dados carregados da pasta ${AppPaths.contaDados().path.split(Platform.pathSeparator).last}');
     notifyListeners();
   }
 

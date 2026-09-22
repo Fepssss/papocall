@@ -584,10 +584,22 @@ class VoiceService {
   Future<String?> alternarCamera() async {
     final local = _room?.localParticipant;
     if (local == null || !isConnected) {
+      // Registrada também: sem esta linha, "a câmera não funciona" não tem como
+      // ser distinguido de "o botão não foi apertado" ou "a câmera não ligou".
+      _log('Câmera pedida fora de uma chamada conectada.');
       return 'Entre na chamada de voz antes de ligar a câmera.';
     }
     if (cameraAtiva) {
-      await local.setCameraEnabled(false);
+      try {
+        await local.setCameraEnabled(false);
+        _log('Câmera retirada da sala.');
+      } catch (e) {
+        // Sem o try/catch aqui, uma recusa do SDK virava uma exceção assíncrona
+        // sem dono no botão: nada na tela, nada no log.
+        _erroDaCamera = 'Não foi possível desligar a câmera.';
+        _log('Falha ao desligar a câmera: $e');
+        return _erroDaCamera;
+      }
       _erroDaCamera = null;
       _notifyParticipants();
       return null;
