@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:papocall/models/channel.dart';
 import 'package:papocall/models/chat_message.dart';
@@ -103,6 +106,43 @@ void main() {
     expect(gravadoDaA.readAsStringSync(), contains('o que ficou sujo'));
     AppPaths.conta = 'conta-b';
     expect(AppPaths.contaFile('chat_history.json').existsSync(), isFalse);
+  });
+
+  test('gravações do mesmo arquivo não se atropelam nem somem no meio', () async {
+    // As gravações saem de caminhos que não sabem um do outro — a marca de
+    // leitura, o salvamento adiado do histórico, a fila de pedidos. Duas no mesmo
+    // arquivo dividiam o temporário, uma delas morria no rename do Windows
+    // ("arquivo em uso") e o estado daquela gravação se perdia.
+    final state = AppState();
+    await state.trocarDeConta('conta-a');
+    // Os caminhos são tomados agora, e não depois de voltar atrás com a conta:
+    // o estado desta troca continua vivo e qualquer gravação atrasada dele cairia
+    // na pasta que a última atribuição apontar.
+    final pastaDaContaA = AppPaths.contaDados();
+    final arquivo = AppPaths.contaFile('read_marks.json');
+
+    for (var i = 0; i < 20; i++) {
+      state.markChannelRead('c-$i');
+    }
+
+    // A fila de gravação é assíncrona, e sob a carga de uma suíte inteira vinte
+    // escritas encadeadas podem levar o que for preciso para terminar. O que se
+    // cobra aqui é o estado final — a última escrita da fila é a que tem as vinte
+    // marcas — e não a velocidade.
+    var lido = <String, dynamic>{};
+    for (var i = 0; i < 100 && lido.length < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!arquivo.existsSync()) continue;
+      lido = jsonDecode(arquivo.readAsStringSync()) as Map<String, dynamic>;
+    }
+    // Trocar de conta escoou o que ainda estava na fila.
+    await state.trocarDeConta('conta-b');
+
+    expect(lido.length, 20);
+    expect(
+      pastaDaContaA.listSync().whereType<File>().where((f) => f.path.endsWith('.tmp')),
+      isEmpty,
+    );
   });
 
   test('quem saiu não reescreve os dados de quem saiu', () async {

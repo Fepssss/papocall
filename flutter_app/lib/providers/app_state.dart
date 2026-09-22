@@ -756,10 +756,47 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// é a pessoa perder as conversas dela por um azar de gravação. Escrever num
   /// `.tmp` e trocar os nomes deixa ou o conteúdo velho ou o novo, nunca os dois
   /// quebrados.
+  ///
+  /// Uma gravação por arquivo por vez, porque os pedidos não sabem uns dos
+  /// outros: o salvamento adiado do histórico, a marca de leitura e a fila de
+  /// pedidos disparam cada um do seu lado, e dois acessos simultâneos ao mesmo
+  /// arquivo no Windows resultam em "arquivo em uso" — com a gravação perdida.
   Future<void> _gravarJson(File file, Object? dados) async {
-    final provisorio = File('${file.path}.tmp');
-    await provisorio.writeAsString(jsonEncode(dados));
-    await provisorio.rename(file.path);
+    final caminho = file.path;
+    final texto = jsonEncode(dados);
+    final anterior = _gravacoesEmAndamento[caminho] ?? Future<void>.value();
+    final minha = anterior.then(
+      (_) => _escreverETrocar(caminho, texto),
+      // O erro da gravação anterior é de quem chamou aquela, não deste pedido:
+      // a fila continua andando.
+      onError: (Object _) => _escreverETrocar(caminho, texto),
+    );
+    _gravacoesEmAndamento[caminho] = minha;
+    try {
+      await minha;
+    } finally {
+      if (identical(_gravacoesEmAndamento[caminho], minha)) {
+        _gravacoesEmAndamento.remove(caminho);
+      }
+    }
+  }
+
+  final Map<String, Future<void>> _gravacoesEmAndamento = {};
+
+  Future<void> _escreverETrocar(String caminho, String texto) async {
+    final provisorio = File('$caminho.tmp');
+    try {
+      await provisorio.writeAsString(texto);
+      await provisorio.rename(caminho);
+    } catch (_) {
+      // O rename pode falhar com o antivírus segurando o arquivo recém-escrito.
+      // A última saída é gravar direto: perder o conteúdo é pior do que o risco
+      // que se quis evitar.
+      try {
+        await provisorio.delete();
+      } catch (_) {}
+      await File(caminho).writeAsString(texto);
+    }
   }
 
   /// Preferências de uma conta sobre as pessoas e os servidores dela: volume por
