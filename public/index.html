@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.7.0</span>
+        <span class="version-tag">v1.8.0</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.7.0
+          Baixar v1.8.0
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.7.0 • Instalador Nativo (~18.2 MB) • Windows 10 e 11
+          Versão Oficial 1.8.0 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.7.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.8.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.8.0', this)">
+          v1.8.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.7.0', this)">
-          v1.7.0 <span class="badge-current">ATUAL</span>
+          v1.7.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.6.0', this)">
           v1.6.0
@@ -987,12 +990,51 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.8.0 -->
+        <article class="release-card latest" data-version="v1.8.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.8.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">21 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            A câmera entrou na chamada de voz, e o aplicativo parou de se deslogar sozinho quando o servidor ainda está acordando.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Vídeo na call</strong>: um botão novo no dock da chamada liga e desliga a sua câmera. Cada pessoa aparece com a própria imagem no cartão dela, e a sua prévia vem espelhada, como num autorretrato — quem olha de fora vê a cena como ela é. Enquanto a câmera está desligada, o cartão mostra o retrato de sempre.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Escolha da câmera</strong>: Configurações → Voz e Áudio ganhou o terceiro seletor, ao lado do microfone e da saída. A escolha é guardada e vale já, inclusive republicando a faixa no meio de uma chamada. Se a câmera escolhida foi arrancada do USB, nada é ligado no lugar: acender uma lente que você não escolheu é justamente o que a gente não faz. Sair da sala desliga a captura — a luz da câmera não fica acesa depois do &quot;desconectado&quot;.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>O login não cai mais sozinho</strong>: abrir o PapoCall com o servidor ainda acordando podia queimar o token de renovação — o pedido morria no prazo do aplicativo, o servidor o atendia um pouco depois, e a segunda tentativa chegava com um token já usado, o que o backend pune encerrando todas as sessões da conta. Agora a renovação espera o servidor responder antes de mandar qualquer credencial, e um pedido que saiu sem resposta não é reenviado às cegas: a sessão continua no lugar e a tela diz o que fazer. A regra de segurança do servidor não foi afrouxada — o que mudou foi a paciência e a ordem do lado de cá.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>O som do PC não abaixa mais quando você entra numa call</strong>: o Windows tratava o PapoCall como uma aplicação de &quot;comunicações&quot; e reduzia o volume do resto do computador sozinho — jogo, música e navegador junto. Ele agora fala com o dispositivo que você escolheu, e não com o telefone imaginário.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">CORREÇÃO</span>
+              <span><strong>Amizade não é convite de servidor</strong>: o botão &quot;Entrar na Call&quot; na lista de amigos só aparece para os servidores em que você está. Estar na mesma sala de voz não é mais porta de entrada para ouvir gente que não te chamou. E clicar com o botão direito no nome de quem está na chamada abriu o menu daquela pessoa.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">NOTA</span>
+              <span><strong>O que o vídeo é, dito na aba Privacidade</strong>: câmera, voz e tela passam cifrados no trajeto (DTLS/SRTP) pelo servidor de conferência, que processa o conteúdo para distribuir para a sala — não é ponta a ponta, e está escrito dessa forma. Nada é gravado: não existe código de gravação no aplicativo nem no servidor.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.7.0 -->
-        <article class="release-card latest" data-version="v1.7.0">
+        <article class="release-card" data-version="v1.7.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.7.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">21 de Setembro de 2026</span>
           </div>
@@ -1311,7 +1353,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.7.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.8.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1887,7 +1929,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.7.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.8.0</strong></p>
     </div>
   </footer>
 
