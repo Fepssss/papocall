@@ -102,4 +102,25 @@ void main() {
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('as linhas da página de amigos têm onde pintar o hover', (tester) async {
+    final state = aplicativo();
+    presenca(state);
+    await montar(tester, state);
+
+    // O fundo da página é um Container de cor opaca, e um InkWell pinta a tinta
+    // no Material mais próximo *acima* dele. Sem o Material transparente, o
+    // hover ia parar atrás da cor da página e a lista não reagiria ao mouse —
+    // exatamente o que foi reclamado.
+    expect(
+      find.ancestor(
+        of: find.text('Victor').first,
+        matching: find.byWidgetPredicate(
+          (w) => w is Material && w.type == MaterialType.transparency,
+        ),
+      ),
+      findsWidgets,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

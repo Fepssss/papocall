@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/channel.dart';
 import '../models/friend_request.dart';
 import '../models/server.dart';
@@ -38,8 +39,12 @@ class _HomePageViewState extends State<HomePageView> {
     final isVoiceConnected = state.connectedVoiceChannelId != null;
 
     final allFriends = state.friendsWithLiveStatus;
-    final onlineFriends = allFriends.where((f) => f.status != UserStatus.offline).toList();
-    final offlineFriends = allFriends.where((f) => f.status == UserStatus.offline).toList();
+    final onlineFriends = allFriends
+        .where((f) => f.status != UserStatus.offline)
+        .toList();
+    final offlineFriends = allFriends
+        .where((f) => f.status == UserStatus.offline)
+        .toList();
     final pendingReceived = state.pendingReceivedRequests;
     final pendingSent = state.pendingSentRequests;
 
@@ -65,7 +70,9 @@ class _HomePageViewState extends State<HomePageView> {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
       currentList = currentList.where((u) {
-        final nameMatches = u.displayNameOrUsername.toLowerCase().contains(query);
+        final nameMatches = u.displayNameOrUsername.toLowerCase().contains(
+          query,
+        );
         final handleMatches = u.handle.toLowerCase().contains(query);
         final tagMatches = u.username.toLowerCase().contains(query);
         return nameMatches || handleMatches || tagMatches;
@@ -74,77 +81,87 @@ class _HomePageViewState extends State<HomePageView> {
 
     return Container(
       color: HudTheme.bgChat,
-      child: Column(
-        children: [
-          // Barra de Navegação Superior HUD (com abas de Amigos)
-          _buildTopBar(
-            context,
-            state,
-            onlineFriends.length,
-            allFriends.length,
-            pendingReceived.length,
-            offlineFriends.length,
-            _contaNaoLidasDiretas(state),
-          ),
+      // O Material transparente é o que faz o resto funcionar: um InkWell pinta
+      // o hover e o toque no Material mais próximo, e sem este aqui eles iam
+      // parar atrás da cor opaca da página — a lista de amigos não mostrava
+      // nada sob o mouse, por mais que o botão existisse.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            // Barra de Navegação Superior HUD (com abas de Amigos)
+            _buildTopBar(
+              context,
+              state,
+              onlineFriends.length,
+              allFriends.length,
+              pendingReceived.length,
+              offlineFriends.length,
+              _contaNaoLidasDiretas(state),
+            ),
 
-          // Painel de Rolagem Principal
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Hero Banner de Boas-Vindas Tático
-                  _buildHeroCard(context, state, currentUser),
-                  const SizedBox(height: 24),
-
-                  // Banner de Chamada Ativa (se conectado)
-                  if (isVoiceConnected) ...[
-                    _buildActiveCallBanner(context, state),
+            // Painel de Rolagem Principal
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28.0,
+                  vertical: 24.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Hero Banner de Boas-Vindas Tático
+                    _buildHeroCard(context, state, currentUser),
                     const SizedBox(height: 24),
+
+                    // Banner de Chamada Ativa (se conectado)
+                    if (isVoiceConnected) ...[
+                      _buildActiveCallBanner(context, state),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Barra de Busca Rápida de Amigos (apenas nas abas de amigos)
+                    if (_selectedTab != FriendViewTab.pending &&
+                        _selectedTab != FriendViewTab.direct) ...[
+                      _buildSearchBar(),
+                      const SizedBox(height: 18),
+                    ],
+
+                    // Seção Principal: Central de Amigos, Solicitações ou Conversas
+                    if (_selectedTab == FriendViewTab.pending)
+                      _buildPendingRequestsSection(
+                        context,
+                        state,
+                        pendingReceived,
+                        pendingSent,
+                      )
+                    else if (_selectedTab == FriendViewTab.direct)
+                      _buildDirectSection(context, state)
+                    else
+                      _buildFriendsListSection(
+                        context,
+                        state,
+                        currentList,
+                        allFriends.length,
+                      ),
+                    const SizedBox(height: 32),
+
+                    // Seção: Meus Servidores (Grid Tático)
+                    _buildServersSection(context, state),
+                    const SizedBox(height: 28),
+
+                    // Salas de Voz Disponíveis
+                    _buildVoiceLoungesCard(context, state),
+                    const SizedBox(height: 28),
+
+                    // Painel de Diagnósticos do Sistema HUD
+                    _buildSystemStatusCard(state),
                   ],
-
-                  // Barra de Busca Rápida de Amigos (apenas nas abas de amigos)
-                  if (_selectedTab != FriendViewTab.pending &&
-                      _selectedTab != FriendViewTab.direct) ...[
-                    _buildSearchBar(),
-                    const SizedBox(height: 18),
-                  ],
-
-                  // Seção Principal: Central de Amigos, Solicitações ou Conversas
-                  if (_selectedTab == FriendViewTab.pending)
-                    _buildPendingRequestsSection(
-                      context,
-                      state,
-                      pendingReceived,
-                      pendingSent,
-                    )
-                  else if (_selectedTab == FriendViewTab.direct)
-                    _buildDirectSection(context, state)
-                  else
-                    _buildFriendsListSection(
-                      context,
-                      state,
-                      currentList,
-                      allFriends.length,
-                    ),
-                  const SizedBox(height: 32),
-
-                  // Seção: Meus Servidores (Grid Tático)
-                  _buildServersSection(context, state),
-                  const SizedBox(height: 28),
-
-                  // Salas de Voz Disponíveis
-                  _buildVoiceLoungesCard(context, state),
-                  const SizedBox(height: 28),
-
-                  // Painel de Diagnósticos do Sistema HUD
-                  _buildSystemStatusCard(state),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -175,7 +192,11 @@ class _HomePageViewState extends State<HomePageView> {
               color: HudTheme.green.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.people_alt_rounded, color: HudTheme.green, size: 20),
+            child: const Icon(
+              Icons.people_alt_rounded,
+              color: HudTheme.green,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 10),
           const Text(
@@ -198,7 +219,11 @@ class _HomePageViewState extends State<HomePageView> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterTab(FriendViewTab.online, 'Disponível', onlineCount),
+                  _buildFilterTab(
+                    FriendViewTab.online,
+                    'Disponível',
+                    onlineCount,
+                  ),
                   const SizedBox(width: 6),
                   _buildFilterTab(FriendViewTab.all, 'Todos', allCount),
                   const SizedBox(width: 6),
@@ -216,7 +241,11 @@ class _HomePageViewState extends State<HomePageView> {
                     isAlert: pendingCount > 0,
                   ),
                   const SizedBox(width: 6),
-                  _buildFilterTab(FriendViewTab.offline, 'Offline', offlineCount),
+                  _buildFilterTab(
+                    FriendViewTab.offline,
+                    'Offline',
+                    offlineCount,
+                  ),
                 ],
               ),
             ),
@@ -229,7 +258,9 @@ class _HomePageViewState extends State<HomePageView> {
               backgroundColor: HudTheme.green,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
               elevation: 1,
             ),
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
@@ -278,7 +309,10 @@ class _HomePageViewState extends State<HomePageView> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: const Icon(Icons.vpn_key_rounded, size: 14),
-      label: const Text('Entrar com Convite', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
+      label: const Text(
+        'Entrar com Convite',
+        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+      ),
       onPressed: () => _showJoinInviteDialog(context, state),
     );
   }
@@ -294,7 +328,10 @@ class _HomePageViewState extends State<HomePageView> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: const Icon(Icons.add_rounded, size: 16, color: HudTheme.green),
-      label: const Text('Criar Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+      label: const Text(
+        'Criar Servidor',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+      ),
       onPressed: () => CreateServerDialog.show(context),
     );
   }
@@ -308,7 +345,11 @@ class _HomePageViewState extends State<HomePageView> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: HudTheme.accent),
+      icon: const Icon(
+        Icons.arrow_forward_rounded,
+        size: 14,
+        color: HudTheme.accent,
+      ),
       // O nome do servidor é o que empurra a barra para fora da tela: com um
       // teto de largura ele vira reticências antes de cortar os botões ao lado.
       label: ConstrainedBox(
@@ -350,7 +391,11 @@ class _HomePageViewState extends State<HomePageView> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.forum_outlined, color: HudTheme.green, size: 20),
+                  const Icon(
+                    Icons.forum_outlined,
+                    color: HudTheme.green,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     'CONVERSAS PRIVADAS ($total)',
@@ -376,7 +421,12 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
-  Widget _buildFilterTab(FriendViewTab tab, String label, int count, {bool isAlert = false}) {
+  Widget _buildFilterTab(
+    FriendViewTab tab,
+    String label,
+    int count, {
+    bool isAlert = false,
+  }) {
     final isSelected = _selectedTab == tab;
     return InkWell(
       onTap: () {
@@ -396,8 +446,12 @@ class _HomePageViewState extends State<HomePageView> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : (isAlert ? HudTheme.green : HudTheme.textMuted),
-                fontWeight: isSelected || isAlert ? FontWeight.bold : FontWeight.w500,
+                color: isSelected
+                    ? Colors.white
+                    : (isAlert ? HudTheme.green : HudTheme.textMuted),
+                fontWeight: isSelected || isAlert
+                    ? FontWeight.bold
+                    : FontWeight.w500,
                 fontSize: 13,
               ),
             ),
@@ -406,13 +460,17 @@ class _HomePageViewState extends State<HomePageView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isAlert ? HudTheme.green : (isSelected ? HudTheme.green : HudTheme.bgCard),
+                  color: isAlert
+                      ? HudTheme.green
+                      : (isSelected ? HudTheme.green : HudTheme.bgCard),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    color: (isAlert || isSelected) ? Colors.black : HudTheme.textMuted,
+                    color: (isAlert || isSelected)
+                        ? Colors.black
+                        : HudTheme.textMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -454,7 +512,11 @@ class _HomePageViewState extends State<HomePageView> {
           ),
           if (_searchController.text.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.close_rounded, color: HudTheme.textMuted, size: 16),
+              icon: const Icon(
+                Icons.close_rounded,
+                color: HudTheme.textMuted,
+                size: 16,
+              ),
               splashRadius: 16,
               onPressed: () {
                 setState(() {
@@ -495,7 +557,11 @@ class _HomePageViewState extends State<HomePageView> {
                       color: HudTheme.green.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.mail_rounded, color: HudTheme.green, size: 18),
+                    child: const Icon(
+                      Icons.mail_rounded,
+                      color: HudTheme.green,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -513,11 +579,19 @@ class _HomePageViewState extends State<HomePageView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: HudTheme.green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
                 icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
-                label: const Text('Nova Solicitação', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                label: const Text(
+                  'Nova Solicitação',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
                 onPressed: () => AddFriendDialog.show(context),
               ),
             ],
@@ -545,7 +619,11 @@ class _HomePageViewState extends State<HomePageView> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.inbox_rounded, color: HudTheme.textMuted, size: 20),
+                  Icon(
+                    Icons.inbox_rounded,
+                    color: HudTheme.textMuted,
+                    size: 20,
+                  ),
                   SizedBox(width: 12),
                   Text(
                     'Nenhuma solicitação de amizade pendente para você.',
@@ -559,7 +637,8 @@ class _HomePageViewState extends State<HomePageView> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: received.length,
-              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              separatorBuilder: (_, _) =>
+                  const Divider(color: HudTheme.divider, height: 12),
               itemBuilder: (context, index) {
                 final req = received[index];
                 final initials = req.senderDisplayName.isNotEmpty
@@ -567,7 +646,10 @@ class _HomePageViewState extends State<HomePageView> {
                     : req.senderUsername[0].toUpperCase();
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: HudTheme.bgCard,
                     borderRadius: BorderRadius.circular(8),
@@ -580,7 +662,11 @@ class _HomePageViewState extends State<HomePageView> {
                         backgroundColor: HudTheme.blurple,
                         child: Text(
                           initials,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -599,7 +685,11 @@ class _HomePageViewState extends State<HomePageView> {
                             const SizedBox(height: 2),
                             Text(
                               '@${req.senderUsername}',
-                              style: const TextStyle(color: HudTheme.green, fontSize: 12, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                color: HudTheme.green,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -610,11 +700,22 @@ class _HomePageViewState extends State<HomePageView> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: HudTheme.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                         icon: const Icon(Icons.check, size: 16),
-                        label: const Text('Aceitar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        label: const Text(
+                          'Aceitar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                         onPressed: () => state.acceptFriendRequest(req),
                       ),
                       const SizedBox(width: 8),
@@ -623,11 +724,22 @@ class _HomePageViewState extends State<HomePageView> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: HudTheme.red,
                           side: const BorderSide(color: HudTheme.divider),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                         icon: const Icon(Icons.close, size: 16),
-                        label: const Text('Recusar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        label: const Text(
+                          'Recusar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                         onPressed: () => state.rejectFriendRequest(req),
                       ),
                     ],
@@ -659,7 +771,11 @@ class _HomePageViewState extends State<HomePageView> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.outbox_rounded, color: HudTheme.textMuted, size: 18),
+                  Icon(
+                    Icons.outbox_rounded,
+                    color: HudTheme.textMuted,
+                    size: 18,
+                  ),
                   SizedBox(width: 12),
                   Text(
                     'Você não possui solicitações enviadas pendentes.',
@@ -673,11 +789,15 @@ class _HomePageViewState extends State<HomePageView> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: sent.length,
-              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              separatorBuilder: (_, _) =>
+                  const Divider(color: HudTheme.divider, height: 12),
               itemBuilder: (context, index) {
                 final req = sent[index];
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: HudTheme.bgCard,
                     borderRadius: BorderRadius.circular(8),
@@ -691,7 +811,11 @@ class _HomePageViewState extends State<HomePageView> {
                           color: HudTheme.bgHover,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.send_rounded, color: HudTheme.accent, size: 16),
+                        child: const Icon(
+                          Icons.send_rounded,
+                          color: HudTheme.accent,
+                          size: 16,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -709,13 +833,20 @@ class _HomePageViewState extends State<HomePageView> {
                             const SizedBox(height: 2),
                             const Text(
                               'Aguardando aprovação...',
-                              style: TextStyle(color: HudTheme.textMuted, fontSize: 12),
+                              style: TextStyle(
+                                color: HudTheme.textMuted,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, color: HudTheme.textMuted, size: 18),
+                        icon: const Icon(
+                          Icons.close,
+                          color: HudTheme.textMuted,
+                          size: 18,
+                        ),
                         tooltip: 'Cancelar Solicitação',
                         onPressed: () => state.cancelFriendRequest(req),
                       ),
@@ -770,7 +901,11 @@ class _HomePageViewState extends State<HomePageView> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.people_alt_rounded, color: HudTheme.green, size: 20),
+                  const Icon(
+                    Icons.people_alt_rounded,
+                    color: HudTheme.green,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     '$tabTitle (${friends.length})',
@@ -803,16 +938,24 @@ class _HomePageViewState extends State<HomePageView> {
                       color: HudTheme.green.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.radar_rounded, color: HudTheme.green, size: 38),
+                    child: const Icon(
+                      Icons.radar_rounded,
+                      color: HudTheme.green,
+                      size: 38,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     _selectedTab == FriendViewTab.online
                         ? 'Nenhum amigo online no momento.'
                         : (_selectedTab == FriendViewTab.offline
-                            ? 'Nenhum amigo offline.'
-                            : 'Nenhum amigo encontrado.'),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              ? 'Nenhum amigo offline.'
+                              : 'Nenhum amigo encontrado.'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -825,11 +968,22 @@ class _HomePageViewState extends State<HomePageView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: HudTheme.green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
-                    label: const Text('Adicionar Amigo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    label: const Text(
+                      'Adicionar Amigo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                     onPressed: () => AddFriendDialog.show(context),
                   ),
                 ],
@@ -840,7 +994,8 @@ class _HomePageViewState extends State<HomePageView> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: friends.length,
-              separatorBuilder: (_, _) => const Divider(color: HudTheme.divider, height: 12),
+              separatorBuilder: (_, _) =>
+                  const Divider(color: HudTheme.divider, height: 12),
               itemBuilder: (context, index) {
                 final friend = friends[index];
                 final inCall = friend.currentVoiceChannelId != null;
@@ -848,7 +1003,8 @@ class _HomePageViewState extends State<HomePageView> {
                 // estar em servidor que eu nunca vi, e o id do canal dele é o nome
                 // da sala no LiveKit — oferecer o botão seria oferecer a porta.
                 final podeEntrarNaCall =
-                    inCall && state.servidorDoCanal(friend.currentVoiceChannelId) != null;
+                    inCall &&
+                    state.servidorDoCanal(friend.currentVoiceChannelId) != null;
                 final isOffline = friend.status == UserStatus.offline;
 
                 Color statusBadgeColor;
@@ -856,7 +1012,9 @@ class _HomePageViewState extends State<HomePageView> {
                 switch (friend.status) {
                   case UserStatus.online:
                     statusBadgeColor = HudTheme.statusOnline;
-                    statusLabel = inCall ? 'Em chamada de voz' : 'Disponível no PapoCall';
+                    statusLabel = inCall
+                        ? 'Em chamada de voz'
+                        : 'Disponível no PapoCall';
                     break;
                   case UserStatus.idle:
                     statusBadgeColor = HudTheme.statusIdle;
@@ -876,7 +1034,10 @@ class _HomePageViewState extends State<HomePageView> {
                   borderRadius: BorderRadius.circular(8),
                   hoverColor: HudTheme.bgHover.withValues(alpha: 0.5),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
                     child: Row(
                       children: [
                         // Avatar com indicador de presença
@@ -884,11 +1045,15 @@ class _HomePageViewState extends State<HomePageView> {
                           children: [
                             CircleAvatar(
                               radius: 18,
-                              backgroundColor: isOffline ? HudTheme.bgSidebar : HudTheme.bgHover,
+                              backgroundColor: isOffline
+                                  ? HudTheme.bgSidebar
+                                  : HudTheme.bgHover,
                               child: Text(
                                 friend.initials,
                                 style: TextStyle(
-                                  color: isOffline ? HudTheme.textMuted : Colors.white,
+                                  color: isOffline
+                                      ? HudTheme.textMuted
+                                      : Colors.white,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -903,7 +1068,10 @@ class _HomePageViewState extends State<HomePageView> {
                                 decoration: BoxDecoration(
                                   color: statusBadgeColor,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: HudTheme.bgSidebar, width: 2),
+                                  border: Border.all(
+                                    color: HudTheme.bgSidebar,
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                             ),
@@ -921,7 +1089,9 @@ class _HomePageViewState extends State<HomePageView> {
                                   Text(
                                     friend.displayNameOrUsername,
                                     style: TextStyle(
-                                      color: isOffline ? HudTheme.textMuted : Colors.white,
+                                      color: isOffline
+                                          ? HudTheme.textMuted
+                                          : Colors.white,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
                                     ),
@@ -941,7 +1111,9 @@ class _HomePageViewState extends State<HomePageView> {
                               Text(
                                 statusLabel,
                                 style: TextStyle(
-                                  color: inCall ? HudTheme.green : HudTheme.textMuted,
+                                  color: inCall
+                                      ? HudTheme.green
+                                      : HudTheme.textMuted,
                                   fontSize: 12,
                                 ),
                               ),
@@ -955,20 +1127,31 @@ class _HomePageViewState extends State<HomePageView> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: HudTheme.green,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
                             ),
                             icon: const Icon(Icons.call_rounded, size: 14),
                             label: const Text(
                               'Entrar na Call',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             onPressed: () async {
                               final messenger = ScaffoldMessenger.of(context);
                               final canal = friend.currentVoiceChannelId!;
                               state.selectChannel(canal);
                               state.closeHomePage();
-                              reportVoiceJoinError(messenger, await state.connectVoice(canal));
+                              reportVoiceJoinError(
+                                messenger,
+                                await state.connectVoice(canal),
+                              );
                             },
                           ),
                         const SizedBox(width: 6),
@@ -987,7 +1170,11 @@ class _HomePageViewState extends State<HomePageView> {
                         ),
                         const SizedBox(width: 6),
                         IconButton(
-                          icon: const Icon(Icons.person_remove_rounded, size: 18, color: HudTheme.textMuted),
+                          icon: const Icon(
+                            Icons.person_remove_rounded,
+                            size: 18,
+                            color: HudTheme.textMuted,
+                          ),
                           tooltip: 'Remover dos Amigos',
                           splashRadius: 18,
                           onPressed: () => state.removeFriend(friend.id),
@@ -1009,15 +1196,15 @@ class _HomePageViewState extends State<HomePageView> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            HudTheme.bgCard,
-            HudTheme.bgSidebar.withValues(alpha: 0.85),
-          ],
+          colors: [HudTheme.bgCard, HudTheme.bgSidebar.withValues(alpha: 0.85)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: HudTheme.green.withValues(alpha: 0.25), width: 1),
+        border: Border.all(
+          color: HudTheme.green.withValues(alpha: 0.25),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -1036,9 +1223,16 @@ class _HomePageViewState extends State<HomePageView> {
                 backgroundColor: HudTheme.bgHover,
                 child: Text(
                   user.username.isNotEmpty
-                      ? user.username.replaceAll('@', '').substring(0, 1).toUpperCase()
+                      ? user.username
+                            .replaceAll('@', '')
+                            .substring(0, 1)
+                            .toUpperCase()
                       : 'P',
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               Positioned(
@@ -1079,15 +1273,24 @@ class _HomePageViewState extends State<HomePageView> {
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: HudTheme.green.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: HudTheme.green.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: HudTheme.green.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: const Text(
                         'v${HudTheme.appVersion}',
-                        style: TextStyle(color: HudTheme.green, fontSize: 11, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: HudTheme.green,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -1095,7 +1298,11 @@ class _HomePageViewState extends State<HomePageView> {
                 const SizedBox(height: 6),
                 const Text(
                   'Voz de baixa latência, chat e tela compartilhada com o seu time — dentro e fora dos servidores.',
-                  style: TextStyle(color: HudTheme.textMuted, fontSize: 13, height: 1.4),
+                  style: TextStyle(
+                    color: HudTheme.textMuted,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 14),
 
@@ -1127,11 +1334,16 @@ class _HomePageViewState extends State<HomePageView> {
               backgroundColor: HudTheme.green,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 4,
             ),
             icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-            label: const Text('Abrir Conversas', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text(
+              'Abrir Conversas',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             onPressed: state.closeHomePage,
           ),
         ],
@@ -1139,7 +1351,11 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
-  Widget _buildMetricChip({required IconData icon, required String label, required Color color}) {
+  Widget _buildMetricChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -1157,7 +1373,11 @@ class _HomePageViewState extends State<HomePageView> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -1182,7 +1402,11 @@ class _HomePageViewState extends State<HomePageView> {
               color: HudTheme.green.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.volume_up_rounded, color: HudTheme.green, size: 22),
+            child: const Icon(
+              Icons.volume_up_rounded,
+              color: HudTheme.green,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1191,11 +1415,18 @@ class _HomePageViewState extends State<HomePageView> {
               children: [
                 const Text(
                   'Você está em uma chamada de voz ativa',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
                 Text(
                   'Canal: #${state.activeChannel?.name ?? state.connectedVoiceChannelId}  •  Transmissão RTC em tempo real',
-                  style: const TextStyle(color: HudTheme.textMuted, fontSize: 12),
+                  style: const TextStyle(
+                    color: HudTheme.textMuted,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -1207,7 +1438,10 @@ class _HomePageViewState extends State<HomePageView> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
             icon: const Icon(Icons.headset_rounded, size: 16),
-            label: const Text('Voltar para a Call', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text(
+              'Voltar para a Call',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             onPressed: () {
               state.closeHomePage();
               if (state.connectedVoiceChannelId != null) {
@@ -1218,7 +1452,11 @@ class _HomePageViewState extends State<HomePageView> {
           const SizedBox(width: 10),
           IconButton(
             tooltip: 'Desconectar da chamada',
-            icon: const Icon(Icons.call_end_rounded, color: HudTheme.red, size: 20),
+            icon: const Icon(
+              Icons.call_end_rounded,
+              color: HudTheme.red,
+              size: 20,
+            ),
             onPressed: state.disconnectVoice,
           ),
         ],
@@ -1252,10 +1490,16 @@ class _HomePageViewState extends State<HomePageView> {
             TextButton.icon(
               style: TextButton.styleFrom(
                 foregroundColor: HudTheme.green,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
               ),
               icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
-              label: const Text('Novo Servidor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              label: const Text(
+                'Novo Servidor',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
               onPressed: () => CreateServerDialog.show(context),
             ),
           ],
@@ -1265,7 +1509,9 @@ class _HomePageViewState extends State<HomePageView> {
         // Grid de Servidores
         LayoutBuilder(
           builder: (context, constraints) {
-            final crossAxisCount = constraints.maxWidth > 1050 ? 3 : (constraints.maxWidth > 650 ? 2 : 1);
+            final crossAxisCount = constraints.maxWidth > 1050
+                ? 3
+                : (constraints.maxWidth > 650 ? 2 : 1);
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -1290,10 +1536,18 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
-  Widget _buildServerGridCard(BuildContext context, AppState state, Server server) {
+  Widget _buildServerGridCard(
+    BuildContext context,
+    AppState state,
+    Server server,
+  ) {
     final isActive = server.id == state.activeServerId;
-    final textChannelsCount = server.channels.where((c) => c.type == ChannelType.text).length;
-    final voiceChannelsCount = server.channels.where((c) => c.type == ChannelType.voice).length;
+    final textChannelsCount = server.channels
+        .where((c) => c.type == ChannelType.text)
+        .length;
+    final voiceChannelsCount = server.channels
+        .where((c) => c.type == ChannelType.voice)
+        .length;
 
     Color badgeColor = HudTheme.green;
     if (server.colorHex.isNotEmpty) {
@@ -1302,7 +1556,9 @@ class _HomePageViewState extends State<HomePageView> {
       } catch (_) {}
     }
 
-    final initials = server.name.length >= 2 ? server.name.substring(0, 2).toUpperCase() : server.name.toUpperCase();
+    final initials = server.name.length >= 2
+        ? server.name.substring(0, 2).toUpperCase()
+        : server.name.toUpperCase();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1338,7 +1594,11 @@ class _HomePageViewState extends State<HomePageView> {
                 alignment: Alignment.center,
                 child: Text(
                   initials,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1348,14 +1608,23 @@ class _HomePageViewState extends State<HomePageView> {
                   children: [
                     Text(
                       server.name,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      server.description.isNotEmpty ? server.description : 'Convite: ${server.inviteCode}',
-                      style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                      server.description.isNotEmpty
+                          ? server.description
+                          : 'Convite: ${server.inviteCode}',
+                      style: const TextStyle(
+                        color: HudTheme.textMuted,
+                        fontSize: 11,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1365,7 +1634,11 @@ class _HomePageViewState extends State<HomePageView> {
               // Menu de Opções / Excluir
               if (server.isCustom)
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, color: HudTheme.textMuted, size: 18),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: HudTheme.textMuted,
+                    size: 18,
+                  ),
                   tooltip: 'Remover Servidor',
                   onPressed: () => _confirmDeleteServer(context, state, server),
                 ),
@@ -1378,16 +1651,27 @@ class _HomePageViewState extends State<HomePageView> {
             children: [
               Row(
                 children: [
-                  _buildMiniBadge(Icons.tag, '$textChannelsCount', HudTheme.textMuted),
+                  _buildMiniBadge(
+                    Icons.tag,
+                    '$textChannelsCount',
+                    HudTheme.textMuted,
+                  ),
                   const SizedBox(width: 8),
-                  _buildMiniBadge(Icons.volume_up, '$voiceChannelsCount', HudTheme.green),
+                  _buildMiniBadge(
+                    Icons.volume_up,
+                    '$voiceChannelsCount',
+                    HudTheme.green,
+                  ),
                   const SizedBox(width: 8),
                   // Botão abrir detalhes do convite
                   InkWell(
                     borderRadius: BorderRadius.circular(4),
                     onTap: () => ServerInviteDialog.show(context, server),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: HudTheme.bgCard,
                         borderRadius: BorderRadius.circular(4),
@@ -1395,11 +1679,19 @@ class _HomePageViewState extends State<HomePageView> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.copy_rounded, size: 10, color: HudTheme.accent),
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 10,
+                            color: HudTheme.accent,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             server.inviteCode,
-                            style: const TextStyle(color: HudTheme.accent, fontSize: 10, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: HudTheme.accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -1411,9 +1703,14 @@ class _HomePageViewState extends State<HomePageView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isActive ? HudTheme.bgHover : badgeColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   minimumSize: const Size(64, 28),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
                 onPressed: () {
                   state.selectServer(server.id);
@@ -1421,7 +1718,10 @@ class _HomePageViewState extends State<HomePageView> {
                 },
                 child: Text(
                   isActive ? 'Ativo' : 'Acessar',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -1440,7 +1740,10 @@ class _HomePageViewState extends State<HomePageView> {
         decoration: BoxDecoration(
           color: HudTheme.bgSidebar.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: HudTheme.green.withValues(alpha: 0.4), style: BorderStyle.solid),
+          border: Border.all(
+            color: HudTheme.green.withValues(alpha: 0.4),
+            style: BorderStyle.solid,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1451,7 +1754,11 @@ class _HomePageViewState extends State<HomePageView> {
                 color: HudTheme.green.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.add_rounded, color: HudTheme.green, size: 24),
+              child: const Icon(
+                Icons.add_rounded,
+                color: HudTheme.green,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 14),
             Flexible(
@@ -1461,12 +1768,20 @@ class _HomePageViewState extends State<HomePageView> {
                 children: const [
                   Text(
                     'Criar Novo Servidor',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Estrutura padrão com canais, cargos e voz',
-                    style: TextStyle(color: HudTheme.textMuted, fontSize: 11, height: 1.35),
+                    style: TextStyle(
+                      color: HudTheme.textMuted,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
@@ -1488,7 +1803,14 @@ class _HomePageViewState extends State<HomePageView> {
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(count, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+          Text(
+            count,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -1517,11 +1839,19 @@ class _HomePageViewState extends State<HomePageView> {
         children: [
           Row(
             children: [
-              const Icon(Icons.graphic_eq_rounded, color: HudTheme.accent, size: 20),
+              const Icon(
+                Icons.graphic_eq_rounded,
+                color: HudTheme.accent,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               const Text(
                 'Salas de Voz Disponíveis',
-                style: TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  color: HudTheme.textHeader,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
               const Spacer(),
               Container(
@@ -1530,13 +1860,19 @@ class _HomePageViewState extends State<HomePageView> {
                   color: HudTheme.bgCard,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('Opus 48kHz HD', style: TextStyle(color: HudTheme.textMuted, fontSize: 10)),
+                child: const Text(
+                  'Opus 48kHz HD',
+                  style: TextStyle(color: HudTheme.textMuted, fontSize: 10),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           if (allVoiceChannels.isEmpty)
-            const Text('Nenhuma sala de voz encontrada.', style: TextStyle(color: HudTheme.textMuted, fontSize: 13))
+            const Text(
+              'Nenhuma sala de voz encontrada.',
+              style: TextStyle(color: HudTheme.textMuted, fontSize: 13),
+            )
           else
             ...allVoiceChannels.take(5).map((item) {
               final Server srv = item['server'];
@@ -1545,15 +1881,28 @@ class _HomePageViewState extends State<HomePageView> {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  color: isConnected ? HudTheme.green.withValues(alpha: 0.1) : HudTheme.bgCard,
+                  color: isConnected
+                      ? HudTheme.green.withValues(alpha: 0.1)
+                      : HudTheme.bgCard,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isConnected ? HudTheme.green.withValues(alpha: 0.35) : HudTheme.divider),
+                  border: Border.all(
+                    color: isConnected
+                        ? HudTheme.green.withValues(alpha: 0.35)
+                        : HudTheme.divider,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.volume_up_rounded, color: isConnected ? HudTheme.green : HudTheme.textMuted, size: 18),
+                    Icon(
+                      Icons.volume_up_rounded,
+                      color: isConnected ? HudTheme.green : HudTheme.textMuted,
+                      size: 18,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -1562,25 +1911,39 @@ class _HomePageViewState extends State<HomePageView> {
                           Text(
                             ch.name,
                             style: TextStyle(
-                              color: isConnected ? Colors.white : HudTheme.textNormal,
-                              fontWeight: isConnected ? FontWeight.bold : FontWeight.w600,
+                              color: isConnected
+                                  ? Colors.white
+                                  : HudTheme.textNormal,
+                              fontWeight: isConnected
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
                               fontSize: 13,
                             ),
                           ),
                           Text(
                             'Servidor: ${srv.name}  •  Limite: ${ch.userLimit} membros',
-                            style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+                            style: const TextStyle(
+                              color: HudTheme.textMuted,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isConnected ? HudTheme.bgHover : HudTheme.green,
+                        backgroundColor: isConnected
+                            ? HudTheme.bgHover
+                            : HudTheme.green,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         minimumSize: const Size(64, 30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                       ),
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.of(context);
@@ -1589,12 +1952,18 @@ class _HomePageViewState extends State<HomePageView> {
                         final conectar = !isConnected;
                         state.closeHomePage();
                         if (conectar) {
-                          reportVoiceJoinError(messenger, await state.connectVoice(ch.id));
+                          reportVoiceJoinError(
+                            messenger,
+                            await state.connectVoice(ch.id),
+                          );
                         }
                       },
                       child: Text(
                         isConnected ? 'Conectado' : 'Entrar',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -1631,7 +2000,11 @@ class _HomePageViewState extends State<HomePageView> {
               SizedBox(width: 10),
               Text(
                 'Status do Sistema & Desempenho (v${HudTheme.appVersion})',
-                style: TextStyle(color: HudTheme.textHeader, fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(
+                  color: HudTheme.textHeader,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ],
           ),
@@ -1662,7 +2035,9 @@ class _HomePageViewState extends State<HomePageView> {
                 width: 240,
                 child: _buildStatusPill(
                   title: 'Janela',
-                  status: state.isWindowFocused ? 'Em foco' : 'Sem foco · live pausada',
+                  status: state.isWindowFocused
+                      ? 'Em foco'
+                      : 'Sem foco · live pausada',
                   isGood: state.isWindowFocused,
                 ),
               ),
@@ -1673,7 +2048,11 @@ class _HomePageViewState extends State<HomePageView> {
     );
   }
 
-  Widget _buildStatusPill({required String title, required String status, required bool isGood}) {
+  Widget _buildStatusPill({
+    required String title,
+    required String status,
+    required bool isGood,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -1684,7 +2063,10 @@ class _HomePageViewState extends State<HomePageView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: HudTheme.textMuted, fontSize: 11)),
+          Text(
+            title,
+            style: const TextStyle(color: HudTheme.textMuted, fontSize: 11),
+          ),
           const SizedBox(height: 4),
           Row(
             children: [
@@ -1733,7 +2115,11 @@ class _HomePageViewState extends State<HomePageView> {
             SizedBox(width: 10),
             Text(
               'Entrar em Servidor',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -1751,17 +2137,26 @@ class _HomePageViewState extends State<HomePageView> {
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Código de convite',
-                hintStyle: const TextStyle(color: HudTheme.textMuted, fontSize: 13),
+                hintStyle: const TextStyle(
+                  color: HudTheme.textMuted,
+                  fontSize: 13,
+                ),
                 filled: true,
                 fillColor: HudTheme.bgCard,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: HudTheme.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: HudTheme.accent, width: 1.5),
+                  borderSide: const BorderSide(
+                    color: HudTheme.accent,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -1770,7 +2165,10 @@ class _HomePageViewState extends State<HomePageView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: HudTheme.textMuted),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1787,13 +2185,18 @@ class _HomePageViewState extends State<HomePageView> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       backgroundColor: HudTheme.bgSidebar,
-                      content: Text('Conectado ao servidor com o código "$code"!'),
+                      content: Text(
+                        'Conectado ao servidor com o código "$code"!',
+                      ),
                     ),
                   );
                 }
               }
             },
-            child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Entrar',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -1801,7 +2204,11 @@ class _HomePageViewState extends State<HomePageView> {
   }
 
   // --- DIALOG: CONFIRMAR EXCLUSÃO DE SERVIDOR ---
-  void _confirmDeleteServer(BuildContext context, AppState state, Server server) {
+  void _confirmDeleteServer(
+    BuildContext context,
+    AppState state,
+    Server server,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1814,7 +2221,14 @@ class _HomePageViewState extends State<HomePageView> {
           children: const [
             Icon(Icons.warning_amber_rounded, color: HudTheme.red, size: 20),
             SizedBox(width: 10),
-            Text('Remover Servidor', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              'Remover Servidor',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         content: Text(
@@ -1824,10 +2238,16 @@ class _HomePageViewState extends State<HomePageView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar', style: TextStyle(color: HudTheme.textMuted)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: HudTheme.textMuted),
+            ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: HudTheme.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: HudTheme.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               Navigator.of(ctx).pop();
               await state.deleteServer(server.id);
@@ -1840,7 +2260,10 @@ class _HomePageViewState extends State<HomePageView> {
                 );
               }
             },
-            child: const Text('Remover', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Remover',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
