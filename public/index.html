@@ -713,7 +713,7 @@
       <a href="#" class="brand">
         <img src="logo.png" alt="PapoCall Logo">
         <span class="brand-title">PapoCall</span>
-        <span class="version-tag">v1.8.0</span>
+        <span class="version-tag">v1.9.0</span>
       </a>
 
       <nav class="nav-links">
@@ -734,7 +734,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Baixar v1.8.0
+          Baixar v1.9.0
         </a>
       </div>
     </div>
@@ -760,7 +760,7 @@
           Baixar PapoCall para Windows
         </a>
         <span class="download-meta">
-          Versão Oficial 1.8.0 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
+          Versão Oficial 1.9.0 • Instalador Nativo (~18.4 MB) • Windows 10 e 11
         </span>
       </div>
     </section>
@@ -771,7 +771,7 @@
         <div class="dot red"></div>
         <div class="dot yellow"></div>
         <div class="dot green"></div>
-        <span class="showcase-title">PapoCall v1.8.0 - Central de Comando Operacional &amp; HUD Tático</span>
+        <span class="showcase-title">PapoCall v1.9.0 - Central de Comando Operacional &amp; HUD Tático</span>
       </div>
       <div class="showcase-body">
         <div class="showcase-sidebar">
@@ -898,8 +898,11 @@
         <button class="tab-btn active" onclick="filterChangelog('all', this)">
           Todas as Versões
         </button>
+        <button class="tab-btn" onclick="filterChangelog('v1.9.0', this)">
+          v1.9.0 <span class="badge-current">ATUAL</span>
+        </button>
         <button class="tab-btn" onclick="filterChangelog('v1.8.0', this)">
-          v1.8.0 <span class="badge-current">ATUAL</span>
+          v1.8.0
         </button>
         <button class="tab-btn" onclick="filterChangelog('v1.7.0', this)">
           v1.7.0
@@ -990,12 +993,47 @@
       <!-- Cartões de Releases -->
       <div class="changelog-container">
 
+        <!-- v1.9.0 -->
+        <article class="release-card latest" data-version="v1.9.0">
+          <div class="release-header">
+            <div class="release-title-wrap">
+              <span class="release-version">v1.9.0</span>
+              <span class="release-badge badge-live">Versão Atual</span>
+            </div>
+            <span class="release-date">21 de Setembro de 2026</span>
+          </div>
+          <p class="release-summary">
+            Cada pessoa da sala ganhou volume próprio, e o botão direito no nome de quem está na chamada virou o menu daquela pessoa.
+          </p>
+          <ul class="changelog-items">
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Volume por pessoa</strong>: o botão direito no nome de alguém da chamada abre o menu da pessoa, e lá está o slider do volume dela — para baixar quem fala alto sem abaixar a sala inteira. Ao lado, duas caixas: <strong>Silenciar</strong>, que tira o áudio daquela pessoa do seu ouvido, e <strong>Desativar vídeo</strong>, que para de mostrar a câmera dela na sua tela. As três escolhas são suas e ficam guardadas: o microfone do amigo continua entrando para o resto da sala, e a câmera dele continua gravando para os outros.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-novo">NOVO</span>
+              <span><strong>Câmera na barra de voz</strong>: o pé do painel esquerdo, onde você está conectado, agora tem o botão da câmera junto do de compartilhar tela — dá para ligar e desligar o vídeo sem depender do dock no meio da tela.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>Mutar e ensurdecer saíram de lá</strong>: os dois já existiam no dock da chamada, e repetidos na barra da esquerda eram dois botões para um estado só — de onde vêm as discórdias. Agora cada controle tem um lugar.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-melhoria">MELHORIA</span>
+              <span><strong>O menu cabe na janela</strong>: com o slider e as caixas, o menu do botão direito parou de caber numa janela pequena e a última linha ficava fora da tela. Ele agora rola, e inverte de lado perto da borda de baixo.</span>
+            </li>
+            <li class="changelog-item">
+              <span class="tag-type tag-correcao">NOTA</span>
+              <span><strong>O que o menu ainda não tem</strong>: nota sobre o amigo, apelido pessoal, bloquear, ignorar e &quot;silenciar voz no servidor&quot; não existem no PapoCall, e não ganharam linha decorativa. Cada um precisa de regra nova — no aparelho, no roster ou no token de voz — e aparece quando ela existir.</span>
+            </li>
+          </ul>
+        </article>
+
         <!-- v1.8.0 -->
-        <article class="release-card latest" data-version="v1.8.0">
+        <article class="release-card" data-version="v1.8.0">
           <div class="release-header">
             <div class="release-title-wrap">
               <span class="release-version">v1.8.0</span>
-              <span class="release-badge badge-live">Versão Atual</span>
             </div>
             <span class="release-date">21 de Setembro de 2026</span>
           </div>
@@ -1353,7 +1391,7 @@
             </li>
             <li class="changelog-item">
               <span class="tag-type tag-correcao">CORREÇÃO</span>
-              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.8.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
+              <span><strong>Quem está na 1.1.0, 1.1.1 ou 1.1.2 precisa instalar uma vez pelo site</strong>: o defeito estava no código que faz a instalação, então nenhuma dessas versões consegue se auto-corrigir. Baixe o instalador disponível aqui — hoje a v1.9.0 — e rode; a partir da 1.1.3 o botão do aplicativo passa a resolver sozinho, para sempre.</span>
             </li>
           </ul>
         </article>
@@ -1929,7 +1967,7 @@
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
-      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.8.0</strong></p>
+      <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.9.0</strong></p>
     </div>
   </footer>
 
