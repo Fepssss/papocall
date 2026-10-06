@@ -21,9 +21,9 @@
   "license": "MIT",
   "dependencies": {
     "jsonwebtoken": "^9.0.3",
-    "livekit-server-sdk": "^2.19.0",
-    "mqtt": "^5.15.2",
-    "ws": "^8.21.3"
+    "livekit-server-sdk": "^2.19.1",
+    "mqtt": "^5.16.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "husky": "^9.1.7"
