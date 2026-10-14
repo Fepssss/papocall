@@ -31,7 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  mqtt_client: ^10.11.11
+  mqtt_client: ^10.12.0
   provider: ^6.1.5+1
   uuid: ^4.6.0
   livekit_client: ^2.13.0
