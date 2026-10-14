@@ -44,7 +44,7 @@ dependencies:
   # extra, e `image` reduz e comprime em JPEG — um PNG de 128px pesa dezenas de
   # kilobytes e a foto viaja dentro de cada pacote de presença.
   file_picker: ^10.3.10
-  image: ^4.5.4
+  image: ^4.12.0
 
 # O flutter_webrtc do pub não dá ao Dart nenhum acesso ao gancho de processamento
 # de quadro de áudio que o libwebrtc empacotado já tem no Windows
