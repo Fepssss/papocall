@@ -167,6 +167,14 @@
       padding: 80px 0 50px;
       text-align: center;
     }
+    .hero-badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
     .badge-tactical {
       display: inline-flex;
       align-items: center;
@@ -178,8 +186,35 @@
       border: 1px solid rgba(56, 189, 248, 0.25);
       padding: 6px 14px;
       border-radius: 999px;
-      margin-bottom: 24px;
       letter-spacing: 0.5px;
+    }
+    .badge-ai {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-purple);
+      background: rgba(168, 85, 247, 0.1);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+    }
+    .badge-ai:hover {
+      background: rgba(168, 85, 247, 0.18);
+      border-color: rgba(168, 85, 247, 0.5);
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.25);
+    }
+    .badge-ai-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent-purple);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-purple);
+      animation: pulse-dot 2s infinite ease-in-out;
     }
     .badge-tactical span {
       width: 7px;
@@ -668,6 +703,58 @@
       border: 1px solid rgba(251, 146, 60, 0.35);
     }
 
+    /* AI Disclaimer Section */
+    .disclaimer-section {
+      padding: 10px 0 60px;
+    }
+    .disclaimer-card {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(17, 22, 34, 0.95) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.28);
+      border-left: 4px solid var(--accent-purple);
+      border-radius: 14px;
+      padding: 28px 32px;
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 30px rgba(168, 85, 247, 0.06);
+    }
+    .disclaimer-header {
+      margin-bottom: 14px;
+    }
+    .disclaimer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-purple);
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .disclaimer-card h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-header);
+      letter-spacing: -0.4px;
+    }
+    .disclaimer-desc {
+      font-size: 14.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .disclaimer-desc strong {
+      color: var(--text-header);
+    }
+    .disclaimer-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
     /* Footer */
     footer {
       border-top: 1px solid var(--border-subtle);
@@ -692,6 +779,27 @@
       gap: 24px;
       margin-bottom: 16px;
       font-weight: 600;
+      flex-wrap: wrap;
+    }
+    .footer-ai-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding: 7px 16px;
+      border-radius: 999px;
+      background: rgba(168, 85, 247, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.22);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .footer-ai-note strong {
+      color: var(--text-header);
+    }
+    .footer-ai-note svg {
+      color: var(--accent-purple);
+      flex-shrink: 0;
     }
 
     /* Responsividade */
@@ -724,6 +832,7 @@
           Changelog
           <span class="nav-link-badge">Novo</span>
         </a>
+        <a href="#disclaimer" class="nav-link">Aviso IA</a>
         <a href="politica-de-privacidade.html" class="nav-link">Privacidade</a>
       </nav>
 
@@ -743,8 +852,14 @@
   <main class="container">
     <!-- Hero Section -->
     <section class="hero" id="hero">
-      <div class="badge-tactical">
-        <span></span> SISTEMA OPERACIONAL NATIVO // WINDOWS 64-BIT
+      <div class="hero-badges">
+        <div class="badge-tactical">
+          <span></span> SISTEMA OPERACIONAL NATIVO // WINDOWS 64-BIT
+        </div>
+        <div class="badge-ai">
+          <span class="badge-ai-dot"></span>
+          DESENVOLVIDO POR INTELIGÊNCIA ARTIFICIAL (IA)
+        </div>
       </div>
       <h1>Comunicação de Alta Fidelidade <span>para o seu Squad.</span></h1>
       <p>
@@ -2183,6 +2298,27 @@
 
       </div>
     </section>
+
+    <!-- Seção de Aviso Legal / Disclaimer de IA -->
+    <section class="disclaimer-section" id="disclaimer">
+      <div class="disclaimer-card">
+        <div class="disclaimer-header">
+          <div class="disclaimer-badge">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            </svg>
+            AVISO LEGAL &amp; NOTA DE TRANSPARÊNCIA
+          </div>
+          <h2>Projeto Desenvolvido por Inteligência Artificial (IA)</h2>
+        </div>
+        <p class="disclaimer-desc">
+          O <strong>PapoCall</strong> &mdash; compreendendo toda a sua arquitetura de software, aplicativo nativo Windows em Flutter, protocolos de voz LiveKit WebRTC, criptografia ponta a ponta E2EE AES-256-GCM, infraestrutura e este site &mdash; foi inteiramente idealizado, concebido e programado por <strong>Inteligência Artificial (IA)</strong> sob orientação e supervisão humana.
+        </p>
+        <p class="disclaimer-sub">
+          // STATUS: PROJETO EXPERIMENTAL CRIADO POR IA &bull; TOTALMENTE FUNCIONAL &bull; CÓDIGO ABERTO E AUDITÁVEL
+        </p>
+      </div>
+    </section>
   </main>
 
   <!-- Footer -->
@@ -2192,12 +2328,28 @@
         <a href="#hero">Início</a>
         <a href="#features">Recursos</a>
         <a href="#changelog">Changelog</a>
+        <a href="#disclaimer">Aviso de IA</a>
         <a href="downloads/PapoCall-Setup.exe" download="PapoCall-Setup.exe">Download Oficial Windows</a>
         <a href="licencas.txt">Licenças de terceiros</a>
         <a href="politica-de-privacidade.html">Política de privacidade</a>
       </div>
       <p>&copy; 2026 <strong>PapoCall</strong>. Todos os direitos reservados. Aplicação desktop nativa Windows 64-bit.</p>
       <p style="margin-top: 6px;">Construído com Flutter, LiveKit Cloud e Segurança Tática • Versão <strong>1.10.2</strong></p>
+      <div class="footer-ai-note">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+          <rect x="9" y="9" width="6" height="6"></rect>
+          <line x1="9" y1="1" x2="9" y2="4"></line>
+          <line x1="15" y1="1" x2="15" y2="4"></line>
+          <line x1="9" y1="20" x2="9" y2="23"></line>
+          <line x1="15" y1="20" x2="15" y2="23"></line>
+          <line x1="20" y1="9" x2="23" y2="9"></line>
+          <line x1="20" y1="14" x2="23" y2="14"></line>
+          <line x1="1" y1="9" x2="4" y2="9"></line>
+          <line x1="1" y1="14" x2="4" y2="14"></line>
+        </svg>
+        <span><strong>Aviso de IA:</strong> O PapoCall é um software experimental desenvolvido integralmente por Inteligência Artificial.</span>
+      </div>
     </div>
   </footer>
 
