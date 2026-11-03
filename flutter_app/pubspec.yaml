@@ -38,7 +38,7 @@ dependencies:
   ffi: ^2.2.0
   flutter_webrtc: ^1.6.2+hotfix.3
   http: ^1.6.0
-  crypto: ^3.0.7
+  crypto: ^3.0.8
   cryptography: ^2.9.0
   # Foto de perfil: `file_picker` abre o diálogo nativo do Windows sem DLL
   # extra, e `image` reduz e comprime em JPEG — um PNG de 128px pesa dezenas de
